@@ -5,11 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-03-11
+
+### Fixed
+- **CI/CD Build**: Added `libunwind-dev` to the release workflow to solve build issues.
+
 ## [1.0.2] - 2026-03-11
 
 ### Fixed
-- **Linux AppImage**: Integrated GStreamer bundling fix in CI/CD workflow to ensure audio playback works on systems without pre-installed GStreamer plugins (e.g., Arch, CachyOS).
-- **CI/CD Reliability**: Set `APPIMAGE_EXTRACT_AND_RUN=1` to prevent FUSE-related issues during the AppImage build process.
+- **Linux AppImage**: Integrated GStreamer bundling fix in CI/CD workflow.
+- **CI/CD Reliability**: Set `APPIMAGE_EXTRACT_AND_RUN=1` to prevent FUSE-related issues.
 
 ## [1.0.1] - 2026-03-11
 
