@@ -24,15 +24,21 @@ Linux (drag & drop cursor feedback): Due to a WebKitGTK limitation, the drag cur
 
 ## ✨ Features
 
-- 🎨 **Gorgeous UI**: Deeply integrated Catppuccin themes (Mocha & Latte) with smooth glassmorphism effects and micro-animations.
+- 🎨 **Gorgeous UI**: 8 deeply integrated themes (Catppuccin series + Nord series) with smooth glassmorphism effects and micro-animations.
 - ⚡ **Blazing Fast**: Built with Rust & Tauri, resulting in minimal RAM usage compared to typical Electron apps.
-- 🌍 **Internationalization (i18n)**: Fully translated into English and German (v1.0.0).
+- 🌍 **Internationalization (i18n)**: Fully translated into English and German.
 - 📻 **Live "Now Playing"**: See what other users on your server are currently listening to in real-time.
 - 🎵 **Last.fm Scrobbling**: Full integration for scrobbling your tracks via the Navidrome server.
-- 💾 **Local Caching**: Fast loading times with customizable image caching thresholds.
-- 💿 **Album & Artist Views**: Beautiful grid displays and detailed artist pages with related albums.
+- 💾 **IndexedDB Caching**: Ultra-fast loading times with persistent IndexedDB image caching for cover art and artist images.
+- 📀 **Album Downloads**: Support for downloading entire albums directly to your local machine.
+- 💿 **Album & Artist Views**: Beautiful grid displays and detailed artist pages with related albums and color-coded initial avatars for fast browsing.
 - 🎛️ **Queue Management**: Drag & drop support, playlist saving, and loading directly built into the queue. Server-side queue synchronization is fully supported.
-- 🖥️ **Cross-Platform**: Available natively for Windows, macOS, and Linux.
+- 🔄 **Update Notifications**: Built-in update checker that notifies you when a new version is available on GitHub.
+- 🖥️ **Cross-Platform**: Available natively for Windows, macOS, and Linux (including Wayland support).
+
+## ● Known Limitations
+
+- **Linux (drag & drop cursor feedback)**: Due to a WebKitGTK limitation, the drag cursor does not reflect the drop operation type — it may appear as a "forbidden" symbol or show no indicator at all, depending on the desktop environment. Drag and drop itself works correctly.
 
 ## 🛡️ Security
 
