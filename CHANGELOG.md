@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-03-18
+
+### Added
+
+#### 10-Band Graphic Equalizer
+- Full **10-band graphic EQ** implemented entirely in the Rust audio engine using biquad peak filters (31 Hz – 16 kHz). Gains adjustable ±12 dB per band.
+- EQ is processed in the audio pipeline via `EqSource<S>` — a custom `rodio::Source` wrapper that applies cascaded biquad filters in real-time.
+- Filter coefficients update smoothly on every 1024-sample block without audio interruption.
+- **Seek support**: `EqSource::try_seek()` implemented — filter state is reset on seek to prevent clicks/artefacts. This also **fixes waveform seek**, which had silently broken when the EQ was introduced (rodio returned `SeekError::NotSupported` without the impl).
+- **10 built-in presets**: Flat, Bass Boost, Treble Boost, Rock, Pop, Jazz, Classical, Electronic, Vocal, Acoustic.
+- Custom presets: save, name, and delete your own presets.
+- EQ state persisted via `psysonic-eq` localStorage key (gains, enabled, active preset, custom presets).
+- New `audio_set_eq` Tauri command; settings synced to Rust on startup via `eqStore.syncToRust()`.
+
+#### Connection Indicator
+- **LED indicator** in the header bar (green = connected, red = disconnected, pulsing = checking). Sits between the search bar and the Now Playing dropdown.
+- Shows server name and LAN/WAN status next to the LED.
+- **Offline overlay**: when the server is unreachable, a full-content-area overlay appears with a retry button.
+- `useConnectionStatus` hook pings the active server periodically and exposes `status`, `isRetrying`, `retry`, `isLan`, and `serverName`.
+
+#### Now Playing Page
+- New `/now-playing` route and `NowPlayingPage` component — accessible from the sidebar.
+
+### Fixed
+
+#### Waveform Seek (Player Bar)
+- **Drag out of canvas no longer breaks seeking**: `mousemove` and `mouseup` events are now registered on `window` (not the canvas element), so dragging fast across other elements still updates playback position correctly.
+- **Stale closure fix**: `trackId` and `seek` function are kept in refs so the window-level handlers always see the current values.
+
+### Changed
+
+#### App Icon
+- New app icon (`public/logo-psysonic.png`) across all platforms — Login page, Sidebar, Settings About section, README header, and all generated Tauri platform icons (Windows ICO, macOS ICNS, Linux PNGs, Android, iOS).
+
 ## [1.4.5] - 2026-03-17
 
 ### Changed

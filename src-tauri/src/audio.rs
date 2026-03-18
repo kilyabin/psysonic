@@ -1,11 +1,137 @@
 use std::io::Cursor;
 use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
+use biquad::{Biquad, Coefficients, DirectForm2Transposed, ToHertz, Type as FilterType};
 use rodio::{Decoder, Sink, Source};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
+
+// ─── 10-Band Graphic Equalizer ────────────────────────────────────────────────
+
+const EQ_BANDS_HZ: [f32; 10] = [31.0, 62.0, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0];
+const EQ_Q: f32 = 1.41;
+const EQ_CHECK_INTERVAL: usize = 1024;
+
+struct EqSource<S: Source<Item = f32>> {
+    inner: S,
+    sample_rate: u32,
+    channels: u16,
+    gains: Arc<[AtomicU32; 10]>,
+    enabled: Arc<AtomicBool>,
+    filters: [[DirectForm2Transposed<f32>; 2]; 10],
+    current_gains: [f32; 10],
+    sample_counter: usize,
+    channel_idx: usize,
+}
+
+impl<S: Source<Item = f32>> EqSource<S> {
+    fn new(inner: S, gains: Arc<[AtomicU32; 10]>, enabled: Arc<AtomicBool>) -> Self {
+        let sample_rate = inner.sample_rate();
+        let channels = inner.channels();
+        let filters = std::array::from_fn(|band| {
+            let freq = EQ_BANDS_HZ[band].clamp(20.0, (sample_rate as f32 / 2.0) - 100.0);
+            std::array::from_fn(|_| {
+                let coeffs = Coefficients::<f32>::from_params(
+                    FilterType::PeakingEQ(0.0),
+                    (sample_rate as f32).hz(),
+                    freq.hz(),
+                    EQ_Q,
+                ).unwrap_or_else(|_| Coefficients::<f32>::from_params(
+                    FilterType::PeakingEQ(0.0),
+                    (sample_rate as f32).hz(),
+                    1000.0f32.hz(),
+                    EQ_Q,
+                ).unwrap());
+                DirectForm2Transposed::<f32>::new(coeffs)
+            })
+        });
+        Self {
+            inner, sample_rate, channels, gains, enabled,
+            filters,
+            current_gains: [0.0; 10],
+            sample_counter: 0,
+            channel_idx: 0,
+        }
+    }
+
+    fn refresh_if_needed(&mut self) {
+        for band in 0..10 {
+            let gain_db = f32::from_bits(self.gains[band].load(Ordering::Relaxed));
+            if (gain_db - self.current_gains[band]).abs() > 0.01 {
+                self.current_gains[band] = gain_db;
+                let freq = EQ_BANDS_HZ[band].clamp(20.0, (self.sample_rate as f32 / 2.0) - 100.0);
+                if let Ok(coeffs) = Coefficients::<f32>::from_params(
+                    FilterType::PeakingEQ(gain_db),
+                    (self.sample_rate as f32).hz(),
+                    freq.hz(),
+                    EQ_Q,
+                ) {
+                    for ch in 0..2 {
+                        self.filters[band][ch].update_coefficients(coeffs);
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl<S: Source<Item = f32>> Iterator for EqSource<S> {
+    type Item = f32;
+
+    fn next(&mut self) -> Option<f32> {
+        let sample = self.inner.next()?;
+
+        if self.sample_counter % EQ_CHECK_INTERVAL == 0 {
+            self.refresh_if_needed();
+        }
+        self.sample_counter = self.sample_counter.wrapping_add(1);
+
+        if !self.enabled.load(Ordering::Relaxed) {
+            self.channel_idx = (self.channel_idx + 1) % self.channels as usize;
+            return Some(sample);
+        }
+
+        let ch = self.channel_idx.min(1);
+        self.channel_idx = (self.channel_idx + 1) % self.channels as usize;
+
+        let mut s = sample;
+        for band in 0..10 {
+            s = self.filters[band][ch].run(s);
+        }
+        Some(s.clamp(-1.0, 1.0))
+    }
+}
+
+impl<S: Source<Item = f32>> Source for EqSource<S> {
+    fn current_frame_len(&self) -> Option<usize> { self.inner.current_frame_len() }
+    fn channels(&self) -> u16 { self.channels }
+    fn sample_rate(&self) -> u32 { self.sample_rate }
+    fn total_duration(&self) -> Option<Duration> { self.inner.total_duration() }
+
+    fn try_seek(&mut self, pos: Duration) -> Result<(), rodio::source::SeekError> {
+        // Reset biquad filter state to avoid glitches/clicks after seek.
+        for band in 0..10 {
+            let gain_db = f32::from_bits(self.gains[band].load(Ordering::Relaxed));
+            self.current_gains[band] = gain_db;
+            let freq = EQ_BANDS_HZ[band].clamp(20.0, (self.sample_rate as f32 / 2.0) - 100.0);
+            if let Ok(coeffs) = Coefficients::<f32>::from_params(
+                FilterType::PeakingEQ(gain_db),
+                (self.sample_rate as f32).hz(),
+                freq.hz(),
+                EQ_Q,
+            ) {
+                for ch in 0..2 {
+                    self.filters[band][ch] = DirectForm2Transposed::<f32>::new(coeffs);
+                }
+            }
+        }
+        self.channel_idx = 0;
+        self.sample_counter = 0;
+        self.inner.try_seek(pos)
+    }
+}
 
 // ─── Debug logger ─────────────────────────────────────────────────────────────
 
@@ -19,6 +145,8 @@ pub struct AudioEngine {
     /// bails out if this counter has moved on, preventing stale events.
     pub generation: Arc<AtomicU64>,
     pub http_client: reqwest::Client,
+    pub eq_gains: Arc<[AtomicU32; 10]>,
+    pub eq_enabled: Arc<AtomicBool>,
 }
 
 pub struct AudioCurrent {
@@ -85,6 +213,8 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
             .timeout(Duration::from_secs(30))
             .build()
             .unwrap_or_default(),
+        eq_gains: Arc::new(std::array::from_fn(|_| AtomicU32::new(0f32.to_bits()))),
+        eq_enabled: Arc::new(AtomicBool::new(false)),
     };
 
     (engine, thread)
@@ -184,7 +314,12 @@ pub async fn audio_play(
     // ── Create sink and start playback ────────────────────────────────────────
     let sink = Sink::try_new(&*state.stream_handle).map_err(|e| e.to_string())?;
     sink.set_volume(volume.clamp(0.0, 1.0));
-    sink.append(decoder);
+    let eq_source = EqSource::new(
+        decoder.convert_samples::<f32>(),
+        state.eq_gains.clone(),
+        state.eq_enabled.clone(),
+    );
+    sink.append(eq_source);
 
     {
         let mut cur = state.current.lock().unwrap();
@@ -318,5 +453,13 @@ pub fn audio_set_volume(volume: f32, state: State<'_, AudioEngine>) {
     let cur = state.current.lock().unwrap();
     if let Some(sink) = &cur.sink {
         sink.set_volume(volume.clamp(0.0, 1.0));
+    }
+}
+
+#[tauri::command]
+pub fn audio_set_eq(gains: [f32; 10], enabled: bool, state: State<'_, AudioEngine>) {
+    state.eq_enabled.store(enabled, Ordering::Relaxed);
+    for (i, &gain) in gains.iter().enumerate() {
+        state.eq_gains[i].store(gain.clamp(-12.0, 12.0).to_bits(), Ordering::Relaxed);
     }
 }

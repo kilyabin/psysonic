@@ -161,7 +161,7 @@ export default function Artists() {
                 <div className="artist-card-avatar artist-card-avatar-initial" style={{ borderColor: color }}>
                   <span style={{ color }}>{nameInitial(artist.name)}</span>
                 </div>
-                <div>
+                <div style={{ textAlign: 'center' }}>
                   <div className="artist-card-name">{artist.name}</div>
                   {artist.albumCount != null && (
                     <div className="artist-card-meta">{t('artists.albumCount', { count: artist.albumCount })}</div>

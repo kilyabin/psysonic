@@ -169,6 +169,15 @@ export async function getRandomSongs(size = 50, genre?: string, timeout = 15000)
   return data.randomSongs?.song ?? [];
 }
 
+export async function getSong(id: string): Promise<SubsonicSong | null> {
+  try {
+    const data = await api<{ song: SubsonicSong }>('getSong.view', { id });
+    return data.song ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getAlbum(id: string): Promise<{ album: SubsonicAlbum; songs: SubsonicSong[] }> {
   const data = await api<{ album: SubsonicAlbum & { song: SubsonicSong[] } }>('getAlbum.view', { id });
   const { song, ...album } = data.album;

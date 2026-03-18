@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="public/logo.png" alt="Psysonic Logo" width="200"/>
+  <img src="public/logo-psysonic.png" alt="Psysonic Logo" width="200"/>
   <h1>Psysonic</h1>
   <p><strong>A modern, gorgeous, and blazing fast desktop client for Subsonic API compatible music servers (Navidrome, Gonic, etc.).</strong></p>
   

@@ -6,7 +6,7 @@ import { pingWithCredentials } from '../api/subsonic';
 import { useTranslation } from 'react-i18next';
 
 const PsysonicLogo = () => (
-  <img src="/logo.png" width="64" height="64" alt="Psysonic" style={{ borderRadius: 18 }} />
+  <img src="/logo-psysonic.png" width="64" height="64" alt="Psysonic" style={{ borderRadius: 18 }} />
 );
 
 export default function Login() {

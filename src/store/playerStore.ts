@@ -47,6 +47,7 @@ interface PlayerState {
 
   isQueueVisible: boolean;
   toggleQueue: () => void;
+  setQueueVisible: (v: boolean) => void;
 
   isFullscreenOpen: boolean;
   toggleFullscreen: () => void;
@@ -198,6 +199,7 @@ export const usePlayerStore = create<PlayerState>()(
       })),
 
       toggleQueue: () => set(state => ({ isQueueVisible: !state.isQueueVisible })),
+      setQueueVisible: (v: boolean) => set({ isQueueVisible: v }),
       toggleFullscreen: () => set(state => ({ isFullscreenOpen: !state.isFullscreenOpen })),
 
       toggleRepeat: () => set(state => {

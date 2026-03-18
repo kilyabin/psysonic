@@ -1,15 +1,16 @@
 import React, { useEffect, useState } from 'react';
+import { usePlayerStore } from '../store/playerStore';
 import { open } from '@tauri-apps/plugin-shell';
 import { version as appVersion } from '../../package.json';
 import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Disc3, Users, Music4, Radio, Settings, Heart, BarChart3, Shuffle, ListMusic,
-  PanelLeftClose, PanelLeft, HelpCircle, Dices, ArrowUpCircle
+  PanelLeftClose, PanelLeft, HelpCircle, Dices, ArrowUpCircle, AudioLines
 } from 'lucide-react';
 
 const PsysonicLogo = () => (
-  <img src="/logo.png" alt="Psysonic Logo" width="36" height="36" style={{ borderRadius: '8px' }} />
+  <img src="/logo-psysonic.png" alt="Psysonic Logo" width="36" height="36" style={{ borderRadius: '8px' }} />
 );
 
 const navItems = [
@@ -68,6 +69,8 @@ export default function Sidebar({
   toggleCollapse?: () => void;
 }) {
   const { t } = useTranslation();
+  const isPlaying   = usePlayerStore(s => s.isPlaying);
+  const currentTrack = usePlayerStore(s => s.currentTrack);
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
 
   useEffect(() => {
@@ -123,7 +126,21 @@ export default function Sidebar({
           </NavLink>
         ))}
 
-        {!isCollapsed && <span className="nav-section-label" style={{ marginTop: 'auto' }}>{t('sidebar.system')}</span>}
+        {/* Now Playing — special styled */}
+        <NavLink
+          to="/now-playing"
+          className={({ isActive }) => `nav-link nav-link-nowplaying ${isActive ? 'active' : ''}`}
+          title={isCollapsed ? t('sidebar.nowPlaying') : undefined}
+          style={{ marginTop: 'auto' }}
+        >
+          <span className="nav-np-icon-wrap">
+            <AudioLines size={isCollapsed ? 22 : 18} />
+            {isPlaying && currentTrack && <span className="nav-np-dot" />}
+          </span>
+          {!isCollapsed && <span>{t('sidebar.nowPlaying')}</span>}
+        </NavLink>
+
+        {!isCollapsed && <span className="nav-section-label">{t('sidebar.system')}</span>}
         {latestVersion && <UpdateToast isCollapsed={isCollapsed} latestVersion={latestVersion} />}
         <NavLink
           to="/statistics"

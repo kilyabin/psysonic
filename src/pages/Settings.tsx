@@ -10,6 +10,7 @@ import { useThemeStore } from '../store/themeStore';
 import { pingWithCredentials } from '../api/subsonic';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useTranslation } from 'react-i18next';
+import Equalizer from '../components/Equalizer';
 
 const AUDIOBOOK_GENRES_DISPLAY = ['Hörbuch', 'Hoerbuch', 'Hörspiel', 'Hoerspiel', 'Audiobook', 'Audio Book', 'Spoken Word', 'Spokenword', 'Podcast', 'Kapitel', 'Thriller', 'Krimi', 'Speech', 'Fantasy', 'Comedy', 'Literature'];
 
@@ -276,6 +277,17 @@ export default function Settings() {
         )}
       </section>
 
+      {/* Equalizer */}
+      <section className="settings-section">
+        <div className="settings-section-header">
+          <Sliders size={18} />
+          <h2>{t('settings.eqTitle')}</h2>
+        </div>
+        <div className="settings-card">
+          <Equalizer />
+        </div>
+      </section>
+
       {/* Last.fm */}
       <section className="settings-section">
         <div className="settings-section-header">
@@ -460,7 +472,7 @@ export default function Settings() {
         </div>
         <div className="settings-card settings-about">
           <div className="settings-about-header">
-            <img src="/logo.png" width={52} height={52} alt="Psysonic" style={{ borderRadius: 14 }} />
+            <img src="/logo-psysonic.png" width={52} height={52} alt="Psysonic" style={{ borderRadius: 14 }} />
             <div>
               <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                 Psysonic

@@ -26,11 +26,16 @@ import Playlists from './pages/Playlists';
 import Help from './pages/Help';
 import RandomAlbums from './pages/RandomAlbums';
 import SearchResults from './pages/SearchResults';
+import NowPlayingPage from './pages/NowPlaying';
 import FullscreenPlayer from './components/FullscreenPlayer';
 import ContextMenu from './components/ContextMenu';
+import ConnectionIndicator from './components/ConnectionIndicator';
+import OfflineOverlay from './components/OfflineOverlay';
+import { useConnectionStatus } from './hooks/useConnectionStatus';
 import { useAuthStore } from './store/authStore';
 import { usePlayerStore, initAudioListeners } from './store/playerStore';
 import { useThemeStore } from './store/themeStore';
+import { useEqStore } from './store/eqStore';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isLoggedIn, servers, activeServerId } = useAuthStore();
@@ -47,10 +52,15 @@ function AppShell() {
   const initializeFromServerQueue = usePlayerStore(s => s.initializeFromServerQueue);
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const isPlaying = usePlayerStore(s => s.isPlaying);
+  const { status: connStatus, isRetrying: connRetrying, retry: connRetry, isLan, serverName } = useConnectionStatus();
 
   useEffect(() => {
     initializeFromServerQueue();
   }, [initializeFromServerQueue]);
+
+  useEffect(() => {
+    useEqStore.getState().syncToRust();
+  }, []);
 
   useEffect(() => {
     const fn = async () => {
@@ -127,6 +137,7 @@ function AppShell() {
         <header className="content-header">
           <LiveSearch />
           <div className="spacer" />
+          <ConnectionIndicator status={connStatus} isLan={isLan} serverName={serverName} />
           <NowPlayingDropdown />
           <button
             className="collapse-btn"
@@ -136,7 +147,14 @@ function AppShell() {
             {isQueueVisible ? <PanelRightClose size={24} /> : <PanelRight size={24} />}
           </button>
         </header>
-        <div className="content-body" style={{ padding: 0 }}>
+        <div className="content-body" style={{ padding: 0, position: 'relative' }}>
+          {connStatus === 'disconnected' && (
+            <OfflineOverlay
+              serverName={serverName}
+              onRetry={connRetry}
+              isChecking={connRetrying}
+            />
+          )}
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/albums" element={<Albums />} />
@@ -151,6 +169,7 @@ function AppShell() {
             <Route path="/label/:name" element={<LabelAlbums />} />
             <Route path="/search" element={<SearchResults />} />
             <Route path="/statistics" element={<Statistics />} />
+            <Route path="/now-playing" element={<NowPlayingPage />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/help" element={<Help />} />
           </Routes>

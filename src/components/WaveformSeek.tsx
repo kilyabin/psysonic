@@ -156,25 +156,37 @@ export default function WaveformSeek({ trackId }: Props) {
     return () => ro.disconnect();
   }, []);
 
-  const seekFromX = (clientX: number) => {
-    const canvas = canvasRef.current;
-    if (!canvas || !trackId) return;
-    const rect = canvas.getBoundingClientRect();
-    seek(Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)));
-  };
+  const trackIdRef = useRef(trackId);
+  trackIdRef.current = trackId;
+  const seekRef = useRef(seek);
+  seekRef.current = seek;
 
   useEffect(() => {
-    const up = () => { isDragging.current = false; };
-    window.addEventListener('mouseup', up);
-    return () => window.removeEventListener('mouseup', up);
+    const seekFromX = (clientX: number) => {
+      const canvas = canvasRef.current;
+      if (!canvas || !trackIdRef.current) return;
+      const rect = canvas.getBoundingClientRect();
+      seekRef.current(Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)));
+    };
+    const onMove = (e: MouseEvent) => { if (isDragging.current) seekFromX(e.clientX); };
+    const onUp   = () => { isDragging.current = false; };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup',   onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup',   onUp);
+    };
   }, []);
 
   return (
     <canvas
       ref={canvasRef}
       style={{ width: '100%', height: '24px', cursor: trackId ? 'pointer' : 'default', display: 'block' }}
-      onMouseDown={e => { isDragging.current = true; seekFromX(e.clientX); }}
-      onMouseMove={e => { if (isDragging.current) seekFromX(e.clientX); }}
+      onMouseDown={e => {
+        isDragging.current = true;
+        const rect = e.currentTarget.getBoundingClientRect();
+        seekRef.current(Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)));
+      }}
     />
   );
 }
