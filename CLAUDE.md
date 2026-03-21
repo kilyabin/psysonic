@@ -146,6 +146,9 @@ Add a function to `src/api/subsonic.ts` using the `api<T>()` helper. The helper 
 | `tokyo-night` | Tokyo Night | dark blue | Blue `#7aa2f7` |
 | `tokyo-night-storm` | Tokyo Night | stormy blue-gray | Blue `#7aa2f7` |
 | `tokyo-night-light` | Tokyo Night | light | Blue `#7aa2f7` |
+| `spotless` | Streaming Series | flat dark, Spotify-inspired | Green `#1ED760` |
+| `dzr0` | Streaming Series | flat light, Deezer-inspired | Purple `#A238FF` |
+| `cupertino-beats` | Streaming Series | Apple Music dark, glassmorphism | Red `#fa243c` |
 
 **Light-theme gotcha**: The Hero and Fullscreen Player sit on top of album-art backgrounds with dark overlays. Their text colors are hardcoded white (not `var(--text-primary)`) so they stay readable in light themes (Latte, Nord Snowstorm).
 
@@ -207,7 +210,7 @@ The workflow is split into three jobs: `create-release` (creates the GitHub Rele
 - **AlbumDetail**: Thin orchestrator (`src/pages/AlbumDetail.tsx`) — state, handlers, `useCachedUrl` hook, renders `AlbumHeader` + `AlbumTrackList` + related albums section. Logic is split into the two extracted components.
 - **Playlists page**: List layout (not card grid) with sort buttons (Name / Tracks / Duration, toggle asc/desc) and a filter input. Play icon and delete button appear on row hover.
 - **Statistics page**: Library stat cards (Artists / Albums / Songs), Recently Played, Most Played, Highest Rated. Last.fm section (when configured): top artists/albums/tracks with period filter + recent scrobbles. No genre chart (removed). Data loaded in parallel via `Promise.allSettled`.
-- **Context menu**: `song` and `queue-item` types both have "Go to Album" (`Disc3` icon, shown only when `song.albumId` exists) and "Favorite" options. Context menu type union: `'song' | 'album' | 'artist' | 'queue-item' | 'album-song'`.
+- **Context menu**: `song` and `queue-item` types both have "Go to Album" (`Disc3` icon, shown only when `song.albumId` exists) and "Favorite/Unfavorite" toggle. Context menu type union: `'song' | 'album' | 'artist' | 'queue-item' | 'album-song'`. Starred state is read from `item.starred` (set when the item was loaded) and overridden by `starredOverrides` in `playerStore` (updated immediately on star/unstar so the UI reflects the change without a page reload). `Track` interface includes `starred?: string` — propagated via `songToTrack()` and all inline track-object construction sites.
 - **QueuePanel meta box**: Shows title (no link) → artist (linked to `/artist/:id`) → album (linked to `/album/:id`) → year (if available). Cover art is 90×90 px, top-aligned with codec/bitrate frosted-glass overlay at bottom. Default panel width 340 px. Header: title 16px/700, song count + total duration inline in `--accent` colour.
 - **Queue toolbar**: 6 round buttons (`queue-round-btn`, `border-radius: 50%`) centred in a row. Active state: `background: var(--accent); color: var(--ctp-base)`. Crossfade (≋) button: inactive click → enable + open popover; active click → disable + close. Popover: `position: absolute; top: calc(100% + 10px); right: 0; width: 170px` — right-aligned to prevent viewport overflow.
 - **Queue hover**: Queue items use `.context-active` CSS class when their context menu is open, keeping the hover highlight visible.
@@ -222,4 +225,6 @@ The workflow is split into three jobs: `create-release` (creates the GitHub Rele
 - **Last.fm API key**: Stored in `.env` as `VITE_LASTFM_API_KEY` / `VITE_LASTFM_API_SECRET`. Bundled into the JS at build time (Vite). Not in git. For desktop apps this is acceptable — Last.fm's own docs acknowledge client-side keys can't be truly hidden.
 - **NowPlayingDropdown refresh**: `spinning` state is separate from `loading` — button is always clickable. Spin lasts min 600 ms via `setTimeout`. Background poll (`loading`) does not block the button.
 - **CoverLightbox**: Shared component (`src/components/CoverLightbox.tsx`). Props: `{ src, alt, onClose }`. ESC + overlay click to close. Used in `AlbumHeader` (album cover) and `ArtistDetail` (artist avatar, wrapped in `.artist-detail-avatar-btn`).
-- **Version**: 1.9.0
+- **Home page**: Section order: recent → discover → artist discovery (pill-buttons, no images) → starred → mostPlayed. Artist discovery uses `getArtists()` full list + client-side Fisher-Yates shuffle (16 random), rendered as `artist-ext-link` pill-buttons (same as ArtistDetail "Similar Artists") — no image loading, no performance impact.
+- **CoverLightbox + EQ popup**: Both use `createPortal(…, document.body)` to escape `backdrop-filter` CSS containing-block issues on the player bar and other ancestors.
+- **Version**: 1.10.0

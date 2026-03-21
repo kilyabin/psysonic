@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Music,
   Square, Repeat, Repeat1, Maximize2, SlidersHorizontal, X, Heart
@@ -175,8 +176,8 @@ export default function PlayerBar() {
         />
       </div>
 
-      {/* EQ Popup */}
-      {eqOpen && (
+      {/* EQ Popup — rendered via portal to avoid backdrop-filter containing-block issue */}
+      {eqOpen && createPortal(
         <>
           <div className="eq-popup-backdrop" onClick={() => setEqOpen(false)} />
           <div className="eq-popup">
@@ -188,7 +189,8 @@ export default function PlayerBar() {
             </div>
             <Equalizer />
           </div>
-        </>
+        </>,
+        document.body
       )}
 
     </footer>

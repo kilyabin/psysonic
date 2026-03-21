@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import Hero from '../components/Hero';
 import AlbumRow from '../components/AlbumRow';
-import { getAlbumList, SubsonicAlbum } from '../api/subsonic';
+import { getAlbumList, getArtists, SubsonicAlbum, SubsonicArtist } from '../api/subsonic';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 
 export default function Home() {
   const [starred, setStarred] = useState<SubsonicAlbum[]>([]);
@@ -10,20 +11,29 @@ export default function Home() {
   const [random, setRandom] = useState<SubsonicAlbum[]>([]);
   const [heroAlbums, setHeroAlbums] = useState<SubsonicAlbum[]>([]);
   const [mostPlayed, setMostPlayed] = useState<SubsonicAlbum[]>([]);
+  const [randomArtists, setRandomArtists] = useState<SubsonicArtist[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
       getAlbumList('starred', 12).catch(() => []),
       getAlbumList('newest', 12).catch(() => []),
-      getAlbumList('random', 20).catch(() => []),   // fetch 20 — split between Hero and Discover
+      getAlbumList('random', 20).catch(() => []),
       getAlbumList('frequent', 12).catch(() => []),
-    ]).then(([s, n, r, f]) => {
+      getArtists().catch(() => []),
+    ]).then(([s, n, r, f, artists]) => {
       setStarred(s);
       setRecent(n);
       setHeroAlbums(r.slice(0, 8));
       setRandom(r.slice(8));
       setMostPlayed(f);
+      // Pick 16 random artists via Fisher-Yates shuffle
+      const shuffled = [...artists];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      setRandomArtists(shuffled.slice(0, 16));
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
@@ -35,17 +45,15 @@ export default function Home() {
   ) => {
     try {
       const more = await getAlbumList(type, 12, currentList.length);
-      // Ensure we don't append duplicates if the API returns them
       const newItems = more.filter(m => !currentList.find(c => c.id === m.id));
-      if (newItems.length > 0) {
-        setter(prev => [...prev, ...newItems]);
-      }
+      if (newItems.length > 0) setter(prev => [...prev, ...newItems]);
     } catch (e) {
       console.error('Failed to load more', e);
     }
   };
 
   const { t } = useTranslation();
+  const navigate = useNavigate();
 
   return (
     <div className="animate-fade-in">
@@ -58,31 +66,49 @@ export default function Home() {
           </div>
         ) : (
           <>
+            <AlbumRow
+              title={t('home.recent')}
+              albums={recent}
+              onLoadMore={() => loadMore('newest', recent, setRecent)}
+              moreText={t('home.loadMore')}
+            />
+            <AlbumRow
+              title={t('home.discover')}
+              albums={random}
+              onLoadMore={() => loadMore('random', random, setRandom)}
+              moreText={t('home.discoverMore')}
+            />
+            {randomArtists.length > 0 && (
+              <section className="album-row-section">
+                <div className="album-row-header">
+                  <h2 className="section-title" style={{ marginBottom: 0 }}>{t('home.discoverArtists')}</h2>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  {randomArtists.map(a => (
+                    <button key={a.id} className="artist-ext-link" onClick={() => navigate(`/artist/${a.id}`)}>
+                      {a.name}
+                    </button>
+                  ))}
+                  <button className="artist-ext-link" onClick={() => navigate('/artists')}
+                    style={{ opacity: 0.6 }}>
+                    {t('home.discoverArtistsMore')} →
+                  </button>
+                </div>
+              </section>
+            )}
             {starred.length > 0 && (
-              <AlbumRow 
-                title={t('home.starred')} 
-                albums={starred} 
+              <AlbumRow
+                title={t('home.starred')}
+                albums={starred}
                 onLoadMore={() => loadMore('starred', starred, setStarred)}
-                moreText={t('home.loadMore')} 
+                moreText={t('home.loadMore')}
               />
             )}
-            <AlbumRow 
-              title={t('home.recent')} 
-              albums={recent} 
-              onLoadMore={() => loadMore('newest', recent, setRecent)}
-              moreText={t('home.loadMore')} 
-            />
-            <AlbumRow 
-              title={t('home.mostPlayed')} 
-              albums={mostPlayed} 
+            <AlbumRow
+              title={t('home.mostPlayed')}
+              albums={mostPlayed}
               onLoadMore={() => loadMore('frequent', mostPlayed, setMostPlayed)}
-              moreText={t('home.loadMore')} 
-            />
-            <AlbumRow 
-              title={t('home.discover')} 
-              albums={random} 
-              onLoadMore={() => loadMore('random', random, setRandom)}
-              moreText={t('home.discoverMore')} 
+              moreText={t('home.loadMore')}
             />
           </>
         )}

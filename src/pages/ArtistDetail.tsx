@@ -341,7 +341,7 @@ export default function ArtistDetail() {
                   const track = {
                     id: song.id, title: song.title, artist: song.artist, album: song.album,
                     albumId: song.albumId, artistId: song.artistId, duration: song.duration, coverArt: song.coverArt, track: song.track,
-                    year: song.year, bitRate: song.bitRate, suffix: song.suffix, userRating: song.userRating,
+                    year: song.year, bitRate: song.bitRate, suffix: song.suffix, userRating: song.userRating, starred: song.starred,
                   };
                   openContextMenu(e.clientX, e.clientY, track, 'song');
                 }}

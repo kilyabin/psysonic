@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 interface Props {
@@ -14,7 +15,7 @@ export default function CoverLightbox({ src, alt, onClose }: Props) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  return (
+  return createPortal(
     <div className="cover-lightbox-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label={alt}>
       <button className="cover-lightbox-close" onClick={onClose} aria-label="Close"><X size={20} /></button>
       <img
@@ -23,6 +24,7 @@ export default function CoverLightbox({ src, alt, onClose }: Props) {
         alt={alt}
         onClick={e => e.stopPropagation()}
       />
-    </div>
+    </div>,
+    document.body
   );
 }

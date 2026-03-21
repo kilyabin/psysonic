@@ -173,14 +173,6 @@ export default function NowPlaying() {
 
   const currentTrack    = usePlayerStore(s => s.currentTrack);
   const isPlaying       = usePlayerStore(s => s.isPlaying);
-  const setQueueVisible = usePlayerStore(s => s.setQueueVisible);
-
-  // Hide queue panel while on this page, restore on leave
-  useEffect(() => {
-    const wasVisible = usePlayerStore.getState().isQueueVisible;
-    if (wasVisible) setQueueVisible(false);
-    return () => { if (wasVisible) setQueueVisible(true); };
-  }, [setQueueVisible]);
 
   // Extra song metadata
   const [songMeta, setSongMeta] = useState<SubsonicSong | null>(null);

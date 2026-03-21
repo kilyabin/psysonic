@@ -21,7 +21,7 @@ function sanitizeFilename(name: string): string {
 
 export default function ContextMenu() {
   const { t } = useTranslation();
-  const { contextMenu, closeContextMenu, playTrack, enqueue, queue, currentTrack, removeTrack, lastfmLovedCache, setLastfmLovedForSong } = usePlayerStore();
+  const { contextMenu, closeContextMenu, playTrack, enqueue, queue, currentTrack, removeTrack, lastfmLovedCache, setLastfmLovedForSong, starredOverrides, setStarredOverride } = usePlayerStore();
   const auth = useAuthStore();
   const requestDownloadFolder = useDownloadModalStore(s => s.requestFolder);
   const navigate = useNavigate();
@@ -52,6 +52,9 @@ export default function ContextMenu() {
   if (!contextMenu.isOpen || !contextMenu.item) return null;
 
   const { type, item, queueIndex } = contextMenu;
+
+  const isStarred = (id: string, itemStarred?: string) =>
+    id in starredOverrides ? starredOverrides[id] : !!itemStarred;
 
   const handleAction = async (action: () => void | Promise<void>) => {
     closeContextMenu();
@@ -148,8 +151,13 @@ export default function ContextMenu() {
               <div className="context-menu-item" onClick={() => handleAction(() => startRadio(song.artist, song.artist))}>
                 <Radio size={14} /> {t('contextMenu.startRadio')}
               </div>
-              <div className="context-menu-item" onClick={() => handleAction(() => star(song.id, 'song'))}>
-                <Star size={14} /> {t('contextMenu.favorite')}
+              <div className="context-menu-item" onClick={() => handleAction(() => {
+                const starred = isStarred(song.id, song.starred);
+                setStarredOverride(song.id, !starred);
+                return starred ? unstar(song.id, 'song') : star(song.id, 'song');
+              })}>
+                <Star size={14} fill={isStarred(song.id, song.starred) ? 'currentColor' : 'none'} />
+                {isStarred(song.id, song.starred) ? t('contextMenu.unfavorite') : t('contextMenu.favorite')}
               </div>
               {auth.lastfmSessionKey && (() => {
                 const loveKey = `${song.title}::${song.artist}`;
@@ -181,8 +189,13 @@ export default function ContextMenu() {
               <div className="context-menu-item" onClick={() => handleAction(() => navigate(`/artist/${album.artistId}`))}>
                 <User size={14} /> {t('contextMenu.goToArtist')}
               </div>
-              <div className="context-menu-item" onClick={() => handleAction(() => star(album.id, 'album'))}>
-                <Star size={14} /> {t('contextMenu.favoriteAlbum')}
+              <div className="context-menu-item" onClick={() => handleAction(() => {
+                const starred = isStarred(album.id, album.starred);
+                setStarredOverride(album.id, !starred);
+                return starred ? unstar(album.id, 'album') : star(album.id, 'album');
+              })}>
+                <Star size={14} fill={isStarred(album.id, album.starred) ? 'currentColor' : 'none'} />
+                {isStarred(album.id, album.starred) ? t('contextMenu.unfavoriteAlbum') : t('contextMenu.favoriteAlbum')}
               </div>
               <div className="context-menu-item" onClick={() => handleAction(() => downloadAlbum(album.name, album.id))}>
                 <Download size={14} /> {t('contextMenu.download')}
@@ -199,8 +212,13 @@ export default function ContextMenu() {
                 <Radio size={14} /> {t('contextMenu.startRadio')}
               </div>
               <div className="context-menu-divider" />
-              <div className="context-menu-item" onClick={() => handleAction(() => star(artist.id, 'artist'))}>
-                <Star size={14} /> {t('contextMenu.favoriteArtist')}
+              <div className="context-menu-item" onClick={() => handleAction(() => {
+                const starred = isStarred(artist.id, artist.starred);
+                setStarredOverride(artist.id, !starred);
+                return starred ? unstar(artist.id, 'artist') : star(artist.id, 'artist');
+              })}>
+                <Star size={14} fill={isStarred(artist.id, artist.starred) ? 'currentColor' : 'none'} />
+                {isStarred(artist.id, artist.starred) ? t('contextMenu.unfavoriteArtist') : t('contextMenu.favoriteArtist')}
               </div>
             </>
           );
@@ -224,8 +242,13 @@ export default function ContextMenu() {
                   <Disc3 size={14} /> {t('contextMenu.openAlbum')}
                 </div>
               )}
-              <div className="context-menu-item" onClick={() => handleAction(() => star(song.id, 'song'))}>
-                <Star size={14} /> {t('contextMenu.favorite')}
+              <div className="context-menu-item" onClick={() => handleAction(() => {
+                const starred = isStarred(song.id, song.starred);
+                setStarredOverride(song.id, !starred);
+                return starred ? unstar(song.id, 'song') : star(song.id, 'song');
+              })}>
+                <Star size={14} fill={isStarred(song.id, song.starred) ? 'currentColor' : 'none'} />
+                {isStarred(song.id, song.starred) ? t('contextMenu.unfavorite') : t('contextMenu.favorite')}
               </div>
               {auth.lastfmSessionKey && (() => {
                 const loveKey = `${song.title}::${song.artist}`;

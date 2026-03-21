@@ -1,6 +1,7 @@
 import axios from 'axios';
 import md5 from 'md5';
 import { useAuthStore } from '../store/authStore';
+import { version } from '../../package.json';
 
 // ─── Secure random salt ────────────────────────────────────────
 function secureRandomSalt(): string {
@@ -13,7 +14,7 @@ function secureRandomSalt(): string {
 function getAuthParams(username: string, password: string) {
   const salt = secureRandomSalt();
   const token = md5(password + salt);
-  return { u: username, t: token, s: salt, v: '1.16.1', c: 'psysonic', f: 'json' };
+  return { u: username, t: token, s: salt, v: '1.16.1', c: `psysonic/${version}`, f: 'json' };
 }
 
 function getClient() {

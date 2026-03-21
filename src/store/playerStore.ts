@@ -23,6 +23,7 @@ export interface Track {
   replayGainTrackDb?: number;
   replayGainAlbumDb?: number;
   replayGainPeak?: number;
+  starred?: string;
 }
 
 export function songToTrack(song: SubsonicSong): Track {
@@ -43,6 +44,7 @@ export function songToTrack(song: SubsonicSong): Track {
     replayGainTrackDb: song.replayGain?.trackGain,
     replayGainAlbumDb: song.replayGain?.albumGain,
     replayGainPeak: song.replayGain?.trackPeak,
+    starred: song.starred,
   };
 }
 
@@ -58,6 +60,8 @@ interface PlayerState {
   scrobbled: boolean;
   lastfmLoved: boolean;
   lastfmLovedCache: Record<string, boolean>;
+  starredOverrides: Record<string, boolean>;
+  setStarredOverride: (id: string, starred: boolean) => void;
 
   playTrack: (track: Track, queue?: Track[]) => void;
   pause: () => void;
@@ -277,6 +281,8 @@ export const usePlayerStore = create<PlayerState>()(
       scrobbled: false,
       lastfmLoved: false,
       lastfmLovedCache: {},
+      starredOverrides: {},
+      setStarredOverride: (id, starred) => set(s => ({ starredOverrides: { ...s.starredOverrides, [id]: starred } })),
       isQueueVisible: true,
       isFullscreenOpen: false,
       repeatMode: 'off',

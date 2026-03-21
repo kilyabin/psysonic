@@ -30,7 +30,9 @@ const enTranslation = {
     mostPlayed: 'Most Played',
     discover: 'Discover',
     loadMore: 'Load More',
-    discoverMore: 'Discover More'
+    discoverMore: 'Discover More',
+    discoverArtists: 'Discover Artists',
+    discoverArtistsMore: 'All Artists'
   },
   hero: {
     eyebrow: 'Featured Album',
@@ -74,6 +76,9 @@ const enTranslation = {
     favorite: 'Favorite',
     favoriteArtist: 'Favorite Artist',
     favoriteAlbum: 'Favorite Album',
+    unfavorite: 'Remove from Favorites',
+    unfavoriteArtist: 'Remove Artist from Favorites',
+    unfavoriteAlbum: 'Remove Album from Favorites',
     removeFromQueue: 'Remove from Queue',
     openAlbum: 'Open Album',
     goToArtist: 'Go to Artist',
@@ -551,7 +556,9 @@ const deTranslation = {
     mostPlayed: 'Meistgehört',
     discover: 'Entdecken',
     loadMore: 'Mehr laden',
-    discoverMore: 'Mehr entdecken'
+    discoverMore: 'Mehr entdecken',
+    discoverArtists: 'Künstler entdecken',
+    discoverArtistsMore: 'Alle Künstler'
   },
   hero: {
     eyebrow: 'Album des Augenblicks',
@@ -595,6 +602,9 @@ const deTranslation = {
     favorite: 'Favorisieren',
     favoriteArtist: 'Künstler favorisieren',
     favoriteAlbum: 'Album favorisieren',
+    unfavorite: 'Aus Favoriten entfernen',
+    unfavoriteArtist: 'Künstler aus Favoriten entfernen',
+    unfavoriteAlbum: 'Album aus Favoriten entfernen',
     removeFromQueue: 'Diesen Song entfernen',
     openAlbum: 'Album öffnen',
     goToArtist: 'Zum Künstler',
@@ -1072,7 +1082,9 @@ const frTranslation = {
     mostPlayed: 'Les plus écoutés',
     discover: 'Découvrir',
     loadMore: 'Charger plus',
-    discoverMore: 'Découvrir plus'
+    discoverMore: 'Découvrir plus',
+    discoverArtists: 'Découvrir des artistes',
+    discoverArtistsMore: 'Tous les artistes'
   },
   hero: {
     eyebrow: 'Album en vedette',
@@ -1116,6 +1128,9 @@ const frTranslation = {
     favorite: 'Favori',
     favoriteArtist: 'Artiste favori',
     favoriteAlbum: 'Album favori',
+    unfavorite: 'Retirer des favoris',
+    unfavoriteArtist: 'Retirer l\'artiste des favoris',
+    unfavoriteAlbum: 'Retirer l\'album des favoris',
     removeFromQueue: 'Retirer de la file',
     openAlbum: 'Ouvrir l\'album',
     goToArtist: 'Aller à l\'artiste',
@@ -1593,7 +1608,9 @@ const nlTranslation = {
     mostPlayed: 'Meest gespeeld',
     discover: 'Ontdekken',
     loadMore: 'Meer laden',
-    discoverMore: 'Meer ontdekken'
+    discoverMore: 'Meer ontdekken',
+    discoverArtists: 'Artiesten ontdekken',
+    discoverArtistsMore: 'Alle artiesten'
   },
   hero: {
     eyebrow: 'Uitgelicht album',
@@ -1637,6 +1654,9 @@ const nlTranslation = {
     favorite: 'Favoriet',
     favoriteArtist: 'Favoriete artiest',
     favoriteAlbum: 'Favoriet album',
+    unfavorite: 'Verwijderen uit favorieten',
+    unfavoriteArtist: 'Artiest uit favorieten verwijderen',
+    unfavoriteAlbum: 'Album uit favorieten verwijderen',
     removeFromQueue: 'Uit wachtrij verwijderen',
     openAlbum: 'Album openen',
     goToArtist: 'Naar artiest',

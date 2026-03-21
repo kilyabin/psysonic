@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.0] - 2026-03-22
+
+### Added
+
+#### Three New Themes (Streaming Series)
+- **Spotless**: Flat dark theme inspired by modern music streaming. Pitch-black sidebar (`#000000`), dark-grey app background (`#121212`), Spotify-green accent (`#1ED760`). White play button, green hover on primary actions.
+- **DZR**: Flat light theme inspired by Deezer's modern redesign. White base, light-grey sidebar (`#F5F5F7`), purple accent (`#A238FF`). Crisp typography, large rounded radii.
+- **Cupertino Beats**: Apple Music-inspired dark theme. Near-black base (`#1c1c1e`), frosted-glass sidebar and player bar with heavy `backdrop-filter`, red accent (`#fa243c`). Active nav links styled with `accent-dim` background.
+- All three themes added to the **Psysonic Themes — Mediaplayer** group in the theme picker.
+
+### Fixed
+
+- **Favourite/Unfavourite toggle**: Right-clicking a song, album, or artist that is already starred now shows "Remove from Favourites" and calls `unstar()` correctly. Previously always showed "Add to Favourites" regardless of starred state.
+  - `Track` interface gained `starred?: string` — propagated via `songToTrack()` and all inline track-object construction sites.
+  - `starredOverrides: Record<string, boolean>` added to `playerStore` — updated immediately on star/unstar so the context menu and tracklist star icons reflect changes without a page reload.
+- **Home page — Artist Discovery**: Replaced card grid (which loaded artist images and caused performance issues) with lightweight pill-buttons — same `artist-ext-link` style as the "Similar Artists" section on artist pages. No image loading, instant render.
+- **Now Playing page**: Queue sidebar is no longer automatically hidden when entering the Now Playing page. It now behaves like all other pages and respects the user's current queue visibility setting.
+- **Random Mix filter panel**: Background now correctly uses `--bg-card` instead of the undefined `--bg-elevated` token, which caused the panel to render transparent in most themes.
+
+### Changed
+
+- **Home page layout**: Section order is now: Recently Added → Discover → Artist Discovery → Starred → Most Played.
+
 ## [1.9.0] - 2026-03-21
 
 ### Added

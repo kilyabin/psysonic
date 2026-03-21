@@ -29,6 +29,7 @@ export default function AlbumDetail() {
   const playTrack = usePlayerStore(s => s.playTrack);
   const enqueue = usePlayerStore(s => s.enqueue);
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
+  const starredOverrides = usePlayerStore(s => s.starredOverrides);
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const isPlaying = usePlayerStore(s => s.isPlaying);
 
@@ -218,7 +219,10 @@ export default function AlbumDetail() {
         hoveredSongId={hoveredSongId}
         setHoveredSongId={setHoveredSongId}
         ratings={ratings}
-        starredSongs={starredSongs}
+        starredSongs={new Set([
+          ...[...starredSongs].filter(id => starredOverrides[id] !== false),
+          ...Object.entries(starredOverrides).filter(([, v]) => v).map(([k]) => k),
+        ])}
         onPlaySong={handlePlaySong}
         onRate={handleRate}
         onToggleSongStar={toggleSongStar}

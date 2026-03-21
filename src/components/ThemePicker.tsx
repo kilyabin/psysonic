@@ -26,6 +26,9 @@ const THEME_GROUPS: { group: string; themes: ThemeDef[] }[] = [
       { id: 'navy-jukebox',  label: 'Navy Jukebox', bg: '#d4d8db', card: '#001358', accent: '#0070a0' },
       { id: 'cobalt-media',  label: 'Cobalt Media', bg: '#3a62a5', card: '#000000', accent: '#45ff00' },
       { id: 'onyx-cinema',   label: 'Onyx Cinema',  bg: '#141414', card: '#000000', accent: '#00aaff' },
+      { id: 'spotless',        label: 'Spotless',        bg: '#121212', card: '#181818', accent: '#1ED760' },
+      { id: 'dzr0',            label: 'DZR',             bg: '#FFFFFF', card: '#F5F5F7', accent: '#A238FF' },
+      { id: 'cupertino-beats', label: 'Cupertino Beats', bg: '#1c1c1e', card: '#2c2c2e', accent: '#fa243c' },
     ],
   },
   {
