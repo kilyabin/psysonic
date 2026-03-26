@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.17.2] - 2026-03-26
+
+### Fixed
+
+- **Player bar disappears when window is resized small**: On Linux (and some Windows configurations), the window manager ignores the `minHeight` constraint, allowing the window to be dragged smaller than intended. The CSS grid's `1fr` row has an implicit `min-height: auto`, meaning it refuses to shrink below the min-content height of the sidebar/main/queue children — this pushed the total grid height beyond `100vh` and scrolled the player bar out of view. Fixed by adding `min-height: 0` to `.sidebar`, `.main-content`, and `.queue-panel`, and `overflow: hidden` to `.app-shell` as a safety net.
+- **Media keys on Windows (SMTC)**: souvlaki's Windows backend requires a valid Win32 HWND to hook into the existing message loop rather than spinning up its own. Passing `hwnd: None` caused a crash on startup (v1.17.0). Now retrieves the main window's HWND via `app.get_webview_window("main").hwnd()` and passes it to `PlatformConfig`. Falls back to disabled gracefully if the HWND cannot be obtained.
+
+---
+
 ## [1.17.1] - 2026-03-25
 
 ### Fixed

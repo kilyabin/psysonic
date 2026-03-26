@@ -252,61 +252,76 @@ pub fn run() {
                 .build(app)?;
 
             // ── MPRIS2 / OS media controls via souvlaki ──────────────────
-            // Windows: souvlaki SMTC init requires a valid HWND and a running
-            // COM message loop, neither of which is available this early in
-            // setup(). Disabled on Windows until we can defer init post-window.
-            // mpris_set_metadata / mpris_set_playback no-op via the None branch.
-            #[cfg(target_os = "windows")]
-            app.manage(MprisControls::new(None));
-
-            #[cfg(not(target_os = "windows"))]
             {
                 use souvlaki::{MediaControlEvent, MediaControls, PlatformConfig};
 
-                // On Linux, souvlaki requires a live D-Bus session.
-                #[cfg(target_os = "linux")]
-                let dbus_ok = std::env::var("DBUS_SESSION_BUS_ADDRESS")
-                    .map(|v| !v.is_empty())
-                    .unwrap_or(false);
-                #[cfg(not(target_os = "linux"))]
-                let dbus_ok = true;
-
-                if !dbus_ok {
-                    eprintln!("[Psysonic] No D-Bus session — MPRIS media controls disabled");
-                    app.manage(MprisControls::new(None));
-                } else {
-
-                let config = PlatformConfig {
-                    dbus_name: "psysonic",
-                    display_name: "Psysonic",
-                    hwnd: None,
-                };
-
-                let maybe_controls = match MediaControls::new(config) {
-                    Ok(mut controls) => {
-                        let app_handle = app.handle().clone();
-                        if let Err(e) = controls.attach(move |event: MediaControlEvent| {
-                            let event_name = match event {
-                                MediaControlEvent::Toggle   => "media:play-pause",
-                                MediaControlEvent::Play     => "media:play-pause",
-                                MediaControlEvent::Pause    => "media:play-pause",
-                                MediaControlEvent::Next     => "media:next",
-                                MediaControlEvent::Previous => "media:prev",
-                                _ => return,
-                            };
-                            let _ = app_handle.emit(event_name, ());
-                        }) {
-                            eprintln!("[Psysonic] Failed to attach media controls: {e:?}");
+                // Collect pre-conditions and the platform-specific HWND.
+                // Returns None early (with a log) on any unrecoverable condition
+                // so app.manage() always executes exactly once at the bottom.
+                let maybe_controls: Option<MediaControls> = (|| {
+                    // Linux: requires a live D-Bus session.
+                    #[cfg(target_os = "linux")]
+                    {
+                        let dbus_ok = std::env::var("DBUS_SESSION_BUS_ADDRESS")
+                            .map(|v| !v.is_empty())
+                            .unwrap_or(false);
+                        if !dbus_ok {
+                            eprintln!("[Psysonic] No D-Bus session — MPRIS media controls disabled");
+                            return None;
                         }
-                        Some(controls)
                     }
-                    Err(e) => {
-                        eprintln!("[Psysonic] Could not create media controls: {e:?}");
-                        None
+
+                    // Windows: souvlaki SMTC must hook into the existing Win32
+                    // message loop rather than spinning up its own. Pass the
+                    // main window's HWND so it can do so. If we can't get one,
+                    // skip init (no crash, just no media overlay).
+                    #[cfg(target_os = "windows")]
+                    let hwnd = {
+                        use tauri::Manager;
+                        let h = app.get_webview_window("main")
+                            .and_then(|w| w.hwnd().ok())
+                            .map(|h| h.0 as *mut std::ffi::c_void);
+                        if h.is_none() {
+                            eprintln!("[Psysonic] Could not get HWND — Windows media controls disabled");
+                            return None;
+                        }
+                        h
+                    };
+                    #[cfg(not(target_os = "windows"))]
+                    let hwnd: Option<*mut std::ffi::c_void> = None;
+
+                    let config = PlatformConfig {
+                        dbus_name: "psysonic",
+                        display_name: "Psysonic",
+                        hwnd,
+                    };
+
+                    match MediaControls::new(config) {
+                        Ok(mut controls) => {
+                            let app_handle = app.handle().clone();
+                            if let Err(e) = controls.attach(move |event: MediaControlEvent| {
+                                let event_name = match event {
+                                    MediaControlEvent::Toggle   => "media:play-pause",
+                                    MediaControlEvent::Play     => "media:play-pause",
+                                    MediaControlEvent::Pause    => "media:play-pause",
+                                    MediaControlEvent::Next     => "media:next",
+                                    MediaControlEvent::Previous => "media:prev",
+                                    _ => return,
+                                };
+                                let _ = app_handle.emit(event_name, ());
+                            }) {
+                                eprintln!("[Psysonic] Failed to attach media controls: {e:?}");
+                            }
+                            Some(controls)
+                        }
+                        Err(e) => {
+                            eprintln!("[Psysonic] Could not create media controls: {e:?}");
+                            None
+                        }
                     }
-                };
+                })();
+
                 app.manage(MprisControls::new(maybe_controls));
-                } // end dbus_ok
             }
 
             Ok(())
