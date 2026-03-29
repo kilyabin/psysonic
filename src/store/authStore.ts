@@ -31,6 +31,8 @@ interface AuthState {
   crossfadeEnabled: boolean;
   crossfadeSecs: number;
   gaplessEnabled: boolean;
+  showChangelogOnUpdate: boolean;
+  lastSeenChangelogVersion: string;
 
   // Status
   isLoggedIn: boolean;
@@ -60,6 +62,8 @@ interface AuthState {
   setCrossfadeEnabled: (v: boolean) => void;
   setCrossfadeSecs: (v: number) => void;
   setGaplessEnabled: (v: boolean) => void;
+  setShowChangelogOnUpdate: (v: boolean) => void;
+  setLastSeenChangelogVersion: (v: string) => void;
   logout: () => void;
 
   // Derived
@@ -90,6 +94,8 @@ export const useAuthStore = create<AuthState>()(
       crossfadeEnabled: false,
       crossfadeSecs: 3,
       gaplessEnabled: false,
+      showChangelogOnUpdate: true,
+      lastSeenChangelogVersion: '',
       isLoggedIn: false,
       isConnecting: false,
       connectionError: null,
@@ -146,6 +152,8 @@ export const useAuthStore = create<AuthState>()(
       setCrossfadeEnabled: (v) => set({ crossfadeEnabled: v }),
       setCrossfadeSecs: (v) => set({ crossfadeSecs: v }),
       setGaplessEnabled: (v) => set({ gaplessEnabled: v }),
+      setShowChangelogOnUpdate: (v) => set({ showChangelogOnUpdate: v }),
+      setLastSeenChangelogVersion: (v) => set({ lastSeenChangelogVersion: v }),
 
       logout: () => set({ isLoggedIn: false }),
 

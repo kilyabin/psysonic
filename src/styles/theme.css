@@ -10987,3 +10987,688 @@ input[type="range"]:hover::-webkit-slider-thumb {
 /* Connection indicators */
 [data-theme='toy-tale'] .connection-type,
 [data-theme='toy-tale'] .connection-server { color: #6a5030; }
+
+/* ─── North Park — South Park ─── */
+/* Construction paper flat aesthetic — paper-cream main, Colorado mountain-blue sidebar,
+   Kenny orange accent, South Park sky blue player accents. Light, no dark mode. */
+[data-theme='north-park'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23FF8C00%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette — Kenny orange, South Park sky, Colorado Rockies ── */
+  --ctp-crust:    #0D2040;
+  --ctp-mantle:   #142D50;
+  --ctp-base:     #F5F1E8;   /* construction paper cream */
+  --ctp-surface0: #EDE9DE;
+  --ctp-surface1: #E5E0D2;
+  --ctp-surface2: #D8D2C0;
+  --ctp-overlay0: #8090A8;
+  --ctp-overlay1: #5A6A80;
+  --ctp-overlay2: #4A526A;
+  --ctp-text:     #1A1A2E;
+  --ctp-subtext1: #3A3A5A;
+  --ctp-subtext0: #4A526A;
+  --ctp-mauve:    #FF8C00;   /* Kenny orange */
+  --ctp-lavender: #FFB030;
+  --ctp-pink:     #FF6A00;
+  --ctp-flamingo: #FF5500;
+  --ctp-rosewater:#FFD080;
+  --ctp-green:    #3D9A2A;   /* Kyle's green hat */
+  --ctp-teal:     #2080A0;
+  --ctp-sky:      #87CEEB;   /* South Park sky */
+  --ctp-blue:     #1E4080;
+  --ctp-sapphire: #1B3D6E;
+  --ctp-yellow:   #FFD700;
+  --ctp-peach:    #FF8C00;
+  --ctp-maroon:   #CC4400;
+  --ctp-red:      #CC2200;   /* Cartman red */
+
+  --bg-app:        #F5F1E8;   /* construction paper cream */
+  --bg-sidebar:    #1B3D6E;   /* Colorado Rockies night blue */
+  --bg-card:       #FFFFFF;
+  --bg-hover:      #EDE9DE;
+  --bg-player:     #102A50;   /* deeper mountain blue */
+  --bg-glass:      rgba(245, 241, 232, 0.94);
+  --accent:        #FF8C00;   /* Kenny orange */
+  --accent-dim:    rgba(255, 140, 0, 0.13);
+  --accent-glow:   rgba(255, 140, 0, 0.30);
+  --text-primary:  #1A1A2E;
+  --text-secondary:#4A526A;
+  --text-muted:    #8090A8;
+  --border:        rgba(27, 61, 110, 0.14);
+  --border-subtle: rgba(27, 61, 110, 0.08);
+  --border-dropdown: rgba(255, 140, 0, 0.28);
+  --shadow-dropdown: rgba(0, 20, 60, 0.18);
+  --positive:      #3D9A2A;
+  --warning:       #E8A000;
+  --danger:        #CC2200;
+  --radius-sm: 3px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  /* Logo: Kenny orange → South Park yellow */
+  --logo-color-start: #FF8C00;
+  --logo-color-end:   #FFD700;
+}
+
+/* Sidebar — Colorado mountain blue, orange nav accents */
+[data-theme='north-park'] .sidebar {
+  background: #1B3D6E;
+  border-right: none;
+}
+
+/* Nav links: default text light on dark sidebar */
+[data-theme='north-park'] .nav-link { color: rgba(255, 255, 255, 0.72); }
+
+[data-theme='north-park'] .nav-link.active {
+  background: rgba(255, 140, 0, 0.18);
+  border-left: 3px solid #FF8C00;
+  color: #FF8C00;
+}
+
+[data-theme='north-park'] .nav-link:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.09);
+  border-left: 3px solid rgba(255, 140, 0, 0.45);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+/* Player bar — deep mountain blue, Kenny orange top stripe */
+[data-theme='north-park'] .player-bar {
+  background: #102A50;
+  border-top: 3px solid #FF8C00;
+  box-shadow: 0 -2px 20px rgba(0, 20, 60, 0.30);
+}
+
+/* Track name — Kenny orange */
+[data-theme='north-park'] .player-track-name { color: #FF8C00; }
+
+/* Artist name — South Park sky blue */
+[data-theme='north-park'] .player-artist-name { color: #87CEEB; }
+
+/* Content header — warm paper border */
+[data-theme='north-park'] .content-header {
+  border-bottom: 1px solid rgba(27, 61, 110, 0.12);
+}
+
+/* Cards — clean white cutouts with paper shadow */
+[data-theme='north-park'] .album-card,
+[data-theme='north-park'] .artist-card {
+  background: #FFFFFF;
+  box-shadow: 0 1px 4px rgba(0, 20, 60, 0.08);
+}
+
+[data-theme='north-park'] .album-card:hover,
+[data-theme='north-park'] .artist-card:hover {
+  box-shadow: 0 0 0 2px #FF8C00, 0 4px 16px rgba(0, 20, 60, 0.12);
+}
+
+/* Track rows (light main area) */
+[data-theme='north-park'] .track-row:hover {
+  background: #EDE9DE;
+  box-shadow: inset 2px 0 0 #FF8C00;
+}
+
+/* Queue items (dark blue sidebar — keep bg dark, text stays white) */
+[data-theme='north-park'] .queue-item:hover {
+  background: rgba(255, 255, 255, 0.09);
+  box-shadow: inset 2px 0 0 #FF8C00;
+}
+
+/* Flat primary button — orange, no gradient */
+[data-theme='north-park'] .player-btn-primary {
+  background: #FF8C00;
+  color: #FFFFFF;
+  box-shadow: none;
+  border: none;
+}
+
+[data-theme='north-park'] .player-btn-primary:hover {
+  background: #E07800;
+  box-shadow: 0 0 14px rgba(255, 140, 0, 0.40);
+}
+
+[data-theme='north-park'] .btn-primary {
+  background: #FF8C00;
+  color: #FFFFFF;
+  border: none;
+}
+
+[data-theme='north-park'] .btn-primary:hover { background: #E07800; }
+
+[data-theme='north-park'] .hero-play-btn {
+  background: #FF8C00;
+  color: #FFFFFF;
+  border: none;
+  box-shadow: 0 2px 14px rgba(255, 140, 0, 0.35);
+}
+
+[data-theme='north-park'] .hero-play-btn:hover {
+  background: #E07800;
+  box-shadow: 0 4px 22px rgba(255, 140, 0, 0.55);
+  transform: scale(1.02);
+}
+
+[data-theme='north-park'] .album-card-details-btn {
+  background: #FF8C00;
+  color: #FFFFFF;
+  border: none;
+  box-shadow: 0 2px 10px rgba(255, 140, 0, 0.30);
+}
+
+/* Badge — orange pill */
+[data-theme='north-park'] .badge,
+[data-theme='north-park'] .album-detail-badge {
+  background: #FF8C00;
+  color: #FFFFFF;
+}
+
+/* Settings tabs */
+[data-theme='north-park'] .settings-tab:hover  { background: rgba(255, 140, 0, 0.08); color: #FF8C00; }
+[data-theme='north-park'] .settings-tab.active { background: rgba(255, 140, 0, 0.13); color: #FF8C00; border-color: #FF8C00; }
+[data-theme='north-park'] .queue-tab-btn:hover { background: rgba(255, 255, 255, 0.10); color: rgba(255, 255, 255, 0.90); }
+
+/* Misc interactive */
+[data-theme='north-park'] .custom-select-trigger:hover { background: #EDE9DE; }
+[data-theme='north-park'] .custom-select-option:hover  { background: rgba(255, 140, 0, 0.10); }
+[data-theme='north-park'] .artist-row:hover   { background: rgba(255, 140, 0, 0.07); box-shadow: inset 3px 0 0 #FF8C00; }
+[data-theme='north-park'] .playlist-row:hover { background: rgba(255, 140, 0, 0.07); box-shadow: inset 3px 0 0 #FF8C00; }
+
+/* Connection indicators — muted on light bg */
+[data-theme='north-park'] .connection-type,
+[data-theme='north-park'] .connection-server { color: #7A8A9A; }
+
+/* Queue panel — dark sidebar, light text overrides */
+[data-theme='north-park'] .queue-panel { background: #1B3D6E; }
+
+[data-theme='north-park'] .queue-item-title   { color: rgba(255, 255, 255, 0.90); }
+[data-theme='north-park'] .queue-item-artist,
+[data-theme='north-park'] .queue-item-duration { color: rgba(255, 255, 255, 0.52); }
+
+[data-theme='north-park'] .queue-item.active .queue-item-artist,
+[data-theme='north-park'] .queue-item.active .queue-item-duration { color: rgba(255, 255, 255, 0.72); }
+
+[data-theme='north-park'] .queue-divider span { color: rgba(255, 255, 255, 0.38) !important; }
+
+[data-theme='north-park'] .queue-current-info h3   { color: rgba(255, 255, 255, 0.92); }
+[data-theme='north-park'] .queue-current-sub        { color: rgba(255, 255, 255, 0.55); }
+[data-theme='north-park'] .queue-current-cover .fallback { color: rgba(255, 255, 255, 0.32); }
+
+[data-theme='north-park'] .queue-tab-btn            { color: rgba(255, 255, 255, 0.58); }
+[data-theme='north-park'] .queue-tab-btn.active     { color: #FF8C00; }
+[data-theme='north-park'] .queue-round-btn.active   { color: #FFFFFF; }
+
+[data-theme='north-park'] .queue-action-btn         { color: rgba(255, 255, 255, 0.60); }
+[data-theme='north-park'] .queue-action-btn:hover:not(:disabled) { color: rgba(255, 255, 255, 0.92); }
+
+/* Hero album meta (year, genre etc.) — needs high contrast on dark overlay */
+[data-theme='north-park'] .album-detail-info { color: rgba(255, 255, 255, 0.80); }
+
+/* Artist name in hero — soften the orange to a warm amber, less glaring */
+[data-theme='north-park'] .album-detail-artist,
+[data-theme='north-park'] .album-detail-artist-link { color: #FFAB40; }
+[data-theme='north-park'] .album-detail-artist-link:hover { color: #FFD080; }
+
+/* np-album-track (Now Playing page) */
+[data-theme='north-park'] .np-album-track.active .np-album-track-title,
+[data-theme='north-park'] .np-album-track.active .np-album-track-num { color: #FF8C00; }
+
+/* Scrollbar — thin, orange thumb */
+[data-theme='north-park'] ::-webkit-scrollbar { width: 5px; height: 5px; }
+[data-theme='north-park'] ::-webkit-scrollbar-track { background: #EDE9DE; }
+[data-theme='north-park'] ::-webkit-scrollbar-thumb { background: rgba(255, 140, 0, 0.35); border-radius: 3px; }
+[data-theme='north-park'] ::-webkit-scrollbar-thumb:hover { background: #FF8C00; }
+
+/* ─── Dark Side of the Moon (inspired) — Pink Floyd ─── */
+/* Pure void-black + prism spectrum. No colour except the rainbow.
+   Accent: spectrum cyan. Spectrum gradient as player-bar top border.
+   Track name: white (the input light beam). Performance: no patterns, no animations. */
+[data-theme='dark-side-of-the-moon'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%239B30FF%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette — void black + prism spectrum ── */
+  --ctp-crust:    #000000;
+  --ctp-mantle:   #010101;
+  --ctp-base:     #050505;
+  --ctp-surface0: #0A0A0A;
+  --ctp-surface1: #111111;
+  --ctp-surface2: #1A1A1A;
+  --ctp-overlay0: #333333;
+  --ctp-overlay1: #4A4A4A;
+  --ctp-overlay2: #686868;
+  --ctp-text:     #F0F0F0;
+  --ctp-subtext1: #C8C8C8;
+  --ctp-subtext0: #A0A0A0;
+  --ctp-mauve:    #9B30FF;   /* spectrum violet — primary accent */
+  --ctp-lavender: #7B00FF;   /* spectrum violet */
+  --ctp-pink:     #FF2400;   /* spectrum red */
+  --ctp-flamingo: #FF7700;   /* spectrum orange */
+  --ctp-rosewater:#FFFFFF;   /* the input light beam */
+  --ctp-green:    #72FF00;   /* spectrum green */
+  --ctp-teal:     #00C8FF;
+  --ctp-sky:      #9B30FF;
+  --ctp-blue:     #0040FF;   /* spectrum blue */
+  --ctp-sapphire: #0060DD;
+  --ctp-yellow:   #FFE600;   /* spectrum yellow */
+  --ctp-peach:    #FF7700;
+  --ctp-maroon:   #CC1800;
+  --ctp-red:      #FF2400;
+
+  --bg-app:        #050505;
+  --bg-sidebar:    #020202;
+  --bg-card:       #0D0D0D;
+  --bg-hover:      #141414;
+  --bg-player:     #010101;
+  --bg-glass:      rgba(5, 5, 5, 0.96);
+  --accent:        #9B30FF;   /* spectrum violet */
+  --accent-dim:    rgba(155, 48, 255, 0.10);
+  --accent-glow:   rgba(155, 48, 255, 0.28);
+  --text-primary:  #F0F0F0;
+  --text-secondary:#A0A0A0;
+  --text-muted:    #555555;
+  --border:        rgba(255, 255, 255, 0.07);
+  --border-subtle: rgba(255, 255, 255, 0.04);
+  --border-dropdown: rgba(155, 48, 255, 0.22);
+  --shadow-dropdown: rgba(0, 0, 0, 0.99);
+  --positive:      #72FF00;
+  --warning:       #FFE600;
+  --danger:        #FF2400;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+
+  /* Waveform — cyan played, dark unplayed */
+  --waveform-played:   #9B30FF;
+  --waveform-buffered: rgba(255, 255, 255, 0.07);
+  --waveform-unplayed: rgba(255, 255, 255, 0.04);
+
+  /* Logo — orange → cyan (the spectrum itself) */
+  --logo-color-start: #FF7700;
+  --logo-color-end:   #9B30FF;
+}
+
+/* Player bar — void black, spectrum rainbow top border via ::before */
+[data-theme='dark-side-of-the-moon'] .player-bar {
+  background: #010101;
+  border-top: none;
+  position: relative;
+  box-shadow: 0 -1px 0 rgba(255, 255, 255, 0.04);
+}
+
+[data-theme='dark-side-of-the-moon'] .player-bar::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg,
+    #FF2400 0%,
+    #FF7700 17%,
+    #FFE600 33%,
+    #72FF00 50%,
+    #00C8FF 67%,
+    #0040FF 83%,
+    #7B00FF 100%
+  );
+}
+
+/* Track name — the white input light beam */
+[data-theme='dark-side-of-the-moon'] .player-track-name {
+  color: #FFFFFF;
+}
+
+/* Artist name — neutral dim */
+[data-theme='dark-side-of-the-moon'] .player-artist-name {
+  color: #888888;
+}
+
+/* Sidebar — pure void */
+[data-theme='dark-side-of-the-moon'] .sidebar {
+  background: #020202;
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+[data-theme='dark-side-of-the-moon'] .nav-link.active {
+  background: rgba(0, 229, 255, 0.08);
+  border-left: 3px solid #00E5FF;
+  color: #00E5FF;
+}
+
+[data-theme='dark-side-of-the-moon'] .nav-link:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.04);
+  border-left: 3px solid rgba(0, 229, 255, 0.30);
+  color: #F0F0F0;
+}
+
+/* Cards */
+[data-theme='dark-side-of-the-moon'] .album-card,
+[data-theme='dark-side-of-the-moon'] .artist-card {
+  background: #0D0D0D;
+}
+
+[data-theme='dark-side-of-the-moon'] .album-card:hover,
+[data-theme='dark-side-of-the-moon'] .artist-card:hover {
+  box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.40), 0 4px 20px rgba(0, 229, 255, 0.08);
+}
+
+/* Track / queue rows */
+[data-theme='dark-side-of-the-moon'] .track-row:hover,
+[data-theme='dark-side-of-the-moon'] .queue-item:hover {
+  background: #141414;
+  box-shadow: inset 2px 0 0 #00E5FF;
+}
+
+/* Buttons — flat cyan, no gradient */
+[data-theme='dark-side-of-the-moon'] .player-btn-primary {
+  background: #00E5FF;
+  color: #010101;
+  box-shadow: none;
+  border: none;
+}
+
+[data-theme='dark-side-of-the-moon'] .player-btn-primary:hover {
+  background: #33EEFF;
+  box-shadow: 0 0 16px rgba(0, 229, 255, 0.40);
+}
+
+[data-theme='dark-side-of-the-moon'] .btn-primary {
+  background: #00E5FF;
+  color: #010101;
+  border: none;
+}
+
+[data-theme='dark-side-of-the-moon'] .btn-primary:hover { background: #33EEFF; }
+
+[data-theme='dark-side-of-the-moon'] .hero-play-btn {
+  background: #00E5FF;
+  color: #010101;
+  border: none;
+  box-shadow: 0 2px 16px rgba(0, 229, 255, 0.30);
+}
+
+[data-theme='dark-side-of-the-moon'] .hero-play-btn:hover {
+  background: #33EEFF;
+  box-shadow: 0 4px 26px rgba(0, 229, 255, 0.50);
+  transform: scale(1.02);
+}
+
+[data-theme='dark-side-of-the-moon'] .album-card-details-btn {
+  background: #00E5FF;
+  color: #010101;
+  border: none;
+  box-shadow: 0 2px 10px rgba(0, 229, 255, 0.25);
+}
+
+/* Badge */
+[data-theme='dark-side-of-the-moon'] .badge,
+[data-theme='dark-side-of-the-moon'] .album-detail-badge {
+  background: #00E5FF;
+  color: #010101;
+}
+
+/* Settings + queue tabs */
+[data-theme='dark-side-of-the-moon'] .settings-tab:hover  { background: rgba(155, 48, 255, 0.07); color: #9B30FF; }
+[data-theme='dark-side-of-the-moon'] .settings-tab.active { background: rgba(155, 48, 255, 0.12); color: #9B30FF; border-color: #9B30FF; }
+[data-theme='dark-side-of-the-moon'] .queue-tab-btn:hover { background: rgba(255, 255, 255, 0.05); }
+[data-theme='dark-side-of-the-moon'] .queue-tab-btn.active { color: #9B30FF; }
+[data-theme='dark-side-of-the-moon'] .queue-round-btn.active { color: #010101; }
+
+/* Misc interactive */
+[data-theme='dark-side-of-the-moon'] .custom-select-trigger:hover { background: #141414; }
+[data-theme='dark-side-of-the-moon'] .custom-select-option:hover  { background: rgba(155, 48, 255, 0.08); }
+[data-theme='dark-side-of-the-moon'] .artist-row:hover   { background: rgba(155, 48, 255, 0.05); box-shadow: inset 3px 0 0 #9B30FF; }
+[data-theme='dark-side-of-the-moon'] .playlist-row:hover { background: rgba(155, 48, 255, 0.05); box-shadow: inset 3px 0 0 #9B30FF; }
+[data-theme='dark-side-of-the-moon'] .artist-ext-link:hover { background: rgba(155, 48, 255, 0.07); border-color: #9B30FF; }
+
+/* np-album-track */
+[data-theme='dark-side-of-the-moon'] .np-album-track.active .np-album-track-title,
+[data-theme='dark-side-of-the-moon'] .np-album-track.active .np-album-track-num { color: #9B30FF; }
+
+/* Scrollbar — minimal, cyan thumb */
+[data-theme='dark-side-of-the-moon'] ::-webkit-scrollbar { width: 4px; height: 4px; }
+[data-theme='dark-side-of-the-moon'] ::-webkit-scrollbar-track { background: #020202; }
+[data-theme='dark-side-of-the-moon'] ::-webkit-scrollbar-thumb { background: rgba(155, 48, 255, 0.25); border-radius: 2px; }
+[data-theme='dark-side-of-the-moon'] ::-webkit-scrollbar-thumb:hover { background: #9B30FF; }
+
+/* Connection indicators */
+[data-theme='dark-side-of-the-moon'] .connection-type,
+[data-theme='dark-side-of-the-moon'] .connection-server { color: #555555; }
+
+/* ─── Powerslave (inspired) — Iron Maiden ─── */
+/* Blazing Egyptian sun — warm sandstone main, Nile-sky deep-blue sidebar,
+   pharaoh gold accent, gold+blue duality. Light, no dark mode.
+   Sidebar: deep Nile blue with subtle hieroglyph grid. Player bar: navy + gold cornice. */
+[data-theme='powerslave'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23C8800A%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette — sandstone, pharaoh gold, temple shadows ── */
+  --ctp-crust:    #180E04;
+  --ctp-mantle:   #2A1808;
+  --ctp-base:     #F0DFB0;   /* warm sandstone */
+  --ctp-surface0: #E8D49A;
+  --ctp-surface1: #DEC880;
+  --ctp-surface2: #D0B860;
+  --ctp-overlay0: #A07830;
+  --ctp-overlay1: #806020;
+  --ctp-overlay2: #604810;
+  --ctp-text:     #2A1808;   /* warm dark brown */
+  --ctp-subtext1: #4A2C10;
+  --ctp-subtext0: #6A4018;
+  --ctp-mauve:    #C8800A;   /* pharaoh gold */
+  --ctp-lavender: #D49020;
+  --ctp-pink:     #B04000;
+  --ctp-flamingo: #CC4800;
+  --ctp-rosewater:#F8EDD0;
+  --ctp-green:    #507820;
+  --ctp-teal:     #207870;   /* Egyptian turquoise */
+  --ctp-sky:      #3080A0;
+  --ctp-blue:     #1A5080;
+  --ctp-sapphire: #204870;
+  --ctp-yellow:   #C8800A;
+  --ctp-peach:    #C05010;
+  --ctp-maroon:   #801808;
+  --ctp-red:      #A82000;
+
+  --bg-app:        #F0DFB0;   /* sun-bleached sandstone */
+  --bg-sidebar:    #0A2035;   /* Nile sky — deep lapis blue */
+  --bg-card:       #F8EDD0;
+  --bg-hover:      #E8D49A;
+  --bg-player:     #06101C;   /* deep night Nile */
+  --bg-glass:      rgba(240, 223, 176, 0.94);
+  --accent:        #C8960C;   /* pharaoh gold */
+  --accent-dim:    rgba(200, 150, 12, 0.13);
+  --accent-glow:   rgba(200, 150, 12, 0.30);
+  --text-primary:  #2A1808;
+  --text-secondary:#6A4018;
+  --text-muted:    #A07830;
+  --border:        rgba(42, 24, 8, 0.14);
+  --border-subtle: rgba(42, 24, 8, 0.08);
+  --border-dropdown: rgba(200, 128, 10, 0.28);
+  --shadow-dropdown: rgba(24, 14, 4, 0.22);
+  --positive:      #507820;
+  --warning:       #C05010;
+  --danger:        #A82000;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+
+  --waveform-played:   #2E7BB8;   /* Nile azure — the sky */
+  --waveform-buffered: rgba(46, 123, 184, 0.20);
+  --waveform-unplayed: rgba(42, 24, 8, 0.10);
+
+  /* Logo — Nile blue → pharaoh gold */
+  --logo-color-start: #2E7BB8;
+  --logo-color-end:   #C8960C;
+}
+
+/* Sidebar — Nile-sky deep blue, subtle hieroglyph grid */
+[data-theme='powerslave'] .sidebar {
+  background: #0A2035;
+  border-right: none;
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      rgba(46, 123, 184, 0.08) 0px, transparent 1px, transparent 48px,
+      rgba(46, 123, 184, 0.08) 49px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(46, 123, 184, 0.05) 0px, transparent 1px, transparent 96px,
+      rgba(46, 123, 184, 0.05) 97px
+    );
+}
+
+[data-theme='powerslave'] .nav-link { color: rgba(200, 224, 248, 0.65); }
+
+[data-theme='powerslave'] .nav-link.active {
+  background: linear-gradient(90deg, rgba(200, 150, 12, 0.22) 0%, transparent 100%);
+  border-left: 3px solid #C8960C;
+  color: #D49828;
+}
+
+[data-theme='powerslave'] .nav-link:hover:not(.active) {
+  background: rgba(46, 123, 184, 0.12);
+  border-left: 3px solid rgba(46, 123, 184, 0.50);
+  color: rgba(200, 224, 248, 0.92);
+}
+
+/* Player bar — deep Nile night, gold cornice */
+[data-theme='powerslave'] .player-bar {
+  background: #06101C;
+  border-top: 2px solid #C8960C;
+  box-shadow: 0 -4px 24px rgba(46, 123, 184, 0.10), 0 -1px 0 rgba(200, 150, 12, 0.20);
+}
+
+/* Track name — warm gold glow */
+[data-theme='powerslave'] .player-track-name {
+  color: #D49828;
+  text-shadow: 0 0 12px rgba(200, 150, 12, 0.40);
+}
+
+/* Artist name — Nile azure */
+[data-theme='powerslave'] .player-artist-name { color: #6AAED8; }
+
+/* Content header */
+[data-theme='powerslave'] .content-header {
+  border-bottom: 1px solid rgba(42, 24, 8, 0.12);
+}
+
+/* Cards — parchment on sandstone */
+[data-theme='powerslave'] .album-card,
+[data-theme='powerslave'] .artist-card {
+  background: #F8EDD0;
+  box-shadow: 0 1px 4px rgba(42, 24, 8, 0.10);
+}
+
+[data-theme='powerslave'] .album-card:hover,
+[data-theme='powerslave'] .artist-card:hover {
+  box-shadow: 0 0 0 2px #C8800A, 0 4px 16px rgba(42, 24, 8, 0.12);
+}
+
+/* Track / queue rows */
+[data-theme='powerslave'] .track-row:hover {
+  background: #E8D49A;
+  box-shadow: inset 2px 0 0 #C8800A;
+}
+
+[data-theme='powerslave'] .queue-item:hover {
+  background: rgba(46, 123, 184, 0.12);
+  box-shadow: inset 2px 0 0 #2E7BB8;
+}
+
+/* Buttons — gold gradient */
+[data-theme='powerslave'] .player-btn-primary {
+  background: linear-gradient(180deg, #D49020 0%, #C8800A 50%, #A06008 100%);
+  color: #180E04;
+  border: 1px solid #806006;
+  box-shadow: 0 0 12px rgba(200, 128, 10, 0.28);
+}
+
+[data-theme='powerslave'] .player-btn-primary:hover {
+  background: linear-gradient(180deg, #E0A028 0%, #D48818 50%, #B07010 100%);
+  box-shadow: 0 0 22px rgba(200, 128, 10, 0.48);
+}
+
+[data-theme='powerslave'] .btn-primary {
+  background: linear-gradient(180deg, #D49020 0%, #C8800A 50%, #A06008 100%);
+  color: #180E04;
+  border: 1px solid #806006;
+}
+
+[data-theme='powerslave'] .btn-primary:hover {
+  background: linear-gradient(180deg, #E0A028 0%, #D48818 50%, #B07010 100%);
+}
+
+[data-theme='powerslave'] .hero-play-btn {
+  background: linear-gradient(180deg, #D49020 0%, #C8800A 50%, #A06008 100%);
+  color: #180E04;
+  border: 1px solid #806006;
+  box-shadow: 0 2px 16px rgba(200, 128, 10, 0.28);
+}
+
+[data-theme='powerslave'] .hero-play-btn:hover {
+  background: linear-gradient(180deg, #E0A028 0%, #D48818 50%, #B07010 100%);
+  box-shadow: 0 4px 26px rgba(200, 128, 10, 0.48);
+  transform: scale(1.02);
+}
+
+[data-theme='powerslave'] .album-card-details-btn {
+  background: linear-gradient(180deg, #D49020 0%, #C8800A 50%, #A06008 100%);
+  color: #180E04;
+  border: 1px solid #806006;
+}
+
+/* Badge — gold pill */
+[data-theme='powerslave'] .badge,
+[data-theme='powerslave'] .album-detail-badge {
+  background: #C8800A;
+  color: #F8EDD0;
+}
+
+/* Settings + queue */
+[data-theme='powerslave'] .settings-tab:hover  { background: rgba(200, 150, 12, 0.08); color: #C8960C; }
+[data-theme='powerslave'] .settings-tab.active { background: rgba(200, 150, 12, 0.14); color: #C8960C; border-color: #C8960C; }
+[data-theme='powerslave'] .queue-tab-btn:hover { background: rgba(46, 123, 184, 0.12); color: rgba(200, 224, 248, 0.92); }
+[data-theme='powerslave'] .queue-tab-btn.active { color: #C8960C; }
+[data-theme='powerslave'] .queue-round-btn.active { color: #06101C; }
+
+/* Queue panel text — Nile-blue sidebar */
+[data-theme='powerslave'] .queue-panel { background: #0A2035; }
+[data-theme='powerslave'] .queue-item-title   { color: rgba(220, 235, 248, 0.90); }
+[data-theme='powerslave'] .queue-item-artist,
+[data-theme='powerslave'] .queue-item-duration { color: rgba(140, 190, 230, 0.55); }
+[data-theme='powerslave'] .queue-item.active .queue-item-artist,
+[data-theme='powerslave'] .queue-item.active .queue-item-duration { color: rgba(140, 190, 230, 0.75); }
+[data-theme='powerslave'] .queue-divider span { color: rgba(140, 190, 230, 0.38) !important; }
+[data-theme='powerslave'] .queue-current-info h3   { color: rgba(220, 235, 248, 0.92); }
+[data-theme='powerslave'] .queue-current-sub        { color: rgba(140, 190, 230, 0.58); }
+[data-theme='powerslave'] .queue-current-cover .fallback { color: rgba(140, 190, 230, 0.30); }
+[data-theme='powerslave'] .queue-action-btn         { color: rgba(140, 190, 230, 0.65); }
+[data-theme='powerslave'] .queue-action-btn:hover:not(:disabled) { color: rgba(220, 235, 248, 0.95); }
+
+/* Misc interactive */
+[data-theme='powerslave'] .custom-select-trigger:hover { background: #E8D49A; }
+[data-theme='powerslave'] .custom-select-option:hover  { background: rgba(200, 128, 10, 0.10); }
+[data-theme='powerslave'] .artist-row:hover   { background: rgba(200, 128, 10, 0.07); box-shadow: inset 3px 0 0 #C8800A; }
+[data-theme='powerslave'] .playlist-row:hover { background: rgba(200, 128, 10, 0.07); box-shadow: inset 3px 0 0 #C8800A; }
+[data-theme='powerslave'] .artist-ext-link:hover { background: rgba(200, 128, 10, 0.08); border-color: #C8800A; }
+
+/* Connection indicators */
+[data-theme='powerslave'] .connection-type,
+[data-theme='powerslave'] .connection-server { color: rgba(140, 190, 230, 0.70); }
+
+/* Album detail hero meta */
+[data-theme='powerslave'] .album-detail-info { color: rgba(255, 255, 255, 0.80); }
+[data-theme='powerslave'] .album-detail-artist,
+[data-theme='powerslave'] .album-detail-artist-link { color: #D49828; }
+[data-theme='powerslave'] .album-detail-artist-link:hover { color: #E8B040; }
+
+/* np-album-track */
+[data-theme='powerslave'] .np-album-track.active .np-album-track-title,
+[data-theme='powerslave'] .np-album-track.active .np-album-track-num { color: #C8960C; }
+
+/* Scrollbar — warm, gold thumb */
+[data-theme='powerslave'] ::-webkit-scrollbar { width: 5px; height: 5px; }
+[data-theme='powerslave'] ::-webkit-scrollbar-track { background: #E8D49A; }
+[data-theme='powerslave'] ::-webkit-scrollbar-thumb { background: rgba(200, 128, 10, 0.35); border-radius: 3px; }
+[data-theme='powerslave'] ::-webkit-scrollbar-thumb:hover { background: #C8800A; }

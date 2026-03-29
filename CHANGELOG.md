@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.21.0] - 2026-03-29
+
+### Added
+
+- **What's New modal**: On first launch after an update, a changelog popup appears showing the current version's release notes. Can be permanently dismissed via checkbox, or re-enabled in Settings → About.
+- **New theme category — Famous Albums**: A dedicated group for album-art-inspired themes.
+- **Theme — Dark Side of the Moon (inspired)** *(Famous Albums)* ⚠️ **Beta**: Void-black everywhere, the iconic prism spectrum rainbow as a 2 px top border on the player bar, spectrum-violet accent `#9B30FF`, white track name (the input light beam).
+- **Theme — Powerslave (inspired)** *(Famous Albums)* ⚠️ **Beta**: Sun-bleached sandstone main area, deep Nile-sky blue sidebar and player bar, pharaoh gold accent `#C8960C`. Blue–gold duality mirrors the album artwork's vivid azure sky against the Egyptian temple gold.
+- **Theme — North Park** *(Series)* ⚠️ **Beta**: South Park-inspired. Construction-paper cream main area, Colorado mountain-blue `#1B3D6E` sidebar, Kenny orange `#FF8C00` accent, flat no-gradient buttons.
+
+### Changed
+
+- **AlbumTrackList — artist column always visible**: The artist column is now shown on all albums, not only Various Artists compilations. Useful for albums with guest artists or featuring credits where track-level artist differs from the album artist.
+- **Tracklist column widths — more flexible**: Title and artist columns now use `minmax` fr units (`1.5fr` / `1fr`) instead of fixed sizes, so the artist column moves naturally closer to the title on wide viewports and never clips on narrow ones.
+
+### Fixed
+
+- **Settings — changelog toggle alignment**: The "Show What's New on update" toggle was rendering below its label instead of beside it.
+
+---
+
 ## [1.20.0] - 2026-03-29
 
 ### Added

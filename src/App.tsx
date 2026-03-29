@@ -38,6 +38,8 @@ import OfflineLibrary from './pages/OfflineLibrary';
 import Genres from './pages/Genres';
 import GenreDetail from './pages/GenreDetail';
 import ExportPickerModal from './components/ExportPickerModal';
+import ChangelogModal from './components/ChangelogModal';
+import { version } from '../package.json';
 import { useConnectionStatus } from './hooks/useConnectionStatus';
 import { useAuthStore } from './store/authStore';
 import { useOfflineStore } from './store/offlineStore';
@@ -110,6 +112,15 @@ function AppShell() {
     };
     fn();
   }, [currentTrack, isPlaying]);
+
+  const [changelogModalOpen, setChangelogModalOpen] = useState(false);
+
+  useEffect(() => {
+    const { showChangelogOnUpdate, lastSeenChangelogVersion } = useAuthStore.getState();
+    if (showChangelogOnUpdate && lastSeenChangelogVersion !== version) {
+      setChangelogModalOpen(true);
+    }
+  }, []);
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     return localStorage.getItem('psysonic_sidebar_collapsed') === 'true';
@@ -229,6 +240,7 @@ function AppShell() {
       <ContextMenu />
       <DownloadFolderModal />
       <TooltipPortal />
+      {changelogModalOpen && <ChangelogModal onClose={() => setChangelogModalOpen(false)} />}
     </div>
   );
 }

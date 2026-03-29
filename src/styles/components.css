@@ -1036,7 +1036,7 @@
 }
 
 .tracklist-header.tracklist-va {
-  grid-template-columns: 36px minmax(100px, 2fr) minmax(80px, 1.2fr) 70px 80px 60px 120px;
+  grid-template-columns: 36px minmax(80px, 1.5fr) minmax(60px, 1fr) 70px 80px 60px 120px;
 }
 
 .track-row {
@@ -1052,7 +1052,7 @@
 }
 
 .track-row.track-row-va {
-  grid-template-columns: 36px minmax(100px, 2fr) minmax(80px, 1.2fr) 70px 80px 60px 120px;
+  grid-template-columns: 36px minmax(80px, 1.5fr) minmax(60px, 1fr) 70px 80px 60px 120px;
 }
 
 .tracklist-total {
@@ -1065,7 +1065,7 @@
 }
 
 .tracklist-total.tracklist-va {
-  grid-template-columns: 36px minmax(100px, 2fr) minmax(80px, 1.2fr) 70px 80px 60px 120px;
+  grid-template-columns: 36px minmax(80px, 1.5fr) minmax(60px, 1fr) 70px 80px 60px 120px;
 }
 
 .tracklist-total-label {

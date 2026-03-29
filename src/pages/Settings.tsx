@@ -1065,6 +1065,8 @@ function renderInline(text: string): React.ReactNode[] {
 
 function ChangelogSection() {
   const { t } = useTranslation();
+  const showChangelogOnUpdate = useAuthStore(s => s.showChangelogOnUpdate);
+  const setShowChangelogOnUpdate = useAuthStore(s => s.setShowChangelogOnUpdate);
 
   const versions = useMemo(() => {
     const blocks = changelogRaw.split(/\n(?=## \[)/).filter(b => b.startsWith('## ['));
@@ -1087,6 +1089,16 @@ function ChangelogSection() {
       <div className="settings-section-header">
         <Info size={18} />
         <h2>{t('settings.changelog')}</h2>
+      </div>
+      <div className="settings-toggle-row" style={{ marginBottom: '1rem' }}>
+        <div>
+          <div style={{ fontWeight: 500 }}>{t('settings.showChangelogOnUpdate')}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showChangelogOnUpdateDesc')}</div>
+        </div>
+        <label className="toggle-switch" aria-label={t('settings.showChangelogOnUpdate')}>
+          <input type="checkbox" checked={showChangelogOnUpdate} onChange={e => setShowChangelogOnUpdate(e.target.checked)} />
+          <span className="toggle-track" />
+        </label>
       </div>
       <div className="changelog-list">
         {versions.map(({ version, date, body }) => (

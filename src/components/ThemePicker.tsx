@@ -105,6 +105,14 @@ const THEME_GROUPS: { group: string; themes: ThemeDef[] }[] = [
       { id: 'doh-matic',    label: "D'oh-matic",              bg: '#FFFDF0', card: '#FFD90F', accent: '#1F75FE' },
       { id: 'heisenberg',   label: 'Heisenberg',              bg: '#0b0e12', card: '#141a22', accent: '#35d4f8' },
       { id: 'turtle-power', label: 'Turtle Power',            bg: '#1a1a1a', card: '#0a0a0a', accent: '#33cc33' },
+      { id: 'north-park',   label: 'North Park',              bg: '#F5F1E8', card: '#FFFFFF',  accent: '#FF8C00' },
+    ],
+  },
+  {
+    group: 'Famous Albums',
+    themes: [
+      { id: 'dark-side-of-the-moon', label: 'Dark Side of the Moon (inspired)', bg: '#050505', card: '#0D0D0D', accent: '#9B30FF' },
+      { id: 'powerslave',            label: 'Powerslave (inspired)',            bg: '#F0DFB0', card: '#2A1808', accent: '#C8960C' },
     ],
   },
   {

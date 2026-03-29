@@ -93,10 +93,10 @@ export default function AlbumTrackList({
 
   return (
     <div className="tracklist">
-      <div className={`tracklist-header${hasVariousArtists ? ' tracklist-va' : ''}`}>
+      <div className={`tracklist-header${' tracklist-va'}`}>
         <div className="col-center">#</div>
         <div>{t('albumDetail.trackTitle')}</div>
-        {hasVariousArtists && <div>{t('albumDetail.trackArtist')}</div>}
+        <div>{t('albumDetail.trackArtist')}</div>
         <div className="col-center">{t('albumDetail.trackFavorite')}</div>
         <div className="col-center">{t('albumDetail.trackRating')}</div>
         <div className="col-center">{t('albumDetail.trackDuration')}</div>
@@ -114,7 +114,7 @@ export default function AlbumTrackList({
           {discs.get(discNum)!.map((song, i) => (
             <div
               key={song.id}
-              className={`track-row${hasVariousArtists ? ' track-row-va' : ''}${currentTrack?.id === song.id ? ' active' : ''}${contextMenuSongId === song.id ? ' context-active' : ''}`}
+              className={`track-row track-row-va${currentTrack?.id === song.id ? ' active' : ''}${contextMenuSongId === song.id ? ' context-active' : ''}`}
               onMouseEnter={() => setHoveredSongId(song.id)}
               onMouseLeave={() => setHoveredSongId(null)}
               onDoubleClick={() => onPlaySong(song)}
@@ -149,11 +149,9 @@ export default function AlbumTrackList({
               <div className="track-info">
                 <span className="track-title">{song.title}</span>
               </div>
-              {hasVariousArtists && (
-                <div className="track-artist-cell">
-                  <span className="track-artist">{song.artist}</span>
-                </div>
-              )}
+              <div className="track-artist-cell">
+                <span className="track-artist">{song.artist}</span>
+              </div>
               <div className="track-star-cell">
                 <button
                   className="btn btn-ghost track-star-btn"
@@ -181,7 +179,7 @@ export default function AlbumTrackList({
         </div>
       ))}
 
-      <div className={`tracklist-total${hasVariousArtists ? ' tracklist-va' : ''}`}>
+      <div className={`tracklist-total${' tracklist-va'}`}>
         <span className="tracklist-total-label">{t('albumDetail.trackTotal')}</span>
         <span className="tracklist-total-value">{formatDuration(totalDuration)}</span>
       </div>
