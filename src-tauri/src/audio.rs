@@ -967,7 +967,7 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
         gapless_enabled: Arc::new(AtomicBool::new(false)),
         chained_info: Arc::new(Mutex::new(None)),
         samples_played: Arc::new(AtomicU64::new(0)),
-        current_sample_rate: Arc::new(AtomicU32::new(44100)),
+        current_sample_rate: Arc::new(AtomicU32::new(0)),
         current_channels: Arc::new(AtomicU32::new(2)),
         gapless_switch_at: Arc::new(AtomicU64::new(0)),
     };
