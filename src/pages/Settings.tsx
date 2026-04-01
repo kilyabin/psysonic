@@ -1,10 +1,11 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { version as appVersion } from '../../package.json';
 import changelogRaw from '../../CHANGELOG.md?raw';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Wifi, WifiOff, Globe, Music2, Sliders, LogOut, CheckCircle2, FolderOpen,
-  Palette, Server, Plus, Trash2, Eye, EyeOff, Info, ExternalLink, Shuffle, X, Play, Type, Keyboard, ChevronDown
+  Palette, Server, Plus, Trash2, Eye, EyeOff, Info, ExternalLink, Shuffle, X, Play, Type, Keyboard, ChevronDown,
+  GripVertical, PanelLeft, RotateCcw
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { open as openUrl } from '@tauri-apps/plugin-shell';
@@ -19,6 +20,9 @@ import { useThemeStore } from '../store/themeStore';
 import { useFontStore, FontId } from '../store/fontStore';
 import { useKeybindingsStore, KeyAction, formatKeyCode, DEFAULT_BINDINGS } from '../store/keybindingsStore';
 import { useGlobalShortcutsStore, GlobalAction, buildGlobalShortcut, formatGlobalShortcut } from '../store/globalShortcutsStore';
+import { useSidebarStore, DEFAULT_SIDEBAR_ITEMS, SidebarItemConfig } from '../store/sidebarStore';
+import { useDragDrop, useDragSource } from '../contexts/DragDropContext';
+import { ALL_NAV_ITEMS } from '../components/Sidebar';
 import { pingWithCredentials } from '../api/subsonic';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useTranslation } from 'react-i18next';
@@ -603,43 +607,34 @@ export default function Settings() {
             </div>
             <div className="settings-card">
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {([
-                  { id: 'inter',   label: 'Inter',            sample: 'The quick brown fox' },
-                  { id: 'outfit',  label: 'Outfit',           sample: 'The quick brown fox' },
-                  { id: 'dm-sans', label: 'DM Sans',          sample: 'The quick brown fox' },
-                  { id: 'nunito',  label: 'Nunito',           sample: 'The quick brown fox' },
-                  { id: 'rubik',             label: 'Rubik',             sample: 'The quick brown fox' },
-                  { id: 'space-grotesk',     label: 'Space Grotesk',     sample: 'The quick brown fox' },
-                  { id: 'figtree',           label: 'Figtree',           sample: 'The quick brown fox' },
-                  { id: 'manrope',           label: 'Manrope',           sample: 'The quick brown fox' },
-                  { id: 'plus-jakarta-sans', label: 'Plus Jakarta Sans',  sample: 'The quick brown fox' },
-                  { id: 'lexend',            label: 'Lexend',            sample: 'The quick brown fox' },
-                ] as { id: FontId; label: string; sample: string }[]).map(f => (
+                {(
+                  [
+                    { id: 'inter',             label: 'Inter',             stack: "'Inter', sans-serif" },
+                    { id: 'outfit',            label: 'Outfit',            stack: "'Outfit', sans-serif" },
+                    { id: 'dm-sans',           label: 'DM Sans',           stack: "'DM Sans', sans-serif" },
+                    { id: 'nunito',            label: 'Nunito',            stack: "'Nunito', sans-serif" },
+                    { id: 'rubik',             label: 'Rubik',             stack: "'Rubik', sans-serif" },
+                    { id: 'space-grotesk',     label: 'Space Grotesk',     stack: "'Space Grotesk', sans-serif" },
+                    { id: 'figtree',           label: 'Figtree',           stack: "'Figtree', sans-serif" },
+                    { id: 'manrope',           label: 'Manrope',           stack: "'Manrope', sans-serif" },
+                    { id: 'plus-jakarta-sans', label: 'Plus Jakarta Sans', stack: "'Plus Jakarta Sans', sans-serif" },
+                    { id: 'lexend',            label: 'Lexend',            stack: "'Lexend', sans-serif" },
+                  ] as { id: FontId; label: string; stack: string }[]
+                ).map(f => (
                   <button
                     key={f.id}
+                    className={`btn ${fontStore.font === f.id ? 'btn-primary' : 'btn-ghost'}`}
+                    style={{ justifyContent: 'flex-start', fontFamily: f.stack }}
                     onClick={() => fontStore.setFont(f.id)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '12px',
-                      background: fontStore.font === f.id ? 'var(--accent-dim)' : 'transparent',
-                      border: `1px solid ${fontStore.font === f.id ? 'var(--accent)' : 'var(--border-subtle)'}`,
-                      borderRadius: 'var(--radius-md)', padding: '10px 14px',
-                      cursor: 'pointer', textAlign: 'left', width: '100%',
-                    }}
                   >
-                    <div style={{
-                      width: 14, height: 14, borderRadius: '50%', flexShrink: 0,
-                      border: `2px solid ${fontStore.font === f.id ? 'var(--accent)' : 'var(--border)'}`,
-                      background: fontStore.font === f.id ? 'var(--accent)' : 'transparent',
-                    }} />
-                    <div>
-                      <div style={{ fontFamily: `'${f.label}', sans-serif`, fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{f.label}</div>
-                      <div style={{ fontFamily: `'${f.label}', sans-serif`, fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{f.sample}</div>
-                    </div>
+                    {f.label}
                   </button>
                 ))}
               </div>
             </div>
           </section>
+
+          <SidebarCustomizer />
         </>
       )}
 
@@ -974,6 +969,17 @@ export default function Settings() {
             <div className="settings-card">
               <div className="settings-toggle-row">
                 <div>
+                  <div style={{ fontWeight: 500 }}>{t('settings.minimizeToTray')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.minimizeToTrayDesc')}</div>
+                </div>
+                <label className="toggle-switch" aria-label={t('settings.minimizeToTray')}>
+                  <input type="checkbox" checked={auth.minimizeToTray} onChange={e => auth.setMinimizeToTray(e.target.checked)} />
+                  <span className="toggle-track" />
+                </label>
+              </div>
+              <div className="settings-section-divider" />
+              <div className="settings-toggle-row">
+                <div>
                   <div style={{ fontWeight: 500 }}>{t('settings.downloadsTitle')}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, wordBreak: 'break-all' }}>
                     {auth.downloadFolder || t('settings.downloadsDefault')}
@@ -1130,6 +1136,141 @@ function renderInline(text: string): React.ReactNode[] {
       return <code key={i} className="changelog-code">{part.slice(1, -1)}</code>;
     return part;
   });
+}
+
+function SidebarGripHandle({ idx, label }: { idx: number; label: string }) {
+  const { t } = useTranslation();
+  const { onMouseDown } = useDragSource(() => ({
+    data: JSON.stringify({ type: 'sidebar_reorder', index: idx }),
+    label,
+  }));
+  return (
+    <span
+      className="sidebar-customizer-grip"
+      data-tooltip={t('settings.sidebarDrag')}
+      data-tooltip-pos="right"
+      onMouseDown={onMouseDown}
+    >
+      <GripVertical size={16} />
+    </span>
+  );
+}
+
+function SidebarCustomizer() {
+  const { t } = useTranslation();
+  const { items, setItems, toggleItem, reset } = useSidebarStore();
+  const { isDragging: isPsyDragging } = useDragDrop();
+  const listRef = useRef<HTMLDivElement>(null);
+  const [dropTarget, setDropTarget] = useState<{ idx: number; before: boolean } | null>(null);
+  const dropTargetRef = useRef<{ idx: number; before: boolean } | null>(null);
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+
+  useEffect(() => {
+    if (!isPsyDragging) {
+      dropTargetRef.current = null;
+      setDropTarget(null);
+    }
+  }, [isPsyDragging]);
+
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const onPsyDrop = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail?.data) return;
+      let parsed: { type?: string; index?: number };
+      try { parsed = JSON.parse(detail.data); } catch { return; }
+      if (parsed.type !== 'sidebar_reorder' || parsed.index == null) return;
+
+      const fromIdx = parsed.index;
+      const target = dropTargetRef.current;
+      dropTargetRef.current = null;
+      setDropTarget(null);
+      if (target === null) return;
+
+      const insertBefore = target.before ? target.idx : target.idx + 1;
+      if (insertBefore === fromIdx || insertBefore === fromIdx + 1) return;
+
+      const next = [...itemsRef.current];
+      const [moved] = next.splice(fromIdx, 1);
+      const adjustedInsert = insertBefore > fromIdx ? insertBefore - 1 : insertBefore;
+      next.splice(adjustedInsert, 0, moved);
+      setItems(next);
+    };
+    el.addEventListener('psy-drop', onPsyDrop);
+    return () => el.removeEventListener('psy-drop', onPsyDrop);
+  }, [setItems]);
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isPsyDragging || !listRef.current) return;
+    const rows = listRef.current.querySelectorAll<HTMLElement>('[data-sidebar-idx]');
+    let target: { idx: number; before: boolean } | null = null;
+    for (const row of rows) {
+      const rect = row.getBoundingClientRect();
+      const idx = Number(row.dataset.sidebarIdx);
+      if (e.clientY < rect.top + rect.height / 2) {
+        target = { idx, before: true };
+        break;
+      }
+      target = { idx, before: false };
+    }
+    dropTargetRef.current = target;
+    setDropTarget(target);
+  };
+
+  return (
+    <section className="settings-section">
+      <div className="settings-section-header">
+        <PanelLeft size={18} />
+        <h2>{t('settings.sidebarTitle')}</h2>
+        <button
+          className="btn btn-ghost"
+          style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)' }}
+          onClick={reset}
+          data-tooltip={t('settings.sidebarReset')}
+        >
+          <RotateCcw size={14} />
+        </button>
+      </div>
+      <div
+        className="settings-card"
+        style={{ padding: '4px 0' }}
+        ref={listRef}
+        onMouseMove={handleMouseMove}
+      >
+        {items.map((cfg, idx) => {
+          const meta = ALL_NAV_ITEMS[cfg.id];
+          if (!meta) return null;
+          const Icon = meta.icon;
+          const isBefore = isPsyDragging && dropTarget?.idx === idx && dropTarget.before;
+          const isAfter  = isPsyDragging && dropTarget?.idx === idx && !dropTarget.before;
+          return (
+            <div
+              key={cfg.id}
+              data-sidebar-idx={idx}
+              className="sidebar-customizer-row"
+              style={{
+                borderTop:    isBefore ? '2px solid var(--accent)' : undefined,
+                borderBottom: isAfter  ? '2px solid var(--accent)' : undefined,
+              }}
+            >
+              <SidebarGripHandle idx={idx} label={t(meta.labelKey)} />
+              <Icon size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+              <span style={{ flex: 1, fontSize: 14 }}>{t(meta.labelKey)}</span>
+              <label className="toggle-switch" aria-label={t(meta.labelKey)}>
+                <input type="checkbox" checked={cfg.visible} onChange={() => toggleItem(cfg.id)} />
+                <span className="toggle-track" />
+              </label>
+            </div>
+          );
+        })}
+        <div className="sidebar-customizer-fixed-hint">
+          <span>{t('settings.sidebarFixed')}: {t('sidebar.nowPlaying')}, {t('sidebar.settings')}</span>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function ChangelogSection() {

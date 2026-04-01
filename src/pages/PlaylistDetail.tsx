@@ -82,9 +82,18 @@ export default function PlaylistDetail() {
     return result;
   }, [songs]);
 
-  // One resolved URL for the blurred background (must be called unconditionally)
-  // useMemo is required here — buildCoverArtUrl generates a new salt on every call,
-  // which would change bgFetchUrl every render and cause useCachedUrl to re-fetch in a loop.
+  // Stable fetch URLs + cache keys for the 2×2 grid and blurred background.
+  // buildCoverArtUrl generates a new crypto salt on every call, so these MUST
+  // be memoized — otherwise every render produces new URLs, useCachedUrl
+  // re-triggers, state updates, another render → infinite flicker loop.
+  const coverQuadUrls = useMemo(() =>
+    Array.from({ length: 4 }, (_, i) => {
+      const coverId = coverQuad[i % Math.max(1, coverQuad.length)];
+      if (!coverId) return null;
+      return { src: buildCoverArtUrl(coverId, 200), cacheKey: coverArtCacheKey(coverId, 200) };
+    }),
+  [coverQuad]);
+
   const bgFetchUrl = useMemo(() => buildCoverArtUrl(coverQuad[0] ?? '', 300), [coverQuad]);
   const bgCacheKey = useMemo(() => coverArtCacheKey(coverQuad[0] ?? '', 300), [coverQuad]);
   const resolvedBgUrl = useCachedUrl(bgFetchUrl, bgCacheKey);
@@ -318,21 +327,11 @@ export default function PlaylistDetail() {
           <div className="album-detail-hero">
             {/* 2×2 cover grid */}
             <div className="playlist-cover-grid">
-              {Array.from({ length: 4 }, (_, i) => {
-                const coverId = coverQuad[i % Math.max(1, coverQuad.length)];
-                if (!coverId) {
-                  return <div key={i} className="playlist-cover-cell playlist-cover-cell--empty" />;
-                }
-                return (
-                  <CachedImage
-                    key={i}
-                    className="playlist-cover-cell"
-                    src={buildCoverArtUrl(coverId, 200)}
-                    cacheKey={coverArtCacheKey(coverId, 200)}
-                    alt=""
-                  />
-                );
-              })}
+              {coverQuadUrls.map((entry, i) =>
+                entry
+                  ? <CachedImage key={i} className="playlist-cover-cell" src={entry.src} cacheKey={entry.cacheKey} alt="" />
+                  : <div key={i} className="playlist-cover-cell playlist-cover-cell--empty" />
+              )}
             </div>
 
             <div className="album-detail-meta">

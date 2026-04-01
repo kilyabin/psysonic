@@ -279,7 +279,7 @@ function AppShell() {
   );
 }
 
-// Media key event handler
+// Media key + tray event handler
 function TauriEventBridge() {
   const togglePlay = usePlayerStore(s => s.togglePlay);
   const next = usePlayerStore(s => s.next);
@@ -338,9 +338,12 @@ function TauriEventBridge() {
 
     const setup = async () => {
       const handlers: Array<[string, () => void]> = [
-        ['media:play-pause', () => togglePlay()],
-        ['media:next',       () => next()],
-        ['media:prev',       () => previous()],
+        ['media:play-pause',  () => togglePlay()],
+        ['media:next',        () => next()],
+        ['media:prev',        () => previous()],
+        ['tray:play-pause',   () => togglePlay()],
+        ['tray:next',         () => next()],
+        ['tray:previous',     () => previous()],
         ['media:volume-up',   () => { const s = usePlayerStore.getState(); s.setVolume(Math.min(1, s.volume + 0.05)); }],
         ['media:volume-down', () => { const s = usePlayerStore.getState(); s.setVolume(Math.max(0, s.volume - 0.05)); }],
       ];
@@ -372,10 +375,14 @@ function TauriEventBridge() {
         unlisten.push(u);
       }
 
-      // Close → exit app
-      const win = getCurrentWindow();
-      const u = await win.onCloseRequested(async () => {
-        await invoke('exit_app');
+      // window:close-requested is emitted by Rust (prevent_close + emit).
+      // JS decides: minimize to tray or exit, based on user setting.
+      const u = await listen('window:close-requested', async () => {
+        if (useAuthStore.getState().minimizeToTray) {
+          await getCurrentWindow().hide();
+        } else {
+          await invoke('exit_app');
+        }
       });
       if (cancelled) { u(); return; }
       unlisten.push(u);

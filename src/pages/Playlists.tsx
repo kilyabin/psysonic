@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ListMusic, Play, Plus, X } from 'lucide-react';
-import { getPlaylists, createPlaylist, deletePlaylist, SubsonicPlaylist, getPlaylist } from '../api/subsonic';
+import { getPlaylists, createPlaylist, deletePlaylist, SubsonicPlaylist, getPlaylist, buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { usePlaylistStore } from '../store/playlistStore';
+import CachedImage from '../components/CachedImage';
 import { useTranslation } from 'react-i18next';
 
 function formatDuration(seconds: number): string {
@@ -135,11 +136,20 @@ export default function Playlists() {
               onClick={() => navigate(`/playlists/${pl.id}`)}
               onMouseLeave={() => { if (deleteConfirmId === pl.id) setDeleteConfirmId(null); }}
             >
-              {/* Cover area — playlist SVG placeholder */}
+              {/* Cover area — server collage or fallback icon */}
               <div className="album-card-cover">
-                <div className="album-card-cover-placeholder playlist-card-icon">
-                  <ListMusic size={48} strokeWidth={1.2} />
-                </div>
+                {pl.coverArt ? (
+                  <CachedImage
+                    src={buildCoverArtUrl(pl.coverArt, 256)}
+                    cacheKey={coverArtCacheKey(pl.coverArt, 256)}
+                    alt={pl.name}
+                    className="album-card-cover-img"
+                  />
+                ) : (
+                  <div className="album-card-cover-placeholder playlist-card-icon">
+                    <ListMusic size={48} strokeWidth={1.2} />
+                  </div>
+                )}
 
                 {/* Play overlay — same pattern as AlbumCard */}
                 <div className="album-card-play-overlay">

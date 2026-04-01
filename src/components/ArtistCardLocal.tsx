@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { SubsonicArtist, buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import { useNavigate } from 'react-router-dom';
 import { Users } from 'lucide-react';
@@ -11,14 +11,18 @@ interface Props {
 export default function ArtistCardLocal({ artist }: Props) {
   const navigate = useNavigate();
   const coverId = artist.coverArt || artist.id;
+  // buildCoverArtUrl generates a new crypto salt on every call — must be
+  // memoized to prevent a new URL on every parent re-render causing refetch loops.
+  const coverSrc = useMemo(() => buildCoverArtUrl(coverId, 300), [coverId]);
+  const coverCacheKey = useMemo(() => coverArtCacheKey(coverId, 300), [coverId]);
 
   return (
     <div className="artist-card" onClick={() => navigate(`/artist/${artist.id}`)}>
       <div className="artist-card-avatar">
         {coverId ? (
           <CachedImage
-            src={buildCoverArtUrl(coverId, 300)}
-            cacheKey={coverArtCacheKey(coverId, 300)}
+            src={coverSrc}
+            cacheKey={coverCacheKey}
             alt={artist.name}
             loading="lazy"
             onError={(e) => {

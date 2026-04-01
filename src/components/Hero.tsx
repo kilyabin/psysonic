@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Play, ListPlus } from 'lucide-react';
 import { getRandomAlbums, SubsonicAlbum, buildCoverArtUrl, coverArtCacheKey, getAlbum } from '../api/subsonic';
@@ -92,9 +92,9 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
     });
   }, [album?.id]);
 
-  // Resolve background URL via cache
-  const bgRawUrl = album?.coverArt ? buildCoverArtUrl(album.coverArt, 800) : '';
-  const bgCacheKey = album?.coverArt ? coverArtCacheKey(album.coverArt, 800) : '';
+  // buildCoverArtUrl generates a new salt on every call — must be memoized.
+  const bgRawUrl    = useMemo(() => album?.coverArt ? buildCoverArtUrl(album.coverArt, 800) : '', [album?.coverArt]);
+  const bgCacheKey  = useMemo(() => album?.coverArt ? coverArtCacheKey(album.coverArt, 800) : '', [album?.coverArt]);
   const resolvedBgUrl = useCachedUrl(bgRawUrl, bgCacheKey);
 
   // Keep the last known good URL so HeroBg never receives '' during a cache-miss
@@ -102,9 +102,8 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
   const stableBgUrl = useRef('');
   if (resolvedBgUrl) stableBgUrl.current = resolvedBgUrl;
 
-  // Resolve cover thumbnail via cache
-  const coverRawUrl = album?.coverArt ? buildCoverArtUrl(album.coverArt, 300) : '';
-  const coverCacheKey = album?.coverArt ? coverArtCacheKey(album.coverArt, 300) : '';
+  const coverRawUrl  = useMemo(() => album?.coverArt ? buildCoverArtUrl(album.coverArt, 300) : '', [album?.coverArt]);
+  const coverCacheKey = useMemo(() => album?.coverArt ? coverArtCacheKey(album.coverArt, 300) : '', [album?.coverArt]);
 
   if (!album) return <div className="hero-placeholder" />;
 

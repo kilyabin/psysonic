@@ -200,6 +200,9 @@ export function useDragSource(getPayload: () => DragPayload) {
     (e: React.MouseEvent) => {
       // Only left-click
       if (e.button !== 0) return;
+      // Prevent the browser from starting a text-selection drag during the
+      // threshold detection phase (mousedown → mousemove before startDrag).
+      e.preventDefault();
 
       const startX = e.clientX;
       const startY = e.clientY;

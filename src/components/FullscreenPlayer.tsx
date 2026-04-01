@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useRef, memo } from 'react';
+import React, { useCallback, useEffect, useState, useRef, memo, useMemo } from 'react';
 import {
   Play, Pause, SkipBack, SkipForward,
   ChevronDown, Repeat, Repeat1, Square, Music, MicVocal
@@ -154,8 +154,10 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
   const toggleQueue     = usePlayerStore(s => s.toggleQueue);
 
   const duration = currentTrack?.duration ?? 0;
-  const coverUrl = currentTrack?.coverArt ? buildCoverArtUrl(currentTrack.coverArt, 800) : '';
-  const coverKey = currentTrack?.coverArt ? coverArtCacheKey(currentTrack.coverArt, 800) : '';
+  // buildCoverArtUrl generates a new salt on every call — must be memoized
+  // to prevent useCachedUrl from re-fetching on every progress re-render (100 ms).
+  const coverUrl = useMemo(() => currentTrack?.coverArt ? buildCoverArtUrl(currentTrack.coverArt, 800) : '', [currentTrack?.coverArt]);
+  const coverKey = useMemo(() => currentTrack?.coverArt ? coverArtCacheKey(currentTrack.coverArt, 800) : '', [currentTrack?.coverArt]);
   // useCachedUrl must be called unconditionally (hook rules)
   const resolvedCoverUrl = useCachedUrl(coverUrl, coverKey);
 

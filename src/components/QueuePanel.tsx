@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { Track, usePlayerStore, songToTrack } from '../store/playerStore';
 import { Play, Music, Star, X, Trash2, Save, FolderOpen, Shuffle, Infinity, Waves, MicVocal, ListMusic, Check, ListPlus } from 'lucide-react';
 import { buildCoverArtUrl, getAlbum, getPlaylists, getPlaylist, createPlaylist, updatePlaylist, deletePlaylist, SubsonicPlaylist } from '../api/subsonic';
@@ -159,6 +159,10 @@ export default function QueuePanel() {
   const queueIndex = usePlayerStore(s => s.queueIndex);
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const currentTime = usePlayerStore(s => s.currentTime);
+  const currentCoverSrc = useMemo(
+    () => currentTrack?.coverArt ? buildCoverArtUrl(currentTrack.coverArt, 128) : '',
+    [currentTrack?.coverArt]
+  );
   const isQueueVisible = usePlayerStore(s => s.isQueueVisible);
   const playTrack = usePlayerStore(s => s.playTrack);
   const toggleQueue = usePlayerStore(s => s.toggleQueue);
@@ -371,7 +375,7 @@ export default function QueuePanel() {
           <div className="queue-current-track-body">
             <div className="queue-current-cover">
               {currentTrack.coverArt ? (
-                <img src={buildCoverArtUrl(currentTrack.coverArt, 128)} alt="" loading="eager" />
+                <img src={currentCoverSrc} alt="" loading="eager" />
               ) : (
                 <div className="fallback"><Music size={32} /></div>
               )}

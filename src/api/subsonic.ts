@@ -96,6 +96,7 @@ export interface SubsonicPlaylist {
   changed: string;
   owner?: string;
   public?: boolean;
+  coverArt?: string;
 }
 
 export interface SubsonicNowPlaying extends SubsonicSong {

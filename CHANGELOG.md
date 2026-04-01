@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.25.0] - 2026-04-01
+
+### Added
+
+- **System Tray** *(requested by [@jackbot](https://github.com/jackbot) and [@thecyanide](https://github.com/thecyanide))*: Functional tray icon with context menu — Play / Pause, Previous Track, Next Track, Show / Hide, and Exit Psysonic. Left-clicking the tray icon toggles window visibility. The tray icon is built via `TrayIconBuilder` in Rust so menu events are properly wired.
+- **Minimize to Tray** *(requested by [@jackbot](https://github.com/jackbot) and [@thecyanide](https://github.com/thecyanide))*: New toggle in Settings → Behavior. When enabled, closing the window hides it to the tray instead of exiting. The close button behaviour is intercepted in Rust (`prevent_close` + `window:close-requested` event) and the JS side decides hide vs. exit based on the user setting.
+- **Sidebar Customization** *(requested by [@lighthous3d](https://github.com/lighthous3d))*: New section in Settings → Appearance. All library and system nav items can be shown/hidden via a toggle switch and reordered by dragging the grip handle. Order and visibility are persisted across sessions (`psysonic_sidebar` in localStorage). Fixed items (Now Playing, Settings) are listed as non-configurable below the list.
+- **Playlist cover art**: Playlist cards on the Playlists overview page now display the server-generated cover image (Navidrome's `coverArt` field on the playlist object) via the IndexedDB image cache. Falls back to the ListMusic icon when no cover is available.
+
+### Fixed
+
+- **Cover image flickering**: `buildCoverArtUrl()` generates a new random auth salt on every call, causing `useCachedUrl` to re-trigger on every render and produce a rapid re-fetch loop. Fixed by wrapping all `buildCoverArtUrl` / `coverArtCacheKey` calls in `useMemo` with the cover ID as dependency in `ArtistCardLocal`, `QueuePanel`, `FullscreenPlayer`, `Hero`, and `PlaylistDetail`.
+- **DnD text selection**: Dragging a grip handle in the Sidebar Customizer (and any future `useDragSource` consumer) would select all text on the page during the threshold detection phase. Fixed by calling `e.preventDefault()` in `useDragSource`'s `onMouseDown` handler before the drag threshold is reached.
+- **Sidebar Customization DnD on Linux**: The initial implementation used the HTML5 Drag & Drop API, which always shows a forbidden cursor on WebKitGTK and does not fire drop events reliably. Rewritten to use the existing psy-drag mouse-event system (`useDragSource` / `psy-drop` custom event), consistent with the Queue panel.
+
+---
+
 ## [1.24.0] - 2026-03-31
 
 ### Added

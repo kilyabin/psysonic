@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useAuthStore } from '../store/authStore';
+import { useSidebarStore } from '../store/sidebarStore';
 import { open } from '@tauri-apps/plugin-shell';
 import { version as appVersion } from '../../package.json';
 import { NavLink } from 'react-router-dom';
@@ -13,17 +14,21 @@ import {
 import PsysonicLogo from './PsysonicLogo';
 import PSmallLogo from './PSmallLogo';
 
-const navItems = [
-  { icon: Disc3, labelKey: 'sidebar.mainstage', to: '/' },
-  { icon: Radio, labelKey: 'sidebar.newReleases', to: '/new-releases' },
-  { icon: Music4,  labelKey: 'sidebar.allAlbums',    to: '/albums' },
-  { icon: Dices,   labelKey: 'sidebar.randomAlbums', to: '/random-albums' },
-  { icon: Users, labelKey: 'sidebar.artists', to: '/artists' },
-  { icon: Tags, labelKey: 'sidebar.genres', to: '/genres' },
-  { icon: Shuffle, labelKey: 'sidebar.randomMix', to: '/random-mix' },
-  { icon: Heart, labelKey: 'sidebar.favorites', to: '/favorites' },
-  { icon: ListMusic, labelKey: 'sidebar.playlists', to: '/playlists' },
-];
+// All configurable nav items — order and visibility controlled by sidebarStore.
+// Exported so Settings can render the same item metadata.
+export const ALL_NAV_ITEMS: Record<string, { icon: React.ElementType; labelKey: string; to: string; section: 'library' | 'system' }> = {
+  mainstage:    { icon: Disc3,      labelKey: 'sidebar.mainstage',    to: '/',              section: 'library' },
+  newReleases:  { icon: Radio,      labelKey: 'sidebar.newReleases',  to: '/new-releases',  section: 'library' },
+  allAlbums:    { icon: Music4,     labelKey: 'sidebar.allAlbums',    to: '/albums',        section: 'library' },
+  randomAlbums: { icon: Dices,      labelKey: 'sidebar.randomAlbums', to: '/random-albums', section: 'library' },
+  artists:      { icon: Users,      labelKey: 'sidebar.artists',      to: '/artists',       section: 'library' },
+  genres:       { icon: Tags,       labelKey: 'sidebar.genres',       to: '/genres',        section: 'library' },
+  randomMix:    { icon: Shuffle,    labelKey: 'sidebar.randomMix',    to: '/random-mix',    section: 'library' },
+  favorites:    { icon: Heart,      labelKey: 'sidebar.favorites',    to: '/favorites',     section: 'library' },
+  playlists:    { icon: ListMusic,  labelKey: 'sidebar.playlists',    to: '/playlists',     section: 'library' },
+  statistics:   { icon: BarChart3,  labelKey: 'sidebar.statistics',   to: '/statistics',    section: 'system'  },
+  help:         { icon: HelpCircle, labelKey: 'sidebar.help',         to: '/help',          section: 'system'  },
+};
 
 function isNewer(latest: string, current: string): boolean {
   const parse = (v: string) => v.replace(/^[^0-9]*/, '').split('.').map(Number);
@@ -77,7 +82,16 @@ export default function Sidebar({
   const offlineAlbums = useOfflineStore(s => s.albums);
   const serverId = useAuthStore(s => s.activeServerId ?? '');
   const hasOfflineContent = Object.values(offlineAlbums).some(a => a.serverId === serverId);
+  const sidebarItems = useSidebarStore(s => s.items);
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
+
+  // Resolve ordered, visible items per section from store config
+  const visibleLibrary = sidebarItems
+    .filter(cfg => cfg.visible && ALL_NAV_ITEMS[cfg.id]?.section === 'library')
+    .map(cfg => ALL_NAV_ITEMS[cfg.id]);
+  const visibleSystem = sidebarItems
+    .filter(cfg => cfg.visible && ALL_NAV_ITEMS[cfg.id]?.section === 'system')
+    .map(cfg => ALL_NAV_ITEMS[cfg.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -122,7 +136,7 @@ export default function Sidebar({
 
       <nav className="sidebar-nav" aria-label="Hauptnavigation">
         {!isCollapsed && <span className="nav-section-label">{t('sidebar.library')}</span>}
-        {navItems.map(item => (
+        {visibleLibrary.map(item => (
           <NavLink
             key={item.to}
             to={item.to}
@@ -136,7 +150,7 @@ export default function Sidebar({
           </NavLink>
         ))}
 
-        {/* Now Playing — special styled */}
+        {/* Now Playing — fixed, always visible */}
         <NavLink
           to="/now-playing"
           className={({ isActive }) => `nav-link nav-link-nowplaying ${isActive ? 'active' : ''}`}
@@ -163,26 +177,20 @@ export default function Sidebar({
           </NavLink>
         )}
 
-        {!isCollapsed && <span className="nav-section-label">{t('sidebar.system')}</span>}
+        {visibleSystem.length > 0 && !isCollapsed && <span className="nav-section-label">{t('sidebar.system')}</span>}
         {latestVersion && <UpdateToast isCollapsed={isCollapsed} latestVersion={latestVersion} />}
-        <NavLink
-          to="/statistics"
-          className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-          data-tooltip={isCollapsed ? t('sidebar.statistics') : undefined}
-          data-tooltip-pos="bottom"
-        >
-          <BarChart3 size={isCollapsed ? 22 : 18} />
-          {!isCollapsed && <span>{t('sidebar.statistics')}</span>}
-        </NavLink>
-        <NavLink
-          to="/help"
-          className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-          data-tooltip={isCollapsed ? t('sidebar.help') : undefined}
-          data-tooltip-pos="bottom"
-        >
-          <HelpCircle size={isCollapsed ? 22 : 18} />
-          {!isCollapsed && <span>{t('sidebar.help')}</span>}
-        </NavLink>
+        {visibleSystem.map(item => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+            data-tooltip={isCollapsed ? t(item.labelKey) : undefined}
+            data-tooltip-pos="bottom"
+          >
+            <item.icon size={isCollapsed ? 22 : 18} />
+            {!isCollapsed && <span>{t(item.labelKey)}</span>}
+          </NavLink>
+        ))}
         <NavLink
           to="/settings"
           className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
