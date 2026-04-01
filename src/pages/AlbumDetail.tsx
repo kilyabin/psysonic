@@ -234,7 +234,7 @@ const handleEnqueueAll = () => {
   // Hooks must be called unconditionally — derive from nullable album state
   const coverUrl = album?.album.coverArt ? buildCoverArtUrl(album.album.coverArt, 400) : '';
   const coverKey = album?.album.coverArt ? coverArtCacheKey(album.album.coverArt, 400) : '';
-  const resolvedCoverUrl = useCachedUrl(coverUrl, coverKey);
+  const resolvedCoverUrl = useCachedUrl(coverUrl, coverKey, false);
 
   if (loading) return <div className="loading-center"><div className="spinner" /></div>;
   if (!album) return <div className="empty-state">{t('albumDetail.notFound')}</div>;

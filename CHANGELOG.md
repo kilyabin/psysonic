@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.26.1] - 2026-04-01
+
+### Fixed
+
+- **Background flickering in Hero, Album Detail and Playlist Detail**: Blurred hero backgrounds were flickering for up to 20 seconds on first visit. Root cause: `useCachedUrl` with the default `fallbackToFetch = true` immediately returned the raw server URL, causing the background to render twice — once with the HTTP URL (triggering a server fetch) and again when the IndexedDB blob was ready. Fixed by passing `fallbackToFetch = false` in all three locations so the background only renders once the blob is cached.
+
+---
+
 ## [1.26.0] - 2026-04-01
 
 ### Added
