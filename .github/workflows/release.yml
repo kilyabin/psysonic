@@ -134,14 +134,18 @@ jobs:
           if [[ "${{ matrix.settings.platform }}" == "macos-latest" ]]; then
             if [[ "${{ matrix.settings.args }}" == *"aarch64"* ]]; then
               BUNDLE="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Psysonic.app.tar.gz"
+              SIG_NAME="Psysonic_aarch64.app.tar.gz.sig"
             else
               BUNDLE="src-tauri/target/x86_64-apple-darwin/release/bundle/macos/Psysonic.app.tar.gz"
+              SIG_NAME="Psysonic_x64.app.tar.gz.sig"
             fi
           else
             BUNDLE=$(find src-tauri/target/release/bundle/nsis -name "*.nsis.zip" | head -1)
+            SIG_NAME="Psysonic_${VERSION}_x64-setup.nsis.zip.sig"
           fi
           npx tauri signer sign --private-key "$TAURI_SIGNING_PRIVATE_KEY" --password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" "$BUNDLE"
-          gh release upload "app-v${VERSION}" "${BUNDLE}.sig" --clobber
+          cp "${BUNDLE}.sig" "$SIG_NAME"
+          gh release upload "app-v${VERSION}" "$SIG_NAME" --clobber
 
   build-linux:
     needs: create-release

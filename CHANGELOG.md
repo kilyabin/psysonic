@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.27.1] - 2026-04-02
+
+### Fixed
+
+- **CI: auto-update signing pipeline**: Signing keys were not being picked up by the bundler during the tauri-action build. Replaced with an explicit post-build signing step using `tauri signer sign`. Fixed `.sig` upload names to match platform conventions (`Psysonic_aarch64.app.tar.gz.sig`, `Psysonic_x64.app.tar.gz.sig`) so the manifest generator finds them correctly. First release where the in-app updater is fully functional on macOS and Windows.
+- **CI: npm + Cargo caching** *(requested by [@netherguy4](https://github.com/netherguy4))*: Added `actions/cache` for npm and `Swatinem/rust-cache` for Cargo across all build jobs. Warm-cache builds will be significantly faster on subsequent releases.
+
+---
+
 ## [1.27.0] - 2026-04-02
 
 ### Added
