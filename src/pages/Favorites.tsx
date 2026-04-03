@@ -19,10 +19,13 @@ export default function Favorites() {
   const { playTrack, enqueue } = usePlayerStore();
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const isPlaying = usePlayerStore(s => s.isPlaying);
+  const starredOverrides = usePlayerStore(s => s.starredOverrides);
+  const setStarredOverride = usePlayerStore(s => s.setStarredOverride);
   const psyDrag = useDragDrop();
 
   function removeSong(id: string) {
     unstar(id, 'song').catch(() => {});
+    setStarredOverride(id, false);
     setSongs(prev => prev.filter(s => s.id !== id));
   }
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
@@ -47,7 +50,8 @@ export default function Favorites() {
     );
   }
 
-  const hasAnyFavorites = albums.length > 0 || artists.length > 0 || songs.length > 0;
+  const visibleSongs = songs.filter(s => starredOverrides[s.id] !== false);
+  const hasAnyFavorites = albums.length > 0 || artists.length > 0 || visibleSongs.length > 0;
 
   return (
     <div className="content-body animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
@@ -67,14 +71,14 @@ export default function Favorites() {
             <AlbumRow title={t('favorites.albums')} albums={albums} />
           )}
 
-          {songs.length > 0 && (
+          {visibleSongs.length > 0 && (
             <section className="album-row-section">
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem' }}>
                 <h2 className="section-title" style={{ margin: 0 }}>{t('favorites.songs')}</h2>
                 <button
                   className="btn btn-primary"
                   onClick={() => {
-                    const tracks = songs.map(songToTrack);
+                    const tracks = visibleSongs.map(songToTrack);
                     playTrack(tracks[0], tracks);
                   }}
                 >
@@ -84,7 +88,7 @@ export default function Favorites() {
                 <button
                   className="btn btn-surface"
                   onClick={() => {
-                    const tracks = songs.map(songToTrack);
+                    const tracks = visibleSongs.map(songToTrack);
                     enqueue(tracks);
                   }}
                 >
@@ -100,7 +104,7 @@ export default function Favorites() {
                   <div className="col-center">{t('albumDetail.trackDuration')}</div>
                   <div />
                 </div>
-                {songs.map((song, i) => {
+                {visibleSongs.map((song, i) => {
                   const track = songToTrack(song);
                   return (
                     <div
@@ -109,7 +113,7 @@ export default function Favorites() {
                       style={{ gridTemplateColumns: '40px 1fr 1fr 60px 32px' }}
                       onClick={e => {
                         if ((e.target as HTMLElement).closest('button, a, input')) return;
-                        playTrack(track, songs.map(songToTrack));
+                        playTrack(track, visibleSongs.map(songToTrack));
                       }}
                       onContextMenu={e => { e.preventDefault(); openContextMenu(e.clientX, e.clientY, track, 'song'); }}
                       role="row"

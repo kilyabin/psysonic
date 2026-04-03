@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod audio;
+mod discord;
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -340,6 +341,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(audio_engine)
         .manage(ShortcutMap::default())
+        .manage(discord::DiscordState::new())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
@@ -538,6 +540,8 @@ pub fn run() {
             audio::audio_set_crossfade,
             audio::audio_set_gapless,
             audio::audio_chain_preload,
+            discord::discord_update_presence,
+            discord::discord_clear_presence,
             lastfm_request,
             download_track_offline,
             delete_offline_track,

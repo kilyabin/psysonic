@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
-import { buildStreamUrl } from '../api/subsonic';
+import { buildStreamUrl, getArtist, getAlbum } from '../api/subsonic';
 import type { SubsonicSong } from '../api/subsonic';
 
 export interface OfflineTrackMeta {
@@ -33,6 +33,7 @@ export interface OfflineAlbumMeta {
   coverArt?: string;
   year?: number;
   trackIds: string[];
+  type?: 'album' | 'playlist' | 'artist';
 }
 
 export interface DownloadJob {
@@ -49,6 +50,8 @@ interface OfflineState {
   tracks: Record<string, OfflineTrackMeta>;   // key: `${serverId}:${trackId}`
   albums: Record<string, OfflineAlbumMeta>;   // key: `${serverId}:${albumId}`
   jobs: DownloadJob[];
+  /** Progress for bulk (playlist / artist) downloads. Key = playlistId or artistId. */
+  bulkProgress: Record<string, { done: number; total: number }>;
 
   isDownloaded: (trackId: string, serverId: string) => boolean;
   isAlbumDownloaded: (albumId: string, serverId: string) => boolean;
@@ -62,7 +65,10 @@ interface OfflineState {
     year: number | undefined,
     songs: SubsonicSong[],
     serverId: string,
+    type?: 'album' | 'playlist' | 'artist',
   ) => Promise<void>;
+  downloadPlaylist: (playlistId: string, playlistName: string, coverArt: string | undefined, songs: SubsonicSong[], serverId: string) => Promise<void>;
+  downloadArtist: (artistId: string, artistName: string, serverId: string) => Promise<void>;
   deleteAlbum: (albumId: string, serverId: string) => Promise<void>;
   clearAll: (serverId: string) => Promise<void>;
   getAlbumProgress: (albumId: string) => { done: number; total: number } | null;
@@ -74,6 +80,7 @@ export const useOfflineStore = create<OfflineState>()(
       tracks: {},
       albums: {},
       jobs: [],
+      bulkProgress: {},
 
       isDownloaded: (trackId, serverId) =>
         !!get().tracks[`${serverId}:${trackId}`],
@@ -110,7 +117,7 @@ export const useOfflineStore = create<OfflineState>()(
         return { done, total: albumJobs.length };
       },
 
-      downloadAlbum: async (albumId, albumName, albumArtist, coverArt, year, songs, serverId) => {
+      downloadAlbum: async (albumId, albumName, albumArtist, coverArt, year, songs, serverId, type = 'album') => {
         const CONCURRENCY = 2;
         const trackIds = songs.map(s => s.id);
 
@@ -118,7 +125,7 @@ export const useOfflineStore = create<OfflineState>()(
         set(state => ({
           albums: {
             ...state.albums,
-            [`${serverId}:${albumId}`]: { id: albumId, serverId, name: albumName, artist: albumArtist, coverArt, year, trackIds },
+            [`${serverId}:${albumId}`]: { id: albumId, serverId, name: albumName, artist: albumArtist, coverArt, year, trackIds, type },
           },
           jobs: [
             ...state.jobs.filter(j => j.albumId !== albumId),
@@ -209,6 +216,42 @@ export const useOfflineStore = create<OfflineState>()(
             ),
           }));
         }, 2500);
+      },
+
+      downloadPlaylist: async (playlistId, playlistName, coverArt, songs, serverId) => {
+        // Deduplicate songs (a track can appear multiple times in a playlist).
+        const seen = new Set<string>();
+        const unique = songs.filter(s => { if (seen.has(s.id)) return false; seen.add(s.id); return true; });
+        // Store the entire playlist as one virtual album entry so the Offline Library
+        // shows a single card for the playlist rather than one card per album.
+        await get().downloadAlbum(playlistId, playlistName, '', coverArt, undefined, unique, serverId, 'playlist');
+      },
+
+      downloadArtist: async (artistId, artistName, serverId) => {
+        let albums: { id: string; name: string; artist: string; coverArt?: string; year?: number }[] = [];
+        try {
+          const res = await getArtist(artistId);
+          albums = res.albums;
+        } catch { return; }
+        set(state => ({
+          bulkProgress: { ...state.bulkProgress, [artistId]: { done: 0, total: albums.length } },
+        }));
+        for (let i = 0; i < albums.length; i++) {
+          const album = albums[i];
+          try {
+            const { songs } = await getAlbum(album.id);
+            await get().downloadAlbum(album.id, album.name, album.artist || artistName, album.coverArt, album.year, songs, serverId, 'artist');
+          } catch { /* skip failed album */ }
+          set(state => ({
+            bulkProgress: { ...state.bulkProgress, [artistId]: { done: i + 1, total: albums.length } },
+          }));
+        }
+        setTimeout(() => {
+          set(state => {
+            const { [artistId]: _removed, ...rest } = state.bulkProgress;
+            return { bulkProgress: rest };
+          });
+        }, 3000);
       },
 
       deleteAlbum: async (albumId, serverId) => {

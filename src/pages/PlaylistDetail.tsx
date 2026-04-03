@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Play, ListPlus, Trash2, Search, X, Loader2, Plus, GripVertical, Star, RefreshCw, Shuffle, Heart } from 'lucide-react';
+import { ChevronLeft, Play, ListPlus, Trash2, Search, X, Loader2, Plus, GripVertical, Star, RefreshCw, Shuffle, Heart, HardDriveDownload, Check } from 'lucide-react';
 import { AddToPlaylistSubmenu } from '../components/ContextMenu';
 import {
   getPlaylist, updatePlaylist, search, setRating, star, unstar,
@@ -8,6 +8,8 @@ import {
 } from '../api/subsonic';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { usePlaylistStore } from '../store/playlistStore';
+import { useOfflineStore } from '../store/offlineStore';
+import { useAuthStore } from '../store/authStore';
 import { useDragDrop } from '../contexts/DragDropContext';
 import CachedImage, { useCachedUrl } from '../components/CachedImage';
 import { coverArtCacheKey, buildCoverArtUrl } from '../api/subsonic';
@@ -54,9 +56,11 @@ export default function PlaylistDetail() {
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { playTrack, enqueue, openContextMenu, currentTrack, isPlaying } = usePlayerStore();
+  const { playTrack, enqueue, openContextMenu, currentTrack, isPlaying, starredOverrides, setStarredOverride } = usePlayerStore();
   const touchPlaylist = usePlaylistStore((s) => s.touchPlaylist);
   const { startDrag, isDragging } = useDragDrop();
+  const { downloadPlaylist, isAlbumDownloading, isAlbumDownloaded, getAlbumProgress } = useOfflineStore();
+  const activeServerId = useAuthStore(s => s.activeServerId) ?? '';
 
   const [playlist, setPlaylist] = useState<SubsonicPlaylist | null>(null);
   const [songs, setSongs] = useState<SubsonicSong[]>([]);
@@ -92,9 +96,10 @@ export default function PlaylistDetail() {
   const toggleAll = () => setSelectedIds(allSelected ? new Set() : new Set(songs.map(s => s.id)));
 
   const bulkRemove = () => {
+    const prevCount = songs.length;
     const next = songs.filter(s => !selectedIds.has(s.id));
     setSongs(next);
-    savePlaylist(next);
+    savePlaylist(next, prevCount);
     setSelectedIds(new Set());
   };
 
@@ -204,11 +209,11 @@ export default function PlaylistDetail() {
   }, [playlist?.id]);
 
   // ── Save ──────────────────────────────────────────────────────
-  const savePlaylist = useCallback(async (updatedSongs: SubsonicSong[]) => {
+  const savePlaylist = useCallback(async (updatedSongs: SubsonicSong[], prevCount = 0) => {
     if (!id) return;
     setSaving(true);
     try {
-      await updatePlaylist(id, updatedSongs.map(s => s.id));
+      await updatePlaylist(id, updatedSongs.map(s => s.id), prevCount);
       if (id) touchPlaylist(id);
     } catch {}
     setSaving(false);
@@ -216,9 +221,10 @@ export default function PlaylistDetail() {
 
   // ── Remove ────────────────────────────────────────────────────
   const removeSong = (idx: number) => {
+    const prevCount = songs.length;
     const next = songs.filter((_, i) => i !== idx);
     setSongs(next);
-    savePlaylist(next);
+    savePlaylist(next, prevCount);
   };
 
   // ── Add ───────────────────────────────────────────────────────
@@ -239,12 +245,13 @@ export default function PlaylistDetail() {
 
   const handleToggleStar = (song: SubsonicSong, e: React.MouseEvent) => {
     e.stopPropagation();
-    const isStarred = starredSongs.has(song.id);
+    const isStarred = song.id in starredOverrides ? starredOverrides[song.id] : starredSongs.has(song.id);
     setStarredSongs(prev => {
       const next = new Set(prev);
       isStarred ? next.delete(song.id) : next.add(song.id);
       return next;
     });
+    setStarredOverride(song.id, !isStarred);
     (isStarred ? unstar(song.id, 'song') : star(song.id, 'song')).catch(() => {});
   };
 
@@ -424,6 +431,25 @@ export default function PlaylistDetail() {
                 >
                   <Search size={16} /> {t('playlists.addSongs')}
                 </button>
+                {songs.length > 0 && id && (() => {
+                  const isDownloading = isAlbumDownloading(id);
+                  const isCached = isAlbumDownloaded(id, activeServerId);
+                  const progress = isDownloading ? getAlbumProgress(id) : null;
+                  return (
+                    <button
+                      className="btn btn-ghost"
+                      disabled={isDownloading}
+                      onClick={() => { if (playlist) downloadPlaylist(id, playlist.name, playlist.coverArt, songs, activeServerId); }}
+                      data-tooltip={isDownloading
+                        ? t('albumDetail.offlineDownloading', { n: progress?.done ?? 0, total: progress?.total ?? 0 })
+                        : isCached ? t('playlists.offlineCached') : t('playlists.cacheOffline')}
+                    >
+                      {isDownloading
+                        ? <div className="spinner" style={{ width: 14, height: 14, borderTopColor: 'currentColor' }} />
+                        : isCached ? <Check size={16} /> : <HardDriveDownload size={16} />}
+                    </button>
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -599,9 +625,9 @@ export default function PlaylistDetail() {
                 <button
                   className="btn btn-ghost track-star-btn"
                   onClick={e => handleToggleStar(song, e)}
-                  style={{ color: starredSongs.has(song.id) ? 'var(--color-star-active, var(--accent))' : 'var(--color-star-inactive, var(--text-muted))' }}
+                  style={{ color: (song.id in starredOverrides ? starredOverrides[song.id] : starredSongs.has(song.id)) ? 'var(--color-star-active, var(--accent))' : 'var(--color-star-inactive, var(--text-muted))' }}
                 >
-                  <Heart size={14} fill={starredSongs.has(song.id) ? 'currentColor' : 'none'} />
+                  <Heart size={14} fill={(song.id in starredOverrides ? starredOverrides[song.id] : starredSongs.has(song.id)) ? 'currentColor' : 'none'} />
                 </button>
               </div>
 

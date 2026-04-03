@@ -1,6 +1,6 @@
 [package]
 name = "psysonic"
-version = "1.28.0"
+version = "1.30.0"
 description = "Psysonic Desktop Music Player"
 authors = []
 license = ""
@@ -40,3 +40,4 @@ tauri-plugin-window-state = "2.4.1"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 souvlaki = { version = "0.8", default-features = false, features = ["use_zbus"] }
+discord-rich-presence = "0.2"

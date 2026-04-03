@@ -293,6 +293,15 @@
 .app-updater-actions {
   padding-left: 19px;
   margin-top: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.app-updater-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 0 0 2px;
 }
 .app-updater-btn-primary {
   display: inline-flex;
@@ -309,6 +318,21 @@
   transition: opacity var(--transition-fast);
 }
 .app-updater-btn-primary:hover { opacity: 1; }
+.app-updater-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  opacity: 0.75;
+  transition: opacity var(--transition-fast);
+}
+.app-updater-btn-secondary:hover { opacity: 1; color: var(--text-primary); }
 .app-updater-progress-wrap {
   display: flex;
   align-items: center;

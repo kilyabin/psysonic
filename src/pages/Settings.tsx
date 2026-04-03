@@ -1010,6 +1010,28 @@ export default function Settings() {
               <div className="settings-section-divider" />
               <div className="settings-toggle-row">
                 <div>
+                  <div style={{ fontWeight: 500 }}>{t('settings.showArtistImages')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showArtistImagesDesc')}</div>
+                </div>
+                <label className="toggle-switch" aria-label={t('settings.showArtistImages')}>
+                  <input type="checkbox" checked={auth.showArtistImages} onChange={e => auth.setShowArtistImages(e.target.checked)} />
+                  <span className="toggle-track" />
+                </label>
+              </div>
+              <div className="settings-section-divider" />
+              <div className="settings-toggle-row">
+                <div>
+                  <div style={{ fontWeight: 500 }}>{t('settings.discordRichPresence')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.discordRichPresenceDesc')}</div>
+                </div>
+                <label className="toggle-switch" aria-label={t('settings.discordRichPresence')}>
+                  <input type="checkbox" checked={auth.discordRichPresence} onChange={e => auth.setDiscordRichPresence(e.target.checked)} />
+                  <span className="toggle-track" />
+                </label>
+              </div>
+              <div className="settings-section-divider" />
+              <div className="settings-toggle-row">
+                <div>
                   <div style={{ fontWeight: 500 }}>{t('settings.nowPlayingEnabled')}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.nowPlayingEnabledDesc')}</div>
                 </div>

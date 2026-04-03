@@ -371,10 +371,9 @@ export default function QueuePanel() {
 
       {currentTrack && (
         <div className="queue-current-track">
-          {(currentTrack.genre || currentTrack.suffix || currentTrack.bitRate || currentTrack.samplingRate || currentTrack.bitDepth) && (
+          {(currentTrack.suffix || currentTrack.bitRate || currentTrack.samplingRate || currentTrack.bitDepth) && (
             <div className="queue-current-tech">
               {[
-                currentTrack.genre,
                 currentTrack.suffix?.toUpperCase(),
                 currentTrack.bitRate ? `${currentTrack.bitRate} kbps` : undefined,
                 (() => {

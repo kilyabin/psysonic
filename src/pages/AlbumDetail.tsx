@@ -32,6 +32,7 @@ export default function AlbumDetail() {
   const enqueue = usePlayerStore(s => s.enqueue);
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
+  const setStarredOverride = usePlayerStore(s => s.setStarredOverride);
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const isPlaying = usePlayerStore(s => s.isPlaying);
 
@@ -201,12 +202,14 @@ const handleEnqueueAll = () => {
     const next = new Set(starredSongs);
     if (wasStarred) next.delete(song.id); else next.add(song.id);
     setStarredSongs(next);
+    setStarredOverride(song.id, !wasStarred);
     try {
       if (wasStarred) await unstar(song.id, 'song');
       else await star(song.id, 'song');
     } catch (err) {
       console.error('Failed to toggle song star', err);
       setStarredSongs(new Set(starredSongs));
+      setStarredOverride(song.id, wasStarred);
     }
   };
 

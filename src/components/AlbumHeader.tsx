@@ -143,8 +143,8 @@ export default function AlbumHeader({
               <button
                 className="album-detail-cover-btn"
                 onClick={() => setLightboxOpen(true)}
-                data-tooltip="Vergrößern"
-                aria-label={`${info.name} Cover vergrößern`}
+                data-tooltip={t('albumDetail.enlargeCover')}
+                aria-label={`${info.name} ${t('albumDetail.enlargeCover')}`}
               >
                 <CachedImage className="album-detail-cover" src={coverUrl} cacheKey={coverKey} alt={`${info.name} Cover`} />
               </button>

@@ -4,9 +4,11 @@ import { getArtist, getArtistInfo, getTopSongs, getSimilarSongs2, getAlbum, sear
 import AlbumCard from '../components/AlbumCard';
 import CachedImage from '../components/CachedImage';
 import CoverLightbox from '../components/CoverLightbox';
-import { ArrowLeft, Users, ExternalLink, Heart, Play, Shuffle, Radio } from 'lucide-react';
+import { ArrowLeft, Users, ExternalLink, Heart, Play, Shuffle, Radio, HardDriveDownload, Check } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-shell';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
+import { useOfflineStore } from '../store/offlineStore';
+import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
 import { lastfmGetSimilarArtists, lastfmIsConfigured } from '../api/lastfm';
 import LastfmIcon from '../components/LastfmIcon';
@@ -60,6 +62,8 @@ export default function ArtistDetail() {
   const openContextMenu = usePlayerStore(state => state.openContextMenu);
   const currentTrack = usePlayerStore(state => state.currentTrack);
   const isPlaying = usePlayerStore(state => state.isPlaying);
+  const { downloadArtist, bulkProgress } = useOfflineStore();
+  const activeServerId = useAuthStore(s => s.activeServerId) ?? '';
 
   useEffect(() => {
     if (!id) return;
@@ -341,6 +345,28 @@ export default function ArtistDetail() {
               {radioLoading ? <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'currentColor' }} /> : <Radio size={16} />}
               {radioLoading ? t('artistDetail.loading') : t('artistDetail.radio')}
             </button>
+            {albums.length > 0 && (() => {
+              const progress = id ? bulkProgress[id] : undefined;
+              const isDone = progress && progress.done === progress.total;
+              const isDownloading = progress && !isDone;
+              return (
+                <button
+                  className="btn btn-surface"
+                  disabled={!!isDownloading}
+                  onClick={() => { if (id && artist) downloadArtist(id, artist.name, activeServerId); }}
+                  data-tooltip={isDownloading
+                    ? t('artistDetail.offlineDownloading', { done: progress.done, total: progress.total })
+                    : isDone ? t('artistDetail.offlineCached') : t('artistDetail.cacheOffline')}
+                >
+                  {isDownloading
+                    ? <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'currentColor' }} />
+                    : isDone ? <Check size={16} /> : <HardDriveDownload size={16} />}
+                  {isDownloading
+                    ? t('artistDetail.offlineDownloading', { done: progress.done, total: progress.total })
+                    : isDone ? t('artistDetail.offlineCached') : t('artistDetail.cacheOffline')}
+                </button>
+              );
+            })()}
           </div>
         </div>
       </div>

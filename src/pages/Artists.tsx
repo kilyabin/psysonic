@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getArtists, SubsonicArtist } from '../api/subsonic';
-import { LayoutGrid, List } from 'lucide-react';
+import { getArtists, SubsonicArtist, buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
+import { LayoutGrid, List, Images } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
+import { useAuthStore } from '../store/authStore';
+import CachedImage from '../components/CachedImage';
 import { useTranslation } from 'react-i18next';
 
 const ALL_SENTINEL = 'ALL';
@@ -23,12 +25,52 @@ function nameColor(name: string): string {
 }
 
 function nameInitial(name: string): string {
-  // Skip leading non-letter chars (punctuation, numbers, brackets, …)
-  const letter = name.match(/[a-zA-ZÀ-ÖØ-öø-ÿ]/)?.[0];
+  // \p{L} matches any Unicode letter — covers cyrillic, arabic, CJK, etc.
+  const letter = name.match(/\p{L}/u)?.[0];
   if (letter) return letter.toUpperCase();
-  // Fallback: first alphanumeric (e.g. "1349")
-  const alnum = name.match(/[a-zA-Z0-9]/)?.[0];
-  return alnum?.toUpperCase() ?? '?';
+  const alnum = name.match(/[0-9]/)?.[0];
+  return alnum ?? '?';
+}
+
+function ArtistCardAvatar({ artist, showImages }: { artist: SubsonicArtist; showImages: boolean }) {
+  const color = nameColor(artist.name);
+  if (showImages && artist.coverArt) {
+    return (
+      <div className="artist-card-avatar">
+        <CachedImage
+          src={buildCoverArtUrl(artist.coverArt, 300)}
+          cacheKey={coverArtCacheKey(artist.coverArt, 300)}
+          alt={artist.name}
+        />
+      </div>
+    );
+  }
+  return (
+    <div className="artist-card-avatar artist-card-avatar-initial" style={{ borderColor: color }}>
+      <span style={{ color }}>{nameInitial(artist.name)}</span>
+    </div>
+  );
+}
+
+function ArtistRowAvatar({ artist, showImages }: { artist: SubsonicArtist; showImages: boolean }) {
+  const color = nameColor(artist.name);
+  if (showImages && artist.coverArt) {
+    return (
+      <div className="artist-avatar">
+        <CachedImage
+          src={buildCoverArtUrl(artist.coverArt, 64)}
+          cacheKey={coverArtCacheKey(artist.coverArt, 64)}
+          alt={artist.name}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
+        />
+      </div>
+    );
+  }
+  return (
+    <div className="artist-avatar artist-avatar-initial" style={{ borderColor: color }}>
+      <span style={{ color }}>{nameInitial(artist.name)}</span>
+    </div>
+  );
 }
 
 export default function Artists() {
@@ -42,6 +84,8 @@ export default function Artists() {
   const [visibleCount, setVisibleCount] = useState(50);
   const navigate = useNavigate();
   const openContextMenu = usePlayerStore(state => state.openContextMenu);
+  const showArtistImages = useAuthStore(s => s.showArtistImages);
+  const setShowArtistImages = useAuthStore(s => s.setShowArtistImages);
 
   useEffect(() => {
     getArtists().then(data => { setArtists(data); setLoading(false); }).catch(() => setLoading(false));
@@ -102,6 +146,15 @@ export default function Artists() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <button
+            className={`btn btn-surface`}
+            onClick={() => setShowArtistImages(!showArtistImages)}
+            style={showArtistImages ? { background: 'var(--accent)', color: 'var(--ctp-crust)', padding: '0.5rem' } : { padding: '0.5rem' }}
+            data-tooltip={showArtistImages ? t('artists.imagesOn') : t('artists.imagesOff')}
+            data-tooltip-wrap
+          >
+            <Images size={20} />
+          </button>
+          <button
             className={`btn btn-surface ${viewMode === 'grid' ? 'btn-sort-active' : ''}`}
             onClick={() => setViewMode('grid')}
             style={viewMode === 'grid' ? { background: 'var(--accent)', color: 'var(--ctp-crust)', padding: '0.5rem' } : { padding: '0.5rem' }}
@@ -146,30 +199,25 @@ export default function Artists() {
 
       {!loading && viewMode === 'grid' && (
         <div className="album-grid-wrap">
-          {visible.map(artist => {
-            const color = nameColor(artist.name);
-            return (
-              <div
-                key={artist.id}
-                className="artist-card"
-                onClick={() => navigate(`/artist/${artist.id}`)}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  openContextMenu(e.clientX, e.clientY, artist, 'artist');
-                }}
-              >
-                <div className="artist-card-avatar artist-card-avatar-initial" style={{ borderColor: color }}>
-                  <span style={{ color }}>{nameInitial(artist.name)}</span>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <div className="artist-card-name">{artist.name}</div>
-                  {artist.albumCount != null && (
-                    <div className="artist-card-meta">{t('artists.albumCount', { count: artist.albumCount })}</div>
-                  )}
-                </div>
+          {visible.map(artist => (
+            <div
+              key={artist.id}
+              className="artist-card"
+              onClick={() => navigate(`/artist/${artist.id}`)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                openContextMenu(e.clientX, e.clientY, artist, 'artist');
+              }}
+            >
+              <ArtistCardAvatar artist={artist} showImages={showArtistImages} />
+              <div style={{ textAlign: 'center' }}>
+                <div className="artist-card-name">{artist.name}</div>
+                {artist.albumCount != null && (
+                  <div className="artist-card-meta">{t('artists.albumCount', { count: artist.albumCount })}</div>
+                )}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       )}
 
@@ -179,31 +227,26 @@ export default function Artists() {
             <div key={letter} style={{ marginBottom: '1.5rem' }}>
               <h3 className="letter-heading">{letter}</h3>
               <div className="artist-list">
-                {groups[letter].map(artist => {
-                  const color = nameColor(artist.name);
-                  return (
-                    <button
-                      key={artist.id}
-                      className="artist-row"
-                      onClick={() => navigate(`/artist/${artist.id}`)}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        openContextMenu(e.clientX, e.clientY, artist, 'artist');
-                      }}
-                      id={`artist-${artist.id}`}
-                    >
-                      <div className="artist-avatar artist-avatar-initial" style={{ borderColor: color }}>
-                        <span style={{ color }}>{nameInitial(artist.name)}</span>
-                      </div>
-                      <div style={{ textAlign: 'left' }}>
-                        <div className="artist-name">{artist.name}</div>
-                        {artist.albumCount != null && (
-                          <div className="artist-meta">{t('artists.albumCount', { count: artist.albumCount })}</div>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
+                {groups[letter].map(artist => (
+                  <button
+                    key={artist.id}
+                    className="artist-row"
+                    onClick={() => navigate(`/artist/${artist.id}`)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      openContextMenu(e.clientX, e.clientY, artist, 'artist');
+                    }}
+                    id={`artist-${artist.id}`}
+                  >
+                    <ArtistRowAvatar artist={artist} showImages={showArtistImages} />
+                    <div style={{ textAlign: 'left' }}>
+                      <div className="artist-name">{artist.name}</div>
+                      {artist.albumCount != null && (
+                        <div className="artist-meta">{t('artists.albumCount', { count: artist.albumCount })}</div>
+                      )}
+                    </div>
+                  </button>
+                ))}
               </div>
             </div>
           ))}

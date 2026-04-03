@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.0] - 2026-04-03
+
+### Added
+
+- **Bulk offline download — Playlists & Artist discographies** *(requested by [@Apollosport](https://github.com/Apollosport), [#54](https://github.com/Psychotoxical/psysonic/issues/54))*: Download an entire playlist or a full artist discography for offline use in one click. Progress is tracked per album on the Artist page ("Caching… 2/5 albums").
+- **Offline Library filter tabs**: The Offline Library now has four filter tabs — All, Albums, Playlists, and Discographies. The Discographies tab groups albums under their respective artist with section headings.
+- **Discord Rich Presence** *(requested by [@Bewenben](https://github.com/Bewenben), [#49](https://github.com/Psychotoxical/psysonic/issues/49))* (opt-in): Psysonic can now update your Discord status with the currently playing track, artist, and a live elapsed timer. Toggle in Settings → General → "Discord Rich Presence".
+- **Artist images on Artists page** *(reported by [@Apollosport](https://github.com/Apollosport), [#53](https://github.com/Psychotoxical/psysonic/issues/53))* (opt-in): Artist avatars on the Artists overview can now show the actual artist image from the server instead of the coloured initial. Toggle in Settings → General → "Show artist images". Off by default to preserve performance on large libraries.
+- **Image lazy loading**: Cover art and artist images across all pages now load lazily via `IntersectionObserver` (300 px pre-fetch margin), significantly reducing initial page render time on large libraries.
+
+### Fixed
+
+- **Crossfade triggers on manual track skip** *(reported by [@netherguy4](https://github.com/netherguy4), [#35](https://github.com/Psychotoxical/psysonic/issues/35))*: Manually clicking Next/Prev or selecting a track from the queue no longer triggers the crossfade transition. Crossfade now only fires on natural track end.
+- **Playlist offline cache showing individual album cards**: Caching a playlist offline previously created one card per album group in the Offline Library. The playlist is now stored as a single cohesive entry.
+- **Image cache abort handling**: Aborted image fetches no longer prevented the cached result from being written to IndexedDB, causing covers to reload on every page visit.
+
+### Changed
+
+- **Queue tech strip**: Removed genre from the codec/bitrate overlay strip in the Queue panel — genre strings frequently caused layout overflow.
+- **"Save discography offline" label**: The Artist page offline button now reads "Save discography offline" instead of "Download discography" to avoid confusion with a ZIP export.
+- **Update toast (Win/Mac)**: The update notification now includes a disclaimer that auto-update is still in development, and always shows a direct GitHub Releases download link alongside the install button as a fallback.
+- **Facebook theme overhaul**: Improved grey text contrast, opaque album chip and back button, readable Queue/Lyrics tab labels.
+
+---
+
 ## [1.29.0] - 2026-04-02
 
 ### Added

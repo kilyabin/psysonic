@@ -34,7 +34,9 @@ interface AuthState {
   crossfadeSecs: number;
   gaplessEnabled: boolean;
   infiniteQueueEnabled: boolean;
+  showArtistImages: boolean;
   minimizeToTray: boolean;
+  discordRichPresence: boolean;
   nowPlayingEnabled: boolean;
   showChangelogOnUpdate: boolean;
   lastSeenChangelogVersion: string;
@@ -68,7 +70,9 @@ interface AuthState {
   setCrossfadeSecs: (v: number) => void;
   setGaplessEnabled: (v: boolean) => void;
   setInfiniteQueueEnabled: (v: boolean) => void;
+  setShowArtistImages: (v: boolean) => void;
   setMinimizeToTray: (v: boolean) => void;
+  setDiscordRichPresence: (v: boolean) => void;
   setNowPlayingEnabled: (v: boolean) => void;
   setShowChangelogOnUpdate: (v: boolean) => void;
   setLastSeenChangelogVersion: (v: string) => void;
@@ -103,7 +107,9 @@ export const useAuthStore = create<AuthState>()(
       crossfadeSecs: 3,
       gaplessEnabled: false,
       infiniteQueueEnabled: false,
+      showArtistImages: false,
       minimizeToTray: false,
+      discordRichPresence: false,
       nowPlayingEnabled: false,
       showChangelogOnUpdate: true,
       lastSeenChangelogVersion: '',
@@ -170,7 +176,9 @@ export const useAuthStore = create<AuthState>()(
       setCrossfadeSecs: (v) => set({ crossfadeSecs: v }),
       setGaplessEnabled: (v) => set({ gaplessEnabled: v }),
       setInfiniteQueueEnabled: (v) => set({ infiniteQueueEnabled: v }),
+      setShowArtistImages: (v) => set({ showArtistImages: v }),
       setMinimizeToTray: (v) => set({ minimizeToTray: v }),
+      setDiscordRichPresence: (v) => set({ discordRichPresence: v }),
       setNowPlayingEnabled: (v) => set({ nowPlayingEnabled: v }),
       setShowChangelogOnUpdate: (v) => set({ showChangelogOnUpdate: v }),
       setLastSeenChangelogVersion: (v) => set({ lastSeenChangelogVersion: v }),

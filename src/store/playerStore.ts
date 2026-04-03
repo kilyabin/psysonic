@@ -73,12 +73,12 @@ interface PlayerState {
   starredOverrides: Record<string, boolean>;
   setStarredOverride: (id: string, starred: boolean) => void;
 
-  playTrack: (track: Track, queue?: Track[]) => void;
+  playTrack: (track: Track, queue?: Track[], manual?: boolean) => void;
   pause: () => void;
   resume: () => void;
   stop: () => void;
   togglePlay: () => void;
-  next: () => void;
+  next: (manual?: boolean) => void;
   previous: () => void;
   seek: (progress: number) => void;
   setVolume: (v: number) => void;
@@ -267,9 +267,9 @@ function handleAudioEnded() {
   usePlayerStore.setState({ isPlaying: false, progress: 0, currentTime: 0, buffered: 0 });
   setTimeout(() => {
     if (repeatMode === 'one' && currentTrack) {
-      usePlayerStore.getState().playTrack(currentTrack, queue);
+      usePlayerStore.getState().playTrack(currentTrack, queue, false);
     } else {
-      usePlayerStore.getState().next();
+      usePlayerStore.getState().next(false);
     }
   }, 150);
 }
@@ -341,7 +341,7 @@ function handleAudioError(message: string) {
   usePlayerStore.setState({ isPlaying: false });
   setTimeout(() => {
     if (playGeneration !== gen) return;
-    usePlayerStore.getState().next();
+    usePlayerStore.getState().next(false);
   }, 1500);
 }
 
@@ -427,9 +427,50 @@ export function initAudioListeners(): () => void {
     }
   });
 
+  // ── Discord Rich Presence sync ────────────────────────────────────────────
+  // Updates on track change or play/pause toggle. No per-tick updates needed —
+  // Discord auto-counts up the elapsed timer from the start_timestamp we set.
+  let discordPrevTrackId: string | null = null;
+  let discordPrevIsPlaying: boolean | null = null;
+
+  function syncDiscord() {
+    const { currentTrack, isPlaying, currentTime } = usePlayerStore.getState();
+    const { discordRichPresence } = useAuthStore.getState();
+
+    if (!discordRichPresence || !currentTrack) {
+      if (discordPrevTrackId !== null) {
+        discordPrevTrackId = null;
+        discordPrevIsPlaying = null;
+        invoke('discord_clear_presence').catch(() => {});
+      }
+      return;
+    }
+
+    const trackChanged = currentTrack.id !== discordPrevTrackId;
+    const playingChanged = isPlaying !== discordPrevIsPlaying;
+    if (!trackChanged && !playingChanged) return;
+
+    discordPrevTrackId = currentTrack.id;
+    discordPrevIsPlaying = isPlaying;
+
+    invoke('discord_update_presence', {
+      title: currentTrack.title,
+      artist: currentTrack.artist ?? 'Unknown Artist',
+      album: currentTrack.album ?? null,
+      // Pass elapsed when playing so Discord shows a live running timer.
+      // Pass null when paused — Discord shows the song/artist without a timer.
+      elapsedSecs: isPlaying ? currentTime : null,
+    }).catch(() => {});
+  }
+
+  const unsubDiscordPlayer = usePlayerStore.subscribe(syncDiscord);
+  const unsubDiscordAuth = useAuthStore.subscribe(syncDiscord);
+
   return () => {
     unsubAuth();
     unsubMpris();
+    unsubDiscordPlayer();
+    unsubDiscordAuth();
     pending.forEach(p => p.then(unlisten => unlisten()));
   };
 }
@@ -535,7 +576,7 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       // ── playTrack ────────────────────────────────────────────────────────────
-      playTrack: (track, queue) => {
+      playTrack: (track, queue, manual = true) => {
         // Ghost-command guard: if a gapless switch happened within 500 ms,
         // this playTrack call is likely a stale IPC echo — suppress it.
         if (Date.now() - lastGaplessSwitchTime < 500) {
@@ -576,13 +617,14 @@ export const usePlayerStore = create<PlayerState>()(
           durationHint: track.duration,
           replayGainDb,
           replayGainPeak,
+          manual,
         }).catch((err: unknown) => {
           if (playGeneration !== gen) return;
           console.error('[psysonic] audio_play failed:', err);
           set({ isPlaying: false });
           setTimeout(() => {
             if (playGeneration !== gen) return;
-            get().next();
+            get().next(false);
           }, 500);
         });
 
@@ -641,6 +683,7 @@ export const usePlayerStore = create<PlayerState>()(
               volume: vol,
               durationHint: trackToPlay.duration,
               replayGainDb: replayGainDbCold,
+              manual: false,
               replayGainPeak: replayGainPeakCold,
             }).then(() => {
               if (playGeneration === gen && currentTime > 1) {
@@ -668,6 +711,7 @@ export const usePlayerStore = create<PlayerState>()(
                durationHint: currentTrack.duration,
                replayGainDb: replayGainDbCold,
                replayGainPeak: replayGainPeakCold,
+               manual: false,
              }).catch((err: unknown) => {
                if (playGeneration !== gen) return;
                console.error('[psysonic] audio_play (cold resume) failed:', err);
@@ -687,11 +731,11 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       // ── next / previous ──────────────────────────────────────────────────────
-      next: () => {
+      next: (manual = true) => {
         const { queue, queueIndex, repeatMode, currentTrack } = get();
         const nextIdx = queueIndex + 1;
         if (nextIdx < queue.length) {
-          get().playTrack(queue[nextIdx], queue);
+          get().playTrack(queue[nextIdx], queue, manual);
           // Proactively top up auto-added tracks when ≤ 2 remain ahead,
           // so the queue never runs dry without a visible loading pause.
           const { infiniteQueueEnabled } = useAuthStore.getState();
@@ -735,7 +779,7 @@ export const usePlayerStore = create<PlayerState>()(
             }
           }
         } else if (repeatMode === 'all' && queue.length > 0) {
-          get().playTrack(queue[0], queue);
+          get().playTrack(queue[0], queue, manual);
         } else {
           // Queue exhausted. Check radio first (independent of infinite queue setting),
           // then infinite queue, then stop.
@@ -755,7 +799,7 @@ export const usePlayerStore = create<PlayerState>()(
                   if (fresh.length > 0) {
                     const currentQueue = get().queue;
                     const newQueue = [...currentQueue, ...fresh];
-                    get().playTrack(fresh[0], newQueue);
+                    get().playTrack(fresh[0], newQueue, false);
                   } else {
                     invoke('audio_stop').catch(console.error);
                     isAudioPaused = false;
@@ -786,7 +830,7 @@ export const usePlayerStore = create<PlayerState>()(
               const newTracks: Track[] = songs.map(s => ({ ...songToTrack(s), autoAdded: true }));
               const currentQueue = get().queue;
               const newQueue = [...currentQueue, ...newTracks];
-              get().playTrack(newTracks[0], newQueue);
+              get().playTrack(newTracks[0], newQueue, false);
             }).catch(() => {
               infiniteQueueFetching = false;
               invoke('audio_stop').catch(console.error);

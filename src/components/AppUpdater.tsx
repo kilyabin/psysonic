@@ -123,9 +123,15 @@ export default function AppUpdater() {
       {state.phase === 'available' && (
         <div className="app-updater-actions">
           {canInstall && (
-            <button className="app-updater-btn-primary" onClick={handleInstall}>
-              <Download size={12} /> {t('common.updaterInstall')}
-            </button>
+            <>
+              <p className="app-updater-hint">{t('common.updaterExperimentalHint')}</p>
+              <button className="app-updater-btn-primary" onClick={handleInstall}>
+                <Download size={12} /> {t('common.updaterInstall')}
+              </button>
+              <button className="app-updater-btn-secondary" onClick={handleDownload}>
+                <Download size={12} /> {t('common.updaterDownload')}
+              </button>
+            </>
           )}
           {isLinuxFallback && (
             <button className="app-updater-btn-primary" onClick={handleDownload}>

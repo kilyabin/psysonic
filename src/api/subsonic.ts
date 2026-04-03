@@ -337,7 +337,6 @@ export function buildStreamUrl(id: string): string {
     u: server?.username ?? '',
     t: token, s: salt, v: '1.16.1', c: 'psysonic', f: 'json',
   });
-  
   return `${baseUrl}/rest/stream.view?${p.toString()}`;
 }
 
@@ -396,9 +395,18 @@ export async function createPlaylist(name: string, songIds?: string[]): Promise<
   return data.playlist;
 }
 
-export async function updatePlaylist(id: string, songIds: string[]): Promise<void> {
-  // createPlaylist with playlistId replaces the existing playlist's songs (Subsonic API 1.14+)
-  await api('createPlaylist.view', { playlistId: id, songId: songIds });
+export async function updatePlaylist(id: string, songIds: string[], prevCount = 0): Promise<void> {
+  if (songIds.length > 0) {
+    // createPlaylist with playlistId replaces the existing playlist's songs (Subsonic API 1.14+)
+    await api('createPlaylist.view', { playlistId: id, songId: songIds });
+  } else if (prevCount > 0) {
+    // Axios serialises empty arrays as no params — createPlaylist.view would leave songs unchanged.
+    // Use updatePlaylist.view with explicit index removal to clear the list instead.
+    await api('updatePlaylist.view', {
+      playlistId: id,
+      songIndexToRemove: Array.from({ length: prevCount }, (_, i) => i),
+    });
+  }
 }
 
 export async function deletePlaylist(id: string): Promise<void> {

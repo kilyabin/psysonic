@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { getCachedUrl } from '../utils/imageCache';
 
 interface CachedImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
@@ -16,16 +16,33 @@ export function useCachedUrl(fetchUrl: string, cacheKey: string, fallbackToFetch
   const [resolved, setResolved] = useState('');
   useEffect(() => {
     if (!fetchUrl) { setResolved(''); return; }
-    let cancelled = false;
+    const controller = new AbortController();
     setResolved('');
-    getCachedUrl(fetchUrl, cacheKey).then(url => { if (!cancelled) setResolved(url); });
-    return () => { cancelled = true; };
+    getCachedUrl(fetchUrl, cacheKey, controller.signal).then(url => {
+      if (!controller.signal.aborted) setResolved(url);
+    });
+    return () => { controller.abort(); };
   }, [fetchUrl, cacheKey]);
   return fallbackToFetch ? (resolved || fetchUrl) : resolved;
 }
 
 export default function CachedImage({ src, cacheKey, style, onLoad, ...props }: CachedImageProps) {
-  const resolvedSrc = useCachedUrl(src, cacheKey);
+  const [inView, setInView] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    const el = imgRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setInView(true); observer.disconnect(); } },
+      { rootMargin: '300px' }, // start fetching 300px before entering viewport
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Pass empty string when not yet in view so useCachedUrl skips the fetch entirely.
+  const resolvedSrc = useCachedUrl(inView ? src : '', cacheKey);
   const [loaded, setLoaded] = useState(false);
 
   // Reset only when the logical image changes (cacheKey), not on fetchUrl→blobUrl
@@ -36,7 +53,8 @@ export default function CachedImage({ src, cacheKey, style, onLoad, ...props }: 
 
   return (
     <img
-      src={resolvedSrc}
+      ref={imgRef}
+      src={resolvedSrc || undefined}
       style={{ ...style, opacity: loaded ? 1 : 0, transition: 'opacity 0.15s ease' }}
       onLoad={e => { setLoaded(true); onLoad?.(e); }}
       {...props}

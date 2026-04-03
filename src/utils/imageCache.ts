@@ -9,16 +9,36 @@ const MAX_CONCURRENT_FETCHES = 5;
 // In-memory map: cacheKey → object URL (insertion-order = LRU approximation)
 const objectUrlCache = new Map<string, string>();
 
-// Concurrency limiter for network fetches
+// Concurrency limiter for network fetches.
+// Each queue entry is a resolver that signals "slot acquired".
 let activeFetches = 0;
 const fetchQueue: Array<() => void> = [];
 
-function acquireFetchSlot(): Promise<void> {
+/**
+ * Acquires a fetch slot. Returns true if a slot was granted, false if the
+ * provided AbortSignal fired while the call was waiting in the queue (in that
+ * case no slot is held and the caller must NOT call releaseFetchSlot).
+ */
+function acquireFetchSlot(signal?: AbortSignal): Promise<boolean> {
+  if (signal?.aborted) return Promise.resolve(false);
   if (activeFetches < MAX_CONCURRENT_FETCHES) {
     activeFetches++;
-    return Promise.resolve();
+    return Promise.resolve(true);
   }
-  return new Promise(resolve => fetchQueue.push(resolve));
+  return new Promise<boolean>(resolve => {
+    const onGrant = () => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve(true);
+    };
+    const onAbort = () => {
+      // Remove from queue without consuming a slot — no releaseFetchSlot needed.
+      const idx = fetchQueue.indexOf(onGrant);
+      if (idx !== -1) fetchQueue.splice(idx, 1);
+      resolve(false);
+    };
+    fetchQueue.push(onGrant);
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
 }
 
 function releaseFetchSlot(): void {
@@ -174,9 +194,11 @@ export async function clearImageCache(): Promise<void> {
  * Returns a cached object URL for an image.
  * @param fetchUrl  The actual URL to fetch from (may contain ephemeral auth params).
  * @param cacheKey  A stable key that identifies the image across sessions.
+ * @param signal    Optional AbortSignal — aborts queue-waiting and in-flight fetches
+ *                  so navigating away does not leave zombie fetches draining I/O.
  */
-export async function getCachedUrl(fetchUrl: string, cacheKey: string): Promise<string> {
-  if (!fetchUrl) return '';
+export async function getCachedUrl(fetchUrl: string, cacheKey: string, signal?: AbortSignal): Promise<string> {
+  if (!fetchUrl || signal?.aborted) return '';
 
   // 1. In-memory hit (same session)
   const existing = objectUrlCache.get(cacheKey);
@@ -184,6 +206,7 @@ export async function getCachedUrl(fetchUrl: string, cacheKey: string): Promise<
 
   // 2. IndexedDB hit (persisted from previous session)
   const blob = await getBlob(cacheKey);
+  if (signal?.aborted) return '';
   if (blob) {
     const objUrl = URL.createObjectURL(blob);
     objectUrlCache.set(cacheKey, objUrl);
@@ -191,19 +214,26 @@ export async function getCachedUrl(fetchUrl: string, cacheKey: string): Promise<
     return objUrl;
   }
 
-  // 3. Network fetch with concurrency limit → store in IDB → return object URL
-  await acquireFetchSlot();
+  // 3. Network fetch with concurrency limit → store in IDB → return object URL.
+  // acquireFetchSlot returns false (without holding a slot) when aborted in queue.
+  const acquired = await acquireFetchSlot(signal);
+  if (!acquired || signal?.aborted) {
+    if (acquired) releaseFetchSlot();
+    return '';
+  }
   try {
     const resp = await fetch(fetchUrl);
     if (!resp.ok) return fetchUrl;
     const newBlob = await resp.blob();
+    if (signal?.aborted) return '';
     putBlob(cacheKey, newBlob); // fire-and-forget (includes disk eviction)
     const objUrl = URL.createObjectURL(newBlob);
     objectUrlCache.set(cacheKey, objUrl);
     evictMemoryIfNeeded();
     return objUrl;
-  } catch {
-    return fetchUrl;
+  } catch (e) {
+    // AbortError → return '' (component is gone). Other errors → return raw URL.
+    return e instanceof DOMException && e.name === 'AbortError' ? '' : fetchUrl;
   } finally {
     releaseFetchSlot();
   }

@@ -8384,11 +8384,11 @@ input[type="range"]:hover::-webkit-slider-thumb {
   --ctp-surface1: #D8DADF;
   --ctp-surface2: #CED0D4;
   --ctp-overlay0: #B0B3B8;
-  --ctp-overlay1: #65676B;
-  --ctp-overlay2: #4B4C4F;
+  --ctp-overlay1: #4B4C4F;
+  --ctp-overlay2: #3A3B3D;
   --ctp-text: #050505;
-  --ctp-subtext1: #65676B;
-  --ctp-subtext0: #8A8D91;
+  --ctp-subtext1: #44464A;
+  --ctp-subtext0: #65676B;
 
   --ctp-mauve: #1877F2;
   --ctp-lavender: #2D88FF;
@@ -8418,8 +8418,8 @@ input[type="range"]:hover::-webkit-slider-thumb {
   --volume-accent: #1877F2;
 
   --text-primary: #050505;
-  --text-secondary: #65676B;
-  --text-muted: #606369;
+  --text-secondary: #44464A;
+  --text-muted: #65676B;
   --border: #CED0D4;
   --border-subtle: #E4E6EB;
 
@@ -8531,6 +8531,35 @@ input[type="range"]:hover::-webkit-slider-thumb {
 [data-theme='the-book'] .card {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   border: 1px solid var(--border-subtle);
+}
+
+/* Album chip — opaque Facebook blue pill */
+[data-theme='the-book'] .badge,
+[data-theme='the-book'] .album-detail-badge {
+  background: #1877F2;
+  color: #ffffff;
+}
+
+/* Back button — opaque Facebook-style pill */
+[data-theme='the-book'] .album-detail-back {
+  background: #E7F3FF;
+  color: #1877F2;
+}
+[data-theme='the-book'] .album-detail-back:hover {
+  background: #D8EAFD;
+  color: #0d6ae0;
+}
+
+/* Queue/Lyrics tab bar — white text on blue sidebar */
+[data-theme='the-book'] .queue-tab-btn {
+  color: rgba(255, 255, 255, 0.65);
+}
+[data-theme='the-book'] .queue-tab-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+}
+[data-theme='the-book'] .queue-tab-btn.active {
+  color: #ffffff;
 }
 
 /* ── ReadIt (Social Media) ──────────────────────────────────── */

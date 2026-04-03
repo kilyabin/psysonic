@@ -1074,6 +1074,7 @@ pub async fn audio_play(
     duration_hint: f64,
     replay_gain_db: Option<f32>,
     replay_gain_peak: Option<f32>,
+    manual: bool, // true = user-initiated skip → bypass crossfade, start immediately
     app: AppHandle,
     state: State<'_, AudioEngine>,
 ) -> Result<(), String> {
@@ -1137,7 +1138,8 @@ pub async fn audio_play(
 
     let (gain_linear, effective_volume) = compute_gain(replay_gain_db, replay_gain_peak, volume);
 
-    let crossfade_enabled = state.crossfade_enabled.load(Ordering::Relaxed);
+    // Manual skips (user-initiated) bypass crossfade — the track should start immediately.
+    let crossfade_enabled = state.crossfade_enabled.load(Ordering::Relaxed) && !manual;
     let crossfade_secs_val = f32::from_bits(state.crossfade_secs.load(Ordering::Relaxed)).clamp(0.5, 12.0);
 
     // Measure how much audio Track A actually has left right now.
