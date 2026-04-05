@@ -69,7 +69,7 @@ export default function SearchResults() {
                 <h2 className="section-title" style={{ marginBottom: 0 }}>{t('search.songs')}</h2>
               </div>
               <div className="tracklist" style={{ padding: 0 }}>
-                <div className="tracklist-header" style={{ gridTemplateColumns: '36px minmax(100px, 2fr) minmax(80px, 1.2fr) minmax(80px, 1.2fr) 100px 60px' }}>
+                <div className="tracklist-header" style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(80px, 1fr) minmax(80px, 1fr) 100px 65px' }}>
                   <div />
                   <div>{t('albumDetail.trackTitle')}</div>
                   <div>{t('albumDetail.trackArtist')}</div>
@@ -81,7 +81,7 @@ export default function SearchResults() {
                   <div
                     key={song.id}
                     className={`track-row${currentTrack?.id === song.id ? ' active' : ''}`}
-                    style={{ gridTemplateColumns: '36px minmax(100px, 2fr) minmax(80px, 1.2fr) minmax(80px, 1.2fr) 100px 60px' }}
+                    style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(80px, 1fr) minmax(80px, 1fr) 100px 65px' }}
                     onDoubleClick={() => playSong(song, results.songs)}
                     role="row"
                     onMouseDown={e => {

@@ -1,9 +1,11 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Play, ListPlus, Trash2, Search, X, Loader2, Plus, GripVertical, Star, RefreshCw, Shuffle, Heart, HardDriveDownload, Check } from 'lucide-react';
+import { ChevronDown, ChevronLeft, Play, ListPlus, Trash2, Search, X, Loader2, Plus, GripVertical, Star, RefreshCw, Shuffle, Heart, HardDriveDownload, Check, Pencil, Globe, Lock, Camera } from 'lucide-react';
+import { useTracklistColumns, type ColDef } from '../utils/useTracklistColumns';
 import { AddToPlaylistSubmenu } from '../components/ContextMenu';
 import {
-  getPlaylist, updatePlaylist, search, setRating, star, unstar,
+  getPlaylist, updatePlaylist, updatePlaylistMeta, uploadPlaylistCoverArt,
+  search, setRating, star, unstar,
   getRandomSongs, SubsonicPlaylist, SubsonicSong,
 } from '../api/subsonic';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
@@ -15,6 +17,7 @@ import { useDragDrop } from '../contexts/DragDropContext';
 import CachedImage, { useCachedUrl } from '../components/CachedImage';
 import { coverArtCacheKey, buildCoverArtUrl } from '../api/subsonic';
 import { useTranslation } from 'react-i18next';
+import { showToast } from '../utils/toast';
 
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -53,6 +56,20 @@ function StarRating({ value, onChange }: { value: number; onChange: (r: number) 
   );
 }
 
+// ── Column configuration ──────────────────────────────────────────────────────
+const PL_COLUMNS: readonly ColDef[] = [
+  { key: 'num',      i18nKey: null,            minWidth: 60,  defaultWidth: 60,  required: true  },
+  { key: 'title',    i18nKey: 'trackTitle',    minWidth: 150, defaultWidth: 0,   required: true,  flex: true },
+  { key: 'artist',   i18nKey: 'trackArtist',   minWidth: 80,  defaultWidth: 180, required: false },
+  { key: 'favorite', i18nKey: 'trackFavorite', minWidth: 50,  defaultWidth: 70,  required: false },
+  { key: 'rating',   i18nKey: 'trackRating',   minWidth: 80,  defaultWidth: 120, required: false },
+  { key: 'duration', i18nKey: 'trackDuration', minWidth: 50,  defaultWidth: 65,  required: false },
+  { key: 'format',   i18nKey: 'trackFormat',   minWidth: 60,  defaultWidth: 90,  required: false },
+  { key: 'delete',   i18nKey: null,            minWidth: 36,  defaultWidth: 36,  required: true  },
+];
+
+const PL_CENTERED = new Set(['favorite', 'rating', 'duration']);
+
 export default function PlaylistDetail() {
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
@@ -78,6 +95,8 @@ export default function PlaylistDetail() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [ratings, setRatings] = useState<Record<string, number>>({});
+  const [editingMeta, setEditingMeta] = useState(false);
+  const [customCoverId, setCustomCoverId] = useState<string | null>(null);
   const [starredSongs, setStarredSongs] = useState<Set<string>>(new Set());
   const [hoveredSuggestionId, setHoveredSuggestionId] = useState<string | null>(null);
   const [contextMenuSongId, setContextMenuSongId] = useState<string | null>(null);
@@ -149,9 +168,19 @@ export default function PlaylistDetail() {
     }),
   [coverQuad]);
 
-  const bgFetchUrl = useMemo(() => buildCoverArtUrl(coverQuad[0] ?? '', 300), [coverQuad]);
-  const bgCacheKey = useMemo(() => coverArtCacheKey(coverQuad[0] ?? '', 300), [coverQuad]);
+  const effectiveBgId = customCoverId ?? coverQuad[0] ?? '';
+  const bgFetchUrl = useMemo(() => buildCoverArtUrl(effectiveBgId, 300), [effectiveBgId]);
+  const bgCacheKey = useMemo(() => coverArtCacheKey(effectiveBgId, 300), [effectiveBgId]);
   const resolvedBgUrl = useCachedUrl(bgFetchUrl, bgCacheKey);
+
+  const customCoverFetchUrl = useMemo(
+    () => customCoverId ? buildCoverArtUrl(customCoverId, 300) : null,
+    [customCoverId],
+  );
+  const customCoverCacheKey = useMemo(
+    () => customCoverId ? coverArtCacheKey(customCoverId, 300) : null,
+    [customCoverId],
+  );
 
   // Song search
   const [searchOpen, setSearchOpen] = useState(false);
@@ -164,8 +193,14 @@ export default function PlaylistDetail() {
   const [suggestions, setSuggestions] = useState<SubsonicSong[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
+  // ── Column resize/visibility ──────────────────────────────────────────────
+  const {
+    colVisible, visibleCols, gridStyle,
+    startResize, toggleColumn,
+    pickerOpen, setPickerOpen, pickerRef, tracklistRef,
+  } = useTracklistColumns(PL_COLUMNS, 'psysonic_playlist_columns');
+
   // DnD
-  const tracklistRef = useRef<HTMLDivElement>(null);
   const [dropTargetIdx, setDropTargetIdx] = useState<{ idx: number; before: boolean } | null>(null);
 
   useEffect(() => {
@@ -180,6 +215,7 @@ export default function PlaylistDetail() {
       .then(({ playlist, songs }) => {
         setPlaylist(playlist);
         setSongs(songs);
+        if (playlist.coverArt) setCustomCoverId(playlist.coverArt);
         const init: Record<string, number> = {};
         const starred = new Set<string>();
         songs.forEach(s => {
@@ -229,6 +265,34 @@ export default function PlaylistDetail() {
     } catch {}
     setSaving(false);
   }, [id, touchPlaylist]);
+
+  // ── Meta edit ─────────────────────────────────────────────────
+  const handleSaveMeta = async (opts: {
+    name: string; comment: string; isPublic: boolean;
+    coverFile: File | null; coverRemoved: boolean;
+  }) => {
+    if (!id || !playlist) return;
+    await updatePlaylistMeta(id, opts.name.trim() || playlist.name, opts.comment, opts.isPublic);
+    setPlaylist(p => p
+      ? { ...p, name: opts.name.trim() || p.name, comment: opts.comment, public: opts.isPublic }
+      : p
+    );
+    if (opts.coverFile) {
+      try {
+        await uploadPlaylistCoverArt(id, opts.coverFile);
+        const { playlist: refreshed } = await getPlaylist(id);
+        setPlaylist(prev => prev ? { ...prev, coverArt: refreshed.coverArt } : prev);
+        if (refreshed.coverArt) setCustomCoverId(refreshed.coverArt);
+        showToast(t('playlists.coverUpdated'));
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : t('playlists.coverUpdated'), 3000, 'error');
+      }
+    } else if (opts.coverRemoved) {
+      setCustomCoverId(null);
+    }
+    showToast(t('playlists.metaSaved'));
+    setEditingMeta(false);
+  };
 
   // ── Remove ────────────────────────────────────────────────────
   const removeSong = (idx: number) => {
@@ -390,21 +454,61 @@ export default function PlaylistDetail() {
           </button>
 
           <div className="album-detail-hero">
-            {/* 2×2 cover grid */}
-            <div className="playlist-cover-grid">
-              {coverQuadUrls.map((entry, i) =>
-                entry
-                  ? <CachedImage key={i} className="playlist-cover-cell" src={entry.src} cacheKey={entry.cacheKey} alt="" />
-                  : <div key={i} className="playlist-cover-cell playlist-cover-cell--empty" />
+            {/* Cover — click to open edit modal */}
+            <div
+              className="playlist-hero-cover"
+              onClick={() => setEditingMeta(true)}
+            >
+              {customCoverId && customCoverFetchUrl && customCoverCacheKey ? (
+                <CachedImage
+                  src={customCoverFetchUrl}
+                  cacheKey={customCoverCacheKey}
+                  alt=""
+                  className="playlist-cover-grid"
+                  style={{ objectFit: 'cover', display: 'block' }}
+                />
+              ) : (
+                <div className="playlist-cover-grid">
+                  {coverQuadUrls.map((entry, i) =>
+                    entry
+                      ? <CachedImage key={i} className="playlist-cover-cell" src={entry.src} cacheKey={entry.cacheKey} alt="" />
+                      : <div key={i} className="playlist-cover-cell playlist-cover-cell--empty" />
+                  )}
+                </div>
               )}
+              <div className="playlist-hero-cover-overlay">
+                <Camera size={28} />
+              </div>
             </div>
 
             <div className="album-detail-meta">
               <span className="badge album-detail-badge">{t('playlists.titleBadge')}</span>
-              <h1 className="album-detail-title">{playlist.name}</h1>
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <h1 className="album-detail-title" style={{ marginBottom: 0 }}>{playlist.name}</h1>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => setEditingMeta(true)}
+                    data-tooltip={t('playlists.editMeta')}
+                    style={{ padding: '4px 6px', opacity: 0.7, flexShrink: 0 }}
+                  >
+                    <Pencil size={14} />
+                  </button>
+                </div>
+                {playlist.comment && (
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{playlist.comment}</div>
+                )}
+              </>
               <div className="album-detail-info">
                 <span>{t('playlists.songs', { n: songs.length })}</span>
                 {songs.length > 0 && <span>· {totalDurationLabel(songs)}</span>}
+                {playlist.public !== undefined && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                    · {playlist.public
+                      ? <><Globe size={11} /> {t('playlists.publicLabel')}</>
+                      : <><Lock size={11} /> {t('playlists.privateLabel')}</>}
+                  </span>
+                )}
                 {saving && <Loader2 size={12} className="spin-slow" style={{ display: 'inline', marginLeft: 4 }} />}
               </div>
               <div className="album-detail-actions">
@@ -545,19 +649,75 @@ export default function PlaylistDetail() {
         )}
 
         {/* Header */}
-        <div className="tracklist-header tracklist-va tracklist-playlist">
-          <div className="col-center" style={{ cursor: songs.length > 0 ? 'pointer' : undefined }} onClick={songs.length > 0 ? toggleAll : undefined}>
-            {selectedIds.size > 0
-              ? <span className={`bulk-check${allSelected ? ' checked' : ''}`} />
-              : '#'}
+        <div style={{ position: 'relative' }}>
+          <div className="tracklist-header tracklist-va" style={gridStyle}>
+            {visibleCols.map((colDef, colIndex) => {
+              const key = colDef.key;
+              const isLastCol = colIndex === visibleCols.length - 1;
+              const isCentered = PL_CENTERED.has(key);
+              const label = colDef.i18nKey ? t(`albumDetail.${colDef.i18nKey}`) : '';
+              if (key === 'num') return (
+                <div key="num" className="track-num">
+                  <span
+                    className={`bulk-check${allSelected ? ' checked' : ''}${selectedIds.size > 0 ? ' bulk-check-visible' : ''}`}
+                    onClick={e => { e.stopPropagation(); toggleAll(); }}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <span className="track-num-number">#</span>
+                </div>
+              );
+              if (key === 'title') {
+                const hasNextCol = colIndex + 1 < visibleCols.length;
+                return (
+                  <div key="title" style={{ position: 'relative', padding: 0, margin: 0, minWidth: 0, overflow: 'hidden' }}>
+                    <div style={{ display: 'flex', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'flex-start', paddingLeft: 12 }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                    </div>
+                    {hasNextCol && <div className="col-resize-handle" onMouseDown={e => startResize(e, colIndex + 1, -1)} />}
+                  </div>
+                );
+              }
+              if (key === 'delete') return <div key="delete" />;
+              return (
+                <div key={key} style={{ position: 'relative', padding: 0, margin: 0, minWidth: 0, overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', width: '100%', height: '100%', alignItems: 'center', justifyContent: isCentered ? 'center' : 'flex-start', paddingLeft: isCentered ? 0 : 12 }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                  </div>
+                  {!isLastCol && key !== 'delete' && (
+                    <div className="col-resize-handle" onMouseDown={e => startResize(e, colIndex, 1)} />
+                  )}
+                </div>
+              );
+            })}
           </div>
-          <div>{t('albumDetail.trackTitle')}</div>
-          <div>{t('albumDetail.trackArtist')}</div>
-          <div className="col-center">{t('albumDetail.trackFavorite')}</div>
-          <div className="col-center">{t('albumDetail.trackRating')}</div>
-          <div className="col-center">{t('albumDetail.trackDuration')}</div>
-          <div>{t('albumDetail.trackFormat')}</div>
-          <div />
+          <div className="tracklist-col-picker" ref={pickerRef}>
+            <button
+              className="tracklist-col-picker-btn"
+              onClick={e => { e.stopPropagation(); setPickerOpen(v => !v); }}
+              data-tooltip={t('albumDetail.columns')}
+            >
+              <ChevronDown size={14} />
+            </button>
+            {pickerOpen && (
+              <div className="tracklist-col-picker-menu">
+                <div className="tracklist-col-picker-label">{t('albumDetail.columns')}</div>
+                {PL_COLUMNS.filter(c => !c.required).map(c => {
+                  const label = c.i18nKey ? t(`albumDetail.${c.i18nKey}`) : c.key;
+                  const isOn = colVisible.has(c.key);
+                  return (
+                    <button
+                      key={c.key}
+                      className={`tracklist-col-picker-item${isOn ? ' active' : ''}`}
+                      onClick={() => toggleColumn(c.key)}
+                    >
+                      <span className="tracklist-col-picker-check">{isOn && <Check size={13} />}</span>
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
         {songs.length === 0 && (
@@ -578,6 +738,7 @@ export default function PlaylistDetail() {
             <div
               data-track-idx={idx}
               className={`track-row track-row-va tracklist-playlist${currentTrack?.id === song.id ? ' active' : ''}${contextMenuSongId === song.id ? ' context-active' : ''}${selectedIds.has(song.id) ? ' bulk-selected' : ''}`}
+              style={gridStyle}
               onMouseEnter={e => handleRowMouseEnter(idx, e)}
               onMouseDown={e => handleRowMouseDown(e, idx)}
               onClick={e => {
@@ -594,76 +755,49 @@ export default function PlaylistDetail() {
                 openContextMenu(e.clientX, e.clientY, songToTrack(song), 'album-song');
               }}
             >
-              {/* # — checkbox in select mode, always-visible play button otherwise */}
-              {(() => {
+              {visibleCols.map(colDef => {
                 const inSelectMode = selectedIds.size > 0;
-                return (
-                  <div
-                    className={`track-num${currentTrack?.id === song.id ? ' track-num-active' : ''}`}
-                    style={{ cursor: 'pointer' }}
-                    onClick={e => {
-                      e.stopPropagation();
-                      playTrack(tracks[idx], tracks);
-                    }}
-                  >
-                    <span
-                      className={`bulk-check${selectedIds.has(song.id) ? ' checked' : ''}${inSelectMode ? ' bulk-check-visible' : ''}`}
-                      onClick={e => { e.stopPropagation(); toggleSelect(song.id, idx, e.shiftKey); }}
-                    />
-                    {currentTrack?.id === song.id && isPlaying && <span className="track-num-eq"><div className="eq-bars"><span className="eq-bar" /><span className="eq-bar" /><span className="eq-bar" /></div></span>}
-                    <span className="track-num-play"><Play size={13} fill="currentColor" /></span>
-                    <span className="track-num-number">{idx + 1}</span>
-                  </div>
-                );
-              })()}
-
-              {/* Title */}
-              <div className="track-info">
-                <span className="track-title">{song.title}</span>
-              </div>
-
-              {/* Artist */}
-              <div className="track-artist-cell">
-                <span
-                  className={`track-artist${song.artistId ? ' track-artist-link' : ''}`}
-                  style={{ cursor: song.artistId ? 'pointer' : 'default' }}
-                  onClick={e => { if (song.artistId) { e.stopPropagation(); navigate(`/artist/${song.artistId}`); } }}
-                >{song.artist}</span>
-              </div>
-
-              {/* Favorite */}
-              <div className="track-star-cell">
-                <button
-                  className="btn btn-ghost track-star-btn"
-                  onClick={e => handleToggleStar(song, e)}
-                  style={{ color: (song.id in starredOverrides ? starredOverrides[song.id] : starredSongs.has(song.id)) ? 'var(--color-star-active, var(--accent))' : 'var(--color-star-inactive, var(--text-muted))' }}
-                >
-                  <Heart size={14} fill={(song.id in starredOverrides ? starredOverrides[song.id] : starredSongs.has(song.id)) ? 'currentColor' : 'none'} />
-                </button>
-              </div>
-
-              {/* Rating */}
-              <StarRating value={ratings[song.id] ?? song.userRating ?? 0} onChange={r => handleRate(song.id, r)} />
-
-              {/* Duration */}
-              <div className="track-duration">{formatDuration(song.duration ?? 0)}</div>
-
-              {/* Format */}
-              <div className="track-meta">
-                {(song.suffix || song.bitRate) && <span className="track-codec">{codecLabel(song)}</span>}
-              </div>
-
-              {/* Delete */}
-              <div className="playlist-row-delete-cell">
-                <button
-                  className="playlist-row-delete-btn"
-                  onClick={e => { e.stopPropagation(); removeSong(idx); }}
-                  data-tooltip={t('playlists.removeSong')}
-                  data-tooltip-pos="left"
-                >
-                  <Trash2 size={13} />
-                </button>
-              </div>
+                switch (colDef.key) {
+                  case 'num': return (
+                    <div key="num" className={`track-num${currentTrack?.id === song.id ? ' track-num-active' : ''}${currentTrack?.id === song.id && !isPlaying ? ' track-num-paused' : ''}`} style={{ cursor: 'pointer' }} onClick={e => { e.stopPropagation(); playTrack(tracks[idx], tracks); }}>
+                      <span className={`bulk-check${selectedIds.has(song.id) ? ' checked' : ''}${inSelectMode ? ' bulk-check-visible' : ''}`} onClick={e => { e.stopPropagation(); toggleSelect(song.id, idx, e.shiftKey); }} />
+                      {currentTrack?.id === song.id && isPlaying && <span className="track-num-eq"><div className="eq-bars"><span className="eq-bar" /><span className="eq-bar" /><span className="eq-bar" /></div></span>}
+                      <span className="track-num-play"><Play size={13} fill="currentColor" /></span>
+                      <span className="track-num-number">{idx + 1}</span>
+                    </div>
+                  );
+                  case 'title': return (
+                    <div key="title" className="track-info"><span className="track-title">{song.title}</span></div>
+                  );
+                  case 'artist': return (
+                    <div key="artist" className="track-artist-cell">
+                      <span className={`track-artist${song.artistId ? ' track-artist-link' : ''}`} style={{ cursor: song.artistId ? 'pointer' : 'default' }} onClick={e => { if (song.artistId) { e.stopPropagation(); navigate(`/artist/${song.artistId}`); } }}>{song.artist}</span>
+                    </div>
+                  );
+                  case 'favorite': return (
+                    <div key="favorite" className="track-star-cell">
+                      <button className="btn btn-ghost track-star-btn" onClick={e => handleToggleStar(song, e)} style={{ color: (song.id in starredOverrides ? starredOverrides[song.id] : starredSongs.has(song.id)) ? 'var(--color-star-active, var(--accent))' : 'var(--color-star-inactive, var(--text-muted))' }}>
+                        <Heart size={14} fill={(song.id in starredOverrides ? starredOverrides[song.id] : starredSongs.has(song.id)) ? 'currentColor' : 'none'} />
+                      </button>
+                    </div>
+                  );
+                  case 'rating': return <StarRating key="rating" value={ratings[song.id] ?? song.userRating ?? 0} onChange={r => handleRate(song.id, r)} />;
+                  case 'duration': return <div key="duration" className="track-duration">{formatDuration(song.duration ?? 0)}</div>;
+                  case 'format': return (
+                    <div key="format" className="track-meta">
+                      {(song.suffix || song.bitRate) && <span className="track-codec">{codecLabel(song)}</span>}
+                    </div>
+                  );
+                  case 'delete': return (
+                    <div key="delete" className="playlist-row-delete-cell">
+                      <button className="playlist-row-delete-btn" onClick={e => { e.stopPropagation(); removeSong(idx); }} data-tooltip={t('playlists.removeSong')} data-tooltip-pos="left">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  );
+                  default: return null;
+                }
+              })}
             </div>
             {isDragging && dropTargetIdx?.idx === idx && !dropTargetIdx.before && (
               <div className="playlist-drop-indicator" />
@@ -673,9 +807,12 @@ export default function PlaylistDetail() {
 
         {/* Total row */}
         {songs.length > 0 && (
-          <div className="tracklist-total tracklist-va tracklist-playlist">
-            <span className="tracklist-total-label">{t('albumDetail.trackTotal')}</span>
-            <span className="tracklist-total-value">{formatDuration(songs.reduce((a, s) => a + (s.duration ?? 0), 0))}</span>
+          <div className="tracklist-total" style={gridStyle}>
+            {visibleCols.map(c => {
+              if (c.key === 'title') return <span key="title" className="tracklist-total-label">{t('albumDetail.trackTotal')}</span>;
+              if (c.key === 'duration') return <span key="duration" className="tracklist-total-value">{formatDuration(songs.reduce((a, s) => a + (s.duration ?? 0), 0))}</span>;
+              return <span key={c.key} />;
+            })}
           </div>
         )}
       </div>
@@ -701,21 +838,24 @@ export default function PlaylistDetail() {
 
         {suggestions.filter(s => !existingIds.has(s.id)).length > 0 && (
           <>
-            <div className="tracklist-header tracklist-va tracklist-playlist" style={{ marginTop: 'var(--space-3)' }}>
-              <div className="col-center">#</div>
-              <div>{t('albumDetail.trackTitle')}</div>
-              <div>{t('albumDetail.trackArtist')}</div>
-              <div />
-              <div />
-              <div className="col-center">{t('albumDetail.trackDuration')}</div>
-              <div>{t('albumDetail.trackFormat')}</div>
-              <div />
+            <div className="tracklist-header tracklist-va" style={{ ...gridStyle, marginTop: 'var(--space-3)' }}>
+              {visibleCols.map((colDef, colIndex) => {
+                const key = colDef.key;
+                const isCentered = PL_CENTERED.has(key);
+                const label = colDef.i18nKey ? t(`albumDetail.${colDef.i18nKey}`) : '';
+                if (key === 'num') return <div key="num" className="col-center">#</div>;
+                if (key === 'title') return <div key="title" style={{ paddingLeft: 12 }}>{label}</div>;
+                if (key === 'delete') return <div key="delete" />;
+                if (key === 'favorite' || key === 'rating') return <div key={key} />;
+                return <div key={key} className={isCentered ? 'col-center' : ''}>{label}</div>;
+              })}
             </div>
 
             {suggestions.filter(s => !existingIds.has(s.id)).map((song, idx) => (
               <div
                 key={song.id}
                 className={`track-row track-row-va tracklist-playlist${contextMenuSongId === song.id ? ' context-active' : ''}`}
+                style={gridStyle}
                 onMouseEnter={() => setHoveredSuggestionId(song.id)}
                 onMouseLeave={() => setHoveredSuggestionId(null)}
                 onClick={e => {
@@ -728,41 +868,199 @@ export default function PlaylistDetail() {
                   openContextMenu(e.clientX, e.clientY, songToTrack(song), 'album-song');
                 }}
               >
-                <div className="track-num" style={{ color: 'var(--text-muted)' }}>
-                  {idx + 1}
-                </div>
-                <div className="track-info">
-                  <span className="track-title">{song.title}</span>
-                </div>
-                <div className="track-artist-cell">
-                  <span
-                    className={`track-artist${song.artistId ? ' track-artist-link' : ''}`}
-                    style={{ cursor: song.artistId ? 'pointer' : 'default' }}
-                    onClick={e => { if (song.artistId) { e.stopPropagation(); navigate(`/artist/${song.artistId}`); } }}
-                  >{song.artist}</span>
-                </div>
-                {/* no star/rating for suggestions */}
-                <div />
-                <div />
-                <div className="track-duration">{formatDuration(song.duration ?? 0)}</div>
-                <div className="track-meta">
-                  {(song.suffix || song.bitRate) && <span className="track-codec">{codecLabel(song)}</span>}
-                </div>
-                <div className="playlist-row-delete-cell">
-                  <button
-                    className="playlist-row-delete-btn"
-                    style={{ color: hoveredSuggestionId === song.id ? 'var(--accent)' : undefined }}
-                    onClick={e => { e.stopPropagation(); addSong(song); }}
-                    data-tooltip={t('playlists.addSong')}
-                    data-tooltip-pos="left"
-                  >
-                    <Plus size={13} />
-                  </button>
-                </div>
+                {visibleCols.map(colDef => {
+                  switch (colDef.key) {
+                    case 'num': return <div key="num" className="track-num" style={{ color: 'var(--text-muted)' }}>{idx + 1}</div>;
+                    case 'title': return <div key="title" className="track-info"><span className="track-title">{song.title}</span></div>;
+                    case 'artist': return (
+                      <div key="artist" className="track-artist-cell">
+                        <span className={`track-artist${song.artistId ? ' track-artist-link' : ''}`} style={{ cursor: song.artistId ? 'pointer' : 'default' }} onClick={e => { if (song.artistId) { e.stopPropagation(); navigate(`/artist/${song.artistId}`); } }}>{song.artist}</span>
+                      </div>
+                    );
+                    case 'favorite': return <div key="favorite" />;
+                    case 'rating': return <div key="rating" />;
+                    case 'duration': return <div key="duration" className="track-duration">{formatDuration(song.duration ?? 0)}</div>;
+                    case 'format': return (
+                      <div key="format" className="track-meta">
+                        {(song.suffix || song.bitRate) && <span className="track-codec">{codecLabel(song)}</span>}
+                      </div>
+                    );
+                    case 'delete': return (
+                      <div key="delete" className="playlist-row-delete-cell">
+                        <button className="playlist-row-delete-btn" style={{ color: hoveredSuggestionId === song.id ? 'var(--accent)' : undefined }} onClick={e => { e.stopPropagation(); addSong(song); }} data-tooltip={t('playlists.addSong')} data-tooltip-pos="left">
+                          <Plus size={13} />
+                        </button>
+                      </div>
+                    );
+                    default: return null;
+                  }
+                })}
               </div>
             ))}
           </>
         )}
+      </div>
+
+      {editingMeta && playlist && (
+        <PlaylistEditModal
+          playlist={playlist}
+          customCoverId={customCoverId}
+          customCoverFetchUrl={customCoverFetchUrl ?? null}
+          customCoverCacheKey={customCoverCacheKey ?? null}
+          coverQuadUrls={coverQuadUrls}
+          onClose={() => setEditingMeta(false)}
+          onSave={handleSaveMeta}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Playlist Edit Modal ───────────────────────────────────────────────────────
+
+interface EditModalProps {
+  playlist: SubsonicPlaylist;
+  customCoverId: string | null;
+  customCoverFetchUrl: string | null;
+  customCoverCacheKey: string | null;
+  coverQuadUrls: ({ src: string; cacheKey: string } | null)[];
+  onClose: () => void;
+  onSave: (opts: { name: string; comment: string; isPublic: boolean; coverFile: File | null; coverRemoved: boolean }) => Promise<void>;
+}
+
+function PlaylistEditModal({
+  playlist, customCoverId, customCoverFetchUrl, customCoverCacheKey,
+  coverQuadUrls, onClose, onSave,
+}: EditModalProps) {
+  const { t } = useTranslation();
+  const [name, setName] = useState(playlist.name);
+  const [comment, setComment] = useState(playlist.comment ?? '');
+  const [isPublic, setIsPublic] = useState(playlist.public ?? false);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const [coverRemoved, setCoverRemoved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+
+  const hasExistingCover = !coverRemoved && (coverPreview || customCoverId);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setCoverFile(file);
+    setCoverRemoved(false);
+    const reader = new FileReader();
+    reader.onload = ev => setCoverPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveCover = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCoverFile(null);
+    setCoverPreview(null);
+    setCoverRemoved(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSave({ name, comment, isPublic, coverFile, coverRemoved });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleOverlayClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) onClose();
+  };
+
+  return (
+    <div className="modal-overlay" onClick={handleOverlayClick}>
+      <div className="modal-content playlist-edit-modal" onClick={e => e.stopPropagation()}>
+        <button className="btn btn-ghost modal-close" onClick={onClose} style={{ top: 16, right: 16 }}>
+          <X size={18} />
+        </button>
+
+        <h2 className="modal-title" style={{ fontSize: 22 }}>{t('playlists.editMeta')}</h2>
+
+        <div className="playlist-edit-body">
+          {/* Left: cover */}
+          <div
+            className="playlist-edit-cover-wrap"
+            onClick={() => coverInputRef.current?.click()}
+          >
+            {coverPreview ? (
+              <img src={coverPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            ) : !coverRemoved && customCoverFetchUrl && customCoverCacheKey ? (
+              <CachedImage
+                src={customCoverFetchUrl}
+                cacheKey={customCoverCacheKey}
+                alt=""
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              />
+            ) : (
+              <div className="playlist-cover-grid" style={{ width: '100%', height: '100%' }}>
+                {coverQuadUrls.map((entry, i) =>
+                  entry
+                    ? <CachedImage key={i} className="playlist-cover-cell" src={entry.src} cacheKey={entry.cacheKey} alt="" />
+                    : <div key={i} className="playlist-cover-cell playlist-cover-cell--empty" />
+                )}
+              </div>
+            )}
+            <div className="playlist-edit-cover-overlay">
+              <div className="playlist-edit-cover-menu">
+                <button
+                  className="playlist-edit-cover-menu-item"
+                  onClick={e => { e.stopPropagation(); coverInputRef.current?.click(); }}
+                >
+                  <Camera size={14} />
+                  {t('playlists.changeCoverLabel')}
+                </button>
+                {hasExistingCover && (
+                  <button
+                    className="playlist-edit-cover-menu-item playlist-edit-cover-menu-item--danger"
+                    onClick={handleRemoveCover}
+                  >
+                    {t('playlists.removeCover')}
+                  </button>
+                )}
+              </div>
+            </div>
+            <input ref={coverInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
+          </div>
+
+          {/* Right: fields */}
+          <div className="playlist-edit-fields">
+            <input
+              className="input playlist-edit-name-input"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder={t('playlists.editNamePlaceholder')}
+              autoFocus
+            />
+            <textarea
+              className="input playlist-edit-desc-input"
+              value={comment}
+              onChange={e => setComment(e.target.value)}
+              placeholder={t('playlists.editCommentPlaceholder')}
+            />
+          </div>
+        </div>
+
+        <div className="playlist-edit-footer">
+          <label className="toggle-label" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
+            <label className="toggle-switch" style={{ marginBottom: 0 }}>
+              <input type="checkbox" checked={isPublic} onChange={e => setIsPublic(e.target.checked)} />
+              <span className="toggle-track" />
+            </label>
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t('playlists.editPublic')}</span>
+          </label>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving || !name.trim()}>
+            {saving ? <Loader2 size={14} className="spin-slow" /> : null}
+            {t('playlists.editSave')}
+          </button>
+        </div>
       </div>
     </div>
   );

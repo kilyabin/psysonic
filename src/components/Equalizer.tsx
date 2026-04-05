@@ -148,7 +148,7 @@ function VerticalFader({ value, disabled, onChange }: FaderProps) {
     if (!el) return;
     const rect = el.getBoundingClientRect();
     const pct = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
-    const gain = Math.round(pctToGain(pct) / 0.1) * 0.1; // snap to 0.1 dB
+    const gain = parseFloat((Math.round(pctToGain(pct) / 0.1) * 0.1).toFixed(1)); // snap to 0.1 dB
     onChange(Math.max(GAIN_MIN, Math.min(GAIN_MAX, gain)));
   }, [onChange]);
 
@@ -189,30 +189,24 @@ interface AutoEqVariant { form: string; rig: string | null; source: string; }
 interface AutoEqResult  { name: string; source: string; rig: string | null; form: string; }
 
 
-function parseGraphicEqString(graphicEqStr: string): number[] {
-  const line = graphicEqStr.replace(/^GraphicEQ:\s*/i, '');
-  const points: [number, number][] = line
-    .split(';')
-    .map(s => s.trim())
-    .filter(Boolean)
-    .map(s => { const [f, g] = s.split(/\s+/).map(Number); return [f, g] as [number, number]; })
-    .filter(([f, g]) => !isNaN(f) && !isNaN(g));
+/** Parses AutoEQ FixedBandEQ.txt format.
+ * Expected lines:
+ *   Preamp: -5.5 dB
+ *   Filter 1: ON PK Fc 31 Hz Gain -0.2 dB Q 1.41
+ *   ...
+ * Returns all 10 band gains as exact floats and the preamp value.
+ */
+function parseFixedBandEqString(text: string): { gains: number[]; preamp: number } {
+  const preampMatch = text.match(/Preamp:\s*(-?\d+(?:\.\d+)?)\s*dB/i);
+  const preamp = preampMatch ? parseFloat(preampMatch[1]) : 0;
 
-  if (points.length === 0) return [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-
-  return [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000].map(targetFreq => {
-    if (targetFreq <= points[0][0]) return points[0][1];
-    if (targetFreq >= points[points.length - 1][0]) return points[points.length - 1][1];
-    for (let i = 0; i < points.length - 1; i++) {
-      if (points[i][0] <= targetFreq && points[i + 1][0] >= targetFreq) {
-        const lo = points[i], hi = points[i + 1];
-        if (lo[0] === hi[0]) return lo[1];
-        const t = (Math.log10(targetFreq) - Math.log10(lo[0])) / (Math.log10(hi[0]) - Math.log10(lo[0]));
-        return Math.round((lo[1] + t * (hi[1] - lo[1])) / 0.1) * 0.1;
-      }
-    }
-    return 0;
+  const gains: number[] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  const allFilters = [...text.matchAll(/^Filter\s+\d+:\s+ON\s+PK\s+.*?Gain\s+(-?\d+(?:\.\d+)?)\s+dB/gim)];
+  allFilters.slice(0, 10).forEach((m, i) => {
+    gains[i] = parseFloat(m[1]);
   });
+
+  return { gains, preamp };
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -303,9 +297,8 @@ export default function Equalizer() {
         form: result.form,
       });
       if (!text) throw new Error(t('settings.eqAutoEqFetchError'));
-      const newGains = parseGraphicEqString(text);
-      // autoeq.app normalizes gains (preamp baked in) — apply with 0 pre-gain
-      applyAutoEq(result.name, newGains, 0);
+      const { gains: newGains, preamp } = parseFixedBandEqString(text);
+      applyAutoEq(result.name, newGains, preamp);
       setAutoEqApplied(result.name);
       setAutoEqQuery('');
       setAutoEqResults([]);

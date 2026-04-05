@@ -5,8 +5,10 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Wifi, WifiOff, Globe, Music2, Sliders, LogOut, CheckCircle2, FolderOpen,
   Palette, Server, Plus, Trash2, Eye, EyeOff, Info, ExternalLink, Shuffle, X, Play, Type, Keyboard, ChevronDown,
-  GripVertical, PanelLeft, RotateCcw, LayoutGrid, AppWindow
+  GripVertical, PanelLeft, RotateCcw, LayoutGrid, AppWindow, HardDrive, Upload, Download
 } from 'lucide-react';
+import { exportBackup, importBackup } from '../utils/backup';
+import { showToast } from '../utils/toast';
 import { invoke } from '@tauri-apps/api/core';
 import { open as openUrl } from '@tauri-apps/plugin-shell';
 import { getImageCacheSize, clearImageCache } from '../utils/imageCache';
@@ -82,7 +84,7 @@ const SPECIAL_THANKS = [
   },
 ] as const;
 
-type Tab = 'playback' | 'library' | 'appearance' | 'shortcuts' | 'server' | 'about';
+type Tab = 'general' | 'server' | 'audio' | 'storage' | 'appearance' | 'input' | 'system';
 
 function AddServerForm({ onSave, onCancel }: { onSave: (data: Omit<ServerProfile, 'id'>) => void; onCancel: () => void }) {
   const { t } = useTranslation();
@@ -162,7 +164,7 @@ export default function Settings() {
   const { state: routeState } = useLocation();
   const { t, i18n } = useTranslation();
 
-  const [activeTab, setActiveTab] = useState<Tab>((routeState as { tab?: Tab } | null)?.tab ?? 'server');
+  const [activeTab, setActiveTab] = useState<Tab>((routeState as { tab?: Tab } | null)?.tab ?? 'general');
   const [connStatus, setConnStatus] = useState<Record<string, 'idle' | 'testing' | 'ok' | 'error'>>({});
   const [showAddForm, setShowAddForm] = useState(false);
   const [newGenre, setNewGenre] = useState('');
@@ -182,9 +184,9 @@ export default function Settings() {
   }, [auth.lastfmSessionKey, auth.lastfmUsername]);
 
   useEffect(() => {
-    if (activeTab !== 'library') return;
+    if (activeTab !== 'storage') return;
     getImageCacheSize().then(setImageCacheBytes);
-    invoke<number>('get_offline_cache_size').then(setOfflineCacheBytes).catch(() => setOfflineCacheBytes(0));
+    invoke<number>('get_offline_cache_size', { customDir: auth.offlineDownloadDir || null }).then(setOfflineCacheBytes).catch(() => setOfflineCacheBytes(0));
   }, [activeTab]);
 
   const handleClearCache = useCallback(async () => {
@@ -193,7 +195,7 @@ export default function Settings() {
     await clearAllOffline(serverId);
     const [imgBytes, offBytes] = await Promise.all([
       getImageCacheSize(),
-      invoke<number>('get_offline_cache_size').catch(() => 0),
+      invoke<number>('get_offline_cache_size', { customDir: auth.offlineDownloadDir || null }).catch(() => 0),
     ]);
     setImageCacheBytes(imgBytes);
     setOfflineCacheBytes(offBytes);
@@ -299,6 +301,13 @@ export default function Settings() {
     navigate('/login');
   };
 
+  const pickOfflineDir = async () => {
+    const selected = await openDialog({ directory: true, multiple: false, title: t('settings.offlineDirChange') });
+    if (selected && typeof selected === 'string') {
+      auth.setOfflineDownloadDir(selected);
+    }
+  };
+
   const pickDownloadFolder = async () => {
     const selected = await openDialog({ directory: true, multiple: false, title: t('settings.pickFolderTitle') });
     if (selected && typeof selected === 'string') {
@@ -307,12 +316,13 @@ export default function Settings() {
   };
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    { id: 'server',      label: t('settings.tabServer'),      icon: <Server size={15} /> },
-    { id: 'appearance',  label: t('settings.tabAppearance'),  icon: <Palette size={15} /> },
-    { id: 'playback',    label: t('settings.tabPlayback'),    icon: <Play size={15} /> },
-    { id: 'library',     label: t('settings.tabLibrary'),     icon: <Shuffle size={15} /> },
-    { id: 'shortcuts',   label: t('settings.tabShortcuts'),   icon: <Keyboard size={15} /> },
-    { id: 'about',       label: t('settings.tabAbout'),       icon: <Info size={15} /> },
+    { id: 'general',    label: t('settings.tabGeneral'),    icon: <AppWindow size={15} /> },
+    { id: 'server',     label: t('settings.tabServer'),     icon: <Server size={15} /> },
+    { id: 'audio',      label: t('settings.tabAudio'),      icon: <Music2 size={15} /> },
+    { id: 'storage',    label: t('settings.tabStorage'),    icon: <HardDrive size={15} /> },
+    { id: 'appearance', label: t('settings.tabAppearance'), icon: <Palette size={15} /> },
+    { id: 'input',      label: t('settings.tabInput'),      icon: <Keyboard size={15} /> },
+    { id: 'system',     label: t('settings.tabSystem'),     icon: <Info size={15} /> },
   ];
 
   return (
@@ -333,8 +343,8 @@ export default function Settings() {
         ))}
       </nav>
 
-      {/* ── Playback ─────────────────────────────────────────────────────────── */}
-      {activeTab === 'playback' && (
+      {/* ── Audio ────────────────────────────────────────────────────────────── */}
+      {activeTab === 'audio' && (
         <>
           {/* Equalizer */}
           <section className="settings-section">
@@ -407,16 +417,16 @@ export default function Settings() {
                 <div style={{ paddingLeft: '1rem', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                   <input
                     type="range"
-                    min={1}
+                    min={0.1}
                     max={10}
-                    step={0.5}
+                    step={0.1}
                     value={auth.crossfadeSecs}
-                    onChange={e => auth.setCrossfadeSecs(Number(e.target.value))}
+                    onChange={e => auth.setCrossfadeSecs(parseFloat(e.target.value))}
                     style={{ width: 120 }}
                     id="crossfade-secs-slider"
                   />
-                  <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 28 }}>
-                    {t('settings.crossfadeSecs', { n: auth.crossfadeSecs })}
+                  <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 36 }}>
+                    {t('settings.crossfadeSecs', { n: auth.crossfadeSecs.toFixed(1) })}
                   </span>
                 </div>
               )}
@@ -447,63 +457,59 @@ export default function Settings() {
         </>
       )}
 
-      {/* ── Library ──────────────────────────────────────────────────────────── */}
-      {activeTab === 'library' && (
+      {/* ── General ──────────────────────────────────────────────────────────── */}
+      {activeTab === 'general' && (
         <>
-          {/* Cache */}
+          {/* App behaviour */}
           <section className="settings-section">
             <div className="settings-section-header">
               <AppWindow size={18} />
               <h2>{t('settings.behavior')}</h2>
             </div>
             <div className="settings-card">
-              <div style={{ fontWeight: 500, marginBottom: 4 }}>{t('settings.cacheTitle')}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
-                {t('settings.cacheDesc')}
-                {(imageCacheBytes !== null || offlineCacheBytes !== null) && (
-                  <span style={{ marginLeft: 6, color: 'var(--text-secondary)' }}>
-                    — {t('settings.cacheUsed', {
-                      images: imageCacheBytes !== null ? formatBytes(imageCacheBytes) : '…',
-                      offline: offlineCacheBytes !== null ? formatBytes(offlineCacheBytes) : '…',
-                    })}
-                  </span>
-                )}
-              </div>
-              <div className="settings-toggle-row" style={{ marginBottom: 12 }}>
-                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{auth.maxCacheMb} MB</span>
-                <input
-                  type="range"
-                  min={100}
-                  max={5000}
-                  step={100}
-                  value={auth.maxCacheMb}
-                  onChange={e => auth.setMaxCacheMb(Number(e.target.value))}
-                  style={{ width: 120 }}
-                  id="cache-size-slider"
-                />
-              </div>
-              {showClearConfirm ? (
-                <div style={{ background: 'color-mix(in srgb, var(--color-danger, #e53935) 10%, transparent)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', fontSize: 13, lineHeight: 1.5 }}>
-                  <div style={{ marginBottom: 8, color: 'var(--text-primary)' }}>{t('settings.cacheClearWarning')}</div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button
-                      className="btn btn-primary"
-                      style={{ background: 'var(--color-danger, #e53935)', fontSize: 13 }}
-                      onClick={handleClearCache}
-                      disabled={clearing}
-                    >
-                      {t('settings.cacheClearConfirm')}
-                    </button>
-                    <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={() => setShowClearConfirm(false)} disabled={clearing}>
-                      {t('settings.cacheClearCancel')}
-                    </button>
-                  </div>
+              <div className="settings-toggle-row">
+                <div>
+                  <div style={{ fontWeight: 500 }}>{t('settings.minimizeToTray')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.minimizeToTrayDesc')}</div>
                 </div>
-              ) : (
-                <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={() => setShowClearConfirm(true)}>
-                  <Trash2 size={14} /> {t('settings.cacheClearBtn')}
-                </button>
-              )}
+                <label className="toggle-switch" aria-label={t('settings.minimizeToTray')}>
+                  <input type="checkbox" checked={auth.minimizeToTray} onChange={e => auth.setMinimizeToTray(e.target.checked)} />
+                  <span className="toggle-track" />
+                </label>
+              </div>
+              <div className="settings-section-divider" />
+              <div className="settings-toggle-row">
+                <div>
+                  <div style={{ fontWeight: 500 }}>{t('settings.showArtistImages')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showArtistImagesDesc')}</div>
+                </div>
+                <label className="toggle-switch" aria-label={t('settings.showArtistImages')}>
+                  <input type="checkbox" checked={auth.showArtistImages} onChange={e => auth.setShowArtistImages(e.target.checked)} />
+                  <span className="toggle-track" />
+                </label>
+              </div>
+              <div className="settings-section-divider" />
+              <div className="settings-toggle-row">
+                <div>
+                  <div style={{ fontWeight: 500 }}>{t('settings.discordRichPresence')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.discordRichPresenceDesc')}</div>
+                </div>
+                <label className="toggle-switch" aria-label={t('settings.discordRichPresence')}>
+                  <input type="checkbox" checked={auth.discordRichPresence} onChange={e => auth.setDiscordRichPresence(e.target.checked)} />
+                  <span className="toggle-track" />
+                </label>
+              </div>
+              <div className="settings-section-divider" />
+              <div className="settings-toggle-row">
+                <div>
+                  <div style={{ fontWeight: 500 }}>{t('settings.nowPlayingEnabled')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.nowPlayingEnabledDesc')}</div>
+                </div>
+                <label className="toggle-switch" aria-label={t('settings.nowPlayingEnabled')}>
+                  <input type="checkbox" checked={auth.nowPlayingEnabled} onChange={e => auth.setNowPlayingEnabled(e.target.checked)} />
+                  <span className="toggle-track" />
+                </label>
+              </div>
             </div>
           </section>
 
@@ -595,6 +601,143 @@ export default function Settings() {
         </>
       )}
 
+      {/* ── Storage & Downloads ───────────────────────────────────────────────── */}
+      {activeTab === 'storage' && (
+        <>
+          {/* Offline Library (In-App) — includes cache settings */}
+          <section className="settings-section">
+            <div className="settings-section-header">
+              <Download size={18} />
+              <h2>{t('settings.offlineDirTitle')}</h2>
+            </div>
+            <div className="settings-card">
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14, lineHeight: 1.5 }}>
+                {t('settings.offlineDirDesc')}
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  className="input"
+                  type="text"
+                  readOnly
+                  value={auth.offlineDownloadDir || t('settings.offlineDirDefault')}
+                  style={{ flex: 1, fontSize: 13, color: auth.offlineDownloadDir ? 'var(--text-primary)' : 'var(--text-muted)', cursor: 'default' }}
+                />
+                {auth.offlineDownloadDir && (
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => auth.setOfflineDownloadDir('')}
+                    data-tooltip={t('settings.offlineDirClear')}
+                    style={{ color: 'var(--text-muted)', flexShrink: 0 }}
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+                <button className="btn btn-surface" onClick={pickOfflineDir} style={{ flexShrink: 0 }} id="settings-offline-dir-btn">
+                  <FolderOpen size={16} /> {t('settings.offlineDirChange')}
+                </button>
+              </div>
+              {auth.offlineDownloadDir && (
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.4 }}>
+                  {t('settings.offlineDirHint')}
+                </div>
+              )}
+
+              <div style={{ borderTop: '1px solid var(--border)', margin: '16px 0' }} />
+
+              {(imageCacheBytes !== null || offlineCacheBytes !== null) && (
+                <div style={{ fontSize: 12, marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <div style={{ color: 'var(--text-secondary)' }}>
+                    <span style={{ color: 'var(--text-muted)', marginRight: 4 }}>{t('settings.cacheUsedImages')}</span>
+                    {imageCacheBytes !== null ? formatBytes(imageCacheBytes) : '…'}
+                  </div>
+                  <div style={{ color: 'var(--text-secondary)' }}>
+                    <span style={{ color: 'var(--text-muted)', marginRight: 4 }}>{t('settings.cacheUsedOffline')}</span>
+                    {offlineCacheBytes !== null ? formatBytes(offlineCacheBytes) : '…'}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t('settings.cacheMaxLabel')}</span>
+                <input
+                  className="input"
+                  type="number"
+                  min={100}
+                  max={50000}
+                  step={100}
+                  value={auth.maxCacheMb}
+                  onChange={e => {
+                    const v = Number(e.target.value);
+                    if (v >= 100) auth.setMaxCacheMb(v);
+                  }}
+                  style={{ width: 80, padding: '4px 8px', fontSize: 13 }}
+                  id="cache-size-input"
+                />
+                <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>MB</span>
+              </div>
+              {showClearConfirm ? (
+                <div style={{ background: 'color-mix(in srgb, var(--color-danger, #e53935) 10%, transparent)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', fontSize: 13, lineHeight: 1.5 }}>
+                  <div style={{ marginBottom: 8, color: 'var(--text-primary)' }}>{t('settings.cacheClearWarning')}</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      className="btn btn-primary"
+                      style={{ background: 'var(--color-danger, #e53935)', fontSize: 13 }}
+                      onClick={handleClearCache}
+                      disabled={clearing}
+                    >
+                      {t('settings.cacheClearConfirm')}
+                    </button>
+                    <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={() => setShowClearConfirm(false)} disabled={clearing}>
+                      {t('settings.cacheClearCancel')}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={() => setShowClearConfirm(true)}>
+                  <Trash2 size={14} /> {t('settings.cacheClearBtn')}
+                </button>
+              )}
+            </div>
+          </section>
+
+          {/* ZIP Export & Archiving */}
+          <section className="settings-section">
+            <div className="settings-section-header">
+              <FolderOpen size={18} />
+              <h2>{t('settings.downloadsTitle')}</h2>
+            </div>
+            <div className="settings-card">
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14, lineHeight: 1.5 }}>
+                {t('settings.downloadsFolderDesc')}
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  className="input"
+                  type="text"
+                  readOnly
+                  value={auth.downloadFolder || t('settings.downloadsDefault')}
+                  style={{ flex: 1, fontSize: 13, color: auth.downloadFolder ? 'var(--text-primary)' : 'var(--text-muted)', cursor: 'default' }}
+                />
+                {auth.downloadFolder && (
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => auth.setDownloadFolder('')}
+                    aria-label={t('settings.clearFolder')}
+                    data-tooltip={t('settings.clearFolder')}
+                    style={{ color: 'var(--text-muted)', flexShrink: 0 }}
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+                <button className="btn btn-surface" onClick={pickDownloadFolder} style={{ flexShrink: 0 }} id="settings-download-folder-btn">
+                  <FolderOpen size={16} /> {t('settings.pickFolder')}
+                </button>
+              </div>
+            </div>
+          </section>
+        </>
+      )}
+
       {/* ── Appearance ───────────────────────────────────────────────────────── */}
       {activeTab === 'appearance' && (
         <>
@@ -668,13 +811,13 @@ export default function Settings() {
         </>
       )}
 
-      {/* ── Shortcuts ────────────────────────────────────────────────────────── */}
-      {activeTab === 'shortcuts' && (
+      {/* ── Input ────────────────────────────────────────────────────────────── */}
+      {activeTab === 'input' && (
         <>
         <section className="settings-section">
           <div className="settings-section-header">
             <Keyboard size={18} />
-            <h2>{t('settings.tabShortcuts')}</h2>
+            <h2>{t('settings.tabInput')}</h2>
           </div>
           <div className="settings-card">
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
@@ -993,89 +1136,13 @@ export default function Settings() {
             </div>
           </section>
 
-          {/* Downloads + Tray */}
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <AppWindow size={18} />
-              <h2>{t('settings.behavior')}</h2>
-            </div>
-            <div className="settings-card">
-              <div className="settings-toggle-row">
-                <div>
-                  <div style={{ fontWeight: 500 }}>{t('settings.minimizeToTray')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.minimizeToTrayDesc')}</div>
-                </div>
-                <label className="toggle-switch" aria-label={t('settings.minimizeToTray')}>
-                  <input type="checkbox" checked={auth.minimizeToTray} onChange={e => auth.setMinimizeToTray(e.target.checked)} />
-                  <span className="toggle-track" />
-                </label>
-              </div>
-              <div className="settings-section-divider" />
-              <div className="settings-toggle-row">
-                <div>
-                  <div style={{ fontWeight: 500 }}>{t('settings.showArtistImages')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showArtistImagesDesc')}</div>
-                </div>
-                <label className="toggle-switch" aria-label={t('settings.showArtistImages')}>
-                  <input type="checkbox" checked={auth.showArtistImages} onChange={e => auth.setShowArtistImages(e.target.checked)} />
-                  <span className="toggle-track" />
-                </label>
-              </div>
-              <div className="settings-section-divider" />
-              <div className="settings-toggle-row">
-                <div>
-                  <div style={{ fontWeight: 500 }}>{t('settings.discordRichPresence')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.discordRichPresenceDesc')}</div>
-                </div>
-                <label className="toggle-switch" aria-label={t('settings.discordRichPresence')}>
-                  <input type="checkbox" checked={auth.discordRichPresence} onChange={e => auth.setDiscordRichPresence(e.target.checked)} />
-                  <span className="toggle-track" />
-                </label>
-              </div>
-              <div className="settings-section-divider" />
-              <div className="settings-toggle-row">
-                <div>
-                  <div style={{ fontWeight: 500 }}>{t('settings.nowPlayingEnabled')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.nowPlayingEnabledDesc')}</div>
-                </div>
-                <label className="toggle-switch" aria-label={t('settings.nowPlayingEnabled')}>
-                  <input type="checkbox" checked={auth.nowPlayingEnabled} onChange={e => auth.setNowPlayingEnabled(e.target.checked)} />
-                  <span className="toggle-track" />
-                </label>
-              </div>
-              <div className="settings-section-divider" />
-              <div className="settings-toggle-row">
-                <div>
-                  <div style={{ fontWeight: 500 }}>{t('settings.downloadsTitle')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, wordBreak: 'break-all' }}>
-                    {auth.downloadFolder || t('settings.downloadsDefault')}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                  {auth.downloadFolder && (
-                    <button
-                      className="btn btn-ghost"
-                      onClick={() => auth.setDownloadFolder('')}
-                      aria-label={t('settings.clearFolder')}
-                      data-tooltip={t('settings.clearFolder')}
-                      style={{ color: 'var(--text-muted)' }}
-                    >
-                      <X size={16} />
-                    </button>
-                  )}
-                  <button className="btn btn-surface" onClick={pickDownloadFolder} id="settings-download-folder-btn">
-                    <FolderOpen size={16} /> {t('settings.pickFolder')}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
         </>
       )}
 
-      {/* ── About ────────────────────────────────────────────────────────────── */}
-      {activeTab === 'about' && (
+      {/* ── System ───────────────────────────────────────────────────────────── */}
+      {activeTab === 'system' && (
         <>
+        <BackupSection />
           <section className="settings-section">
             <div className="settings-section-header">
               <Info size={18} />
@@ -1411,6 +1478,86 @@ function SidebarCustomizer() {
           <div className="sidebar-customizer-fixed-hint">
             <span>{t('settings.sidebarFixed')}: {t('sidebar.nowPlaying')}, {t('sidebar.settings')}</span>
           </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function BackupSection() {
+  const { t } = useTranslation();
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const path = await exportBackup();
+      if (path) showToast(t('settings.backupSuccess'), 3000, 'info');
+    } catch (e) {
+      console.error('Export failed', e);
+      showToast(t('settings.backupImportError'), 4000, 'error');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!window.confirm(t('settings.backupImportConfirm'))) return;
+    setImporting(true);
+    try {
+      await importBackup();
+      // importBackup reloads the page — this toast will briefly show before reload
+      showToast(t('settings.backupImportSuccess'), 3000, 'info');
+    } catch (e) {
+      console.error('Import failed', e);
+      showToast(t('settings.backupImportError'), 4000, 'error');
+      setImporting(false);
+    }
+  };
+
+  return (
+    <section className="settings-section">
+      <div className="settings-section-header">
+        <HardDrive size={18} />
+        <h2>{t('settings.backupTitle')}</h2>
+      </div>
+
+      {/* Export */}
+      <div className="settings-card" style={{ marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
+          <div>
+            <div style={{ fontWeight: 500, marginBottom: '0.25rem' }}>{t('settings.backupExport')}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>{t('settings.backupExportDesc')}</div>
+          </div>
+          <button
+            className="btn btn-primary"
+            onClick={handleExport}
+            disabled={exporting}
+            style={{ flexShrink: 0 }}
+          >
+            <Upload size={14} />
+            {exporting ? '…' : t('settings.backupExport')}
+          </button>
+        </div>
+      </div>
+
+      {/* Import */}
+      <div className="settings-card">
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
+          <div>
+            <div style={{ fontWeight: 500, marginBottom: '0.25rem' }}>{t('settings.backupImport')}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>{t('settings.backupImportDesc')}</div>
+          </div>
+          <button
+            className="btn btn-surface"
+            onClick={handleImport}
+            disabled={importing}
+            style={{ flexShrink: 0 }}
+          >
+            <Download size={14} />
+            {importing ? '…' : t('settings.backupImport')}
+          </button>
         </div>
       </div>
     </section>

@@ -1217,10 +1217,13 @@
 /* ─ Tracklist ─ */
 .tracklist {
   padding: 0 var(--space-6) var(--space-6);
-  contain: layout;
+  overflow-x: auto;
 }
 
 .col-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
   text-align: center;
 }
 
@@ -1277,13 +1280,14 @@
 }
 
 /* ── Column resize handle ── */
-/* Sits at the right edge of each header cell, fully inside the cell bounds */
+/* Positioned flush with the right edge of its header cell.
+   The ::after pseudo-element renders the visible 1 px divider line. */
 .col-resize-handle {
   position: absolute;
-  right: -4px;
+  right: 0;
   top: 0;
   bottom: 0;
-  width: 8px;
+  width: 4px;
   cursor: col-resize;
   z-index: 2;
 }
@@ -1291,10 +1295,11 @@
 .col-resize-handle::after {
   content: '';
   position: absolute;
-  left: 3px;
+  left: 50%;
+  transform: translateX(-50%);
   top: 20%;
   bottom: 20%;
-  width: 2px;
+  width: 1px;
   border-radius: 1px;
   background: var(--ctp-surface1);
   transition: background 0.15s;
@@ -1391,12 +1396,6 @@
   align-items: center;
   justify-content: center;
   color: var(--accent);
-}
-
-/* ── Playlist tracklist variant — adds delete column ── */
-.tracklist-header.tracklist-playlist,
-.track-row.tracklist-playlist {
-  grid-template-columns: 60px minmax(80px, 1.5fr) minmax(60px, 1fr) 70px 80px 60px 80px 80px 36px;
 }
 
 /* Delete button in playlist row */
@@ -1651,10 +1650,12 @@
 }
 
 .track-duration {
+  display: flex;
+  justify-content: center;
+  align-items: center;
   font-size: 12px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
-  text-align: center;
 }
 
 .track-meta {
@@ -1791,6 +1792,130 @@
 .modal-title {
   margin-bottom: 1rem;
   font-family: var(--font-display);
+}
+
+/* ─ Playlist edit modal ─ */
+.playlist-edit-modal {
+  max-width: 560px;
+}
+
+.playlist-edit-body {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+/* Clickable cover wrap in the hero (opens modal) */
+.playlist-hero-cover {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.playlist-hero-cover-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  opacity: 0;
+  transition: opacity 150ms ease;
+  border-radius: inherit;
+}
+
+.playlist-hero-cover:hover .playlist-hero-cover-overlay {
+  opacity: 1;
+}
+
+/* Cover area inside the modal */
+.playlist-edit-cover-wrap {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.playlist-edit-cover-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.playlist-edit-cover-wrap:hover .playlist-edit-cover-overlay {
+  opacity: 1;
+}
+
+.playlist-edit-cover-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: center;
+}
+
+.playlist-edit-cover-menu-item {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition: background 120ms ease;
+}
+
+.playlist-edit-cover-menu-item:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.playlist-edit-cover-menu-item--danger {
+  color: var(--ctp-red, #f38ba8);
+}
+
+/* Right side fields */
+.playlist-edit-fields {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.playlist-edit-name-input {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.playlist-edit-desc-input {
+  resize: none;
+  min-height: 80px;
+  font-size: 13px;
+}
+
+/* Footer */
+.playlist-edit-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  gap: 12px;
 }
 
 .artist-bio {
@@ -4962,6 +5087,150 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   line-height: 1.4;
+}
+
+/* ─ Radio Toolbar ─ */
+.radio-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.radio-toolbar-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  flex: 1;
+  scrollbar-width: none;
+}
+.radio-toolbar-chips::-webkit-scrollbar { display: none; }
+.radio-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--ctp-surface1);
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+.radio-filter-chip:hover { background: var(--bg-hover); color: var(--text-primary); }
+.radio-filter-chip.active { background: var(--accent); color: var(--ctp-crust); border-color: var(--accent); }
+
+
+.radio-card-drop-before {
+  box-shadow: -3px 0 0 0 var(--accent);
+}
+.radio-card-drop-after {
+  box-shadow: 3px 0 0 0 var(--accent);
+}
+
+/* ─ Radio card edit chip ─ */
+.radio-card-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--text-secondary);
+  color: var(--ctp-surface1);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.radio-card-chip:hover {
+  background: var(--accent);
+  color: var(--ctp-crust);
+}
+
+/* ─ Alphabet Filter Bar ─ */
+.alphabet-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-bottom: 14px;
+}
+.alphabet-filter-btn {
+  min-width: 26px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+.alphabet-filter-btn:hover { background: var(--bg-hover); }
+.alphabet-filter-btn.active { background: var(--accent); color: var(--ctp-crust); }
+.alphabet-filter-btn.empty { opacity: 0.28; pointer-events: none; }
+
+/* ─ Radio favorite star ─ */
+.radio-favorite-btn { color: rgba(255, 255, 255, 0.35); }
+.radio-favorite-btn:hover { color: rgba(255, 255, 255, 0.8); }
+.radio-favorite-btn.active { color: var(--accent); }
+
+/* ─ Radio Browser Directory ─ */
+.radio-browser-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 6px;
+  border-radius: var(--radius);
+  transition: background 0.12s;
+  cursor: default;
+}
+.radio-browser-result.clickable { cursor: pointer; }
+.radio-browser-result.clickable:hover { background: var(--bg-hover); }
+.radio-browser-result.added { opacity: 0.6; }
+.radio-browser-action {
+  flex-shrink: 0;
+  width: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.radio-browser-favicon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.radio-browser-favicon--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card);
+  color: var(--text-muted);
+}
+.radio-browser-info {
+  flex: 1;
+  min-width: 0;
+}
+.radio-browser-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.radio-browser-tags {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
 }
 
 /* ─ Bulk Select ─ */

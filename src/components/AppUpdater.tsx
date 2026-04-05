@@ -20,7 +20,7 @@ function isNewer(a: string, b: string): boolean {
 
 type State =
   | { phase: 'idle' }
-  | { phase: 'available'; version: string; update: Update | null }
+  | { phase: 'available'; version: string; update: Update | null; error?: string }
   | { phase: 'downloading'; pct: number }
   | { phase: 'installing' }
   | { phase: 'done' };
@@ -82,9 +82,11 @@ export default function AppUpdater() {
         }
       });
       await invoke('relaunch_after_update');
-    } catch (e) {
-      console.error('Update failed', e);
-      setState({ phase: 'available', version: savedVersion, update });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('Update failed:', msg);
+      // Surface the error so the user (and developer) can see what went wrong
+      setState({ phase: 'available', version: savedVersion, update, error: msg });
     }
   };
 
@@ -122,6 +124,9 @@ export default function AppUpdater() {
 
       {state.phase === 'available' && (
         <div className="app-updater-actions">
+          {state.error && (
+            <div className="app-updater-error">{state.error}</div>
+          )}
           {canInstall && (
             <>
               <p className="app-updater-hint">{t('common.updaterExperimentalHint')}</p>

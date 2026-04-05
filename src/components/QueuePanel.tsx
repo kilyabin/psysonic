@@ -216,7 +216,10 @@ export default function QueuePanel() {
   const queueListRef = useRef<HTMLDivElement>(null);
   const asideRef = useRef<HTMLElement>(null);
 
-  const { isDragging: isPsyDragging, startDrag } = useDragDrop();
+  const { isDragging: isPsyDragging, startDrag, payload: psyPayload } = useDragDrop();
+  const isRadioDrag = isPsyDragging && !!psyPayload && (() => {
+    try { return JSON.parse(psyPayload.data).type === 'radio'; } catch { return false; }
+  })();
 
   useEffect(() => {
     if (!isPsyDragging) {
@@ -239,6 +242,9 @@ export default function QueuePanel() {
 
       let parsedData: any = null;
       try { parsedData = JSON.parse(detail.data); } catch { return; }
+
+      // Radio streams are not tracks — reject silently
+      if (parsedData.type === 'radio') return;
 
       const dropTarget = externalDropTargetRef.current;
       externalDropTargetRef.current = null;
@@ -304,9 +310,9 @@ export default function QueuePanel() {
   return (
     <aside
       ref={asideRef}
-      className={`queue-panel${isPsyDragging ? ' queue-drop-active' : ''}`}
+      className={`queue-panel${isPsyDragging && !isRadioDrag ? ' queue-drop-active' : ''}`}
       onMouseMove={e => {
-        if (!isPsyDragging || !queueListRef.current) return;
+        if (!isPsyDragging || isRadioDrag || !queueListRef.current) return;
         const items = queueListRef.current.querySelectorAll<HTMLElement>('[data-queue-idx]');
         let found = false;
         for (let i = 0; i < items.length; i++) {
@@ -469,22 +475,22 @@ export default function QueuePanel() {
               <div className="crossfade-popover-label">
                 <Waves size={11} />
                 {t('queue.crossfade')}
-                <span className="crossfade-popover-value">{crossfadeSecs}s</span>
+                <span className="crossfade-popover-value">{crossfadeSecs.toFixed(1)} s</span>
               </div>
               <input
                 type="range"
-                min={1}
+                min={0.1}
                 max={10}
-                step={0.5}
+                step={0.1}
                 value={crossfadeSecs}
                 onChange={e => {
-                  setCrossfadeSecs(Number(e.target.value));
+                  setCrossfadeSecs(parseFloat(e.target.value));
                   setCrossfadeEnabled(true);
                 }}
                 className="crossfade-popover-slider"
               />
               <div className="crossfade-popover-range">
-                <span>1s</span><span>10s</span>
+                <span>0.1s</span><span>10s</span>
               </div>
             </div>
           )}

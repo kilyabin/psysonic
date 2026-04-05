@@ -75,6 +75,170 @@ fn relaunch_after_update(app: tauri::AppHandle) {
     app.exit(0);
 }
 
+/// Authenticate with Navidrome's own REST API and return a Bearer token.
+async fn navidrome_token(server_url: &str, username: &str, password: &str) -> Result<String, String> {
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(format!("{}/auth/login", server_url))
+        .json(&serde_json::json!({ "username": username, "password": password }))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    let data: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+    data["token"]
+        .as_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| "Navidrome auth: no token in response".to_string())
+}
+
+#[tauri::command]
+async fn upload_playlist_cover(
+    server_url: String,
+    playlist_id: String,
+    username: String,
+    password: String,
+    file_bytes: Vec<u8>,
+    mime_type: String,
+) -> Result<(), String> {
+    let token = navidrome_token(&server_url, &username, &password).await?;
+    let part = reqwest::multipart::Part::bytes(file_bytes)
+        .file_name("cover.jpg")
+        .mime_str(&mime_type)
+        .map_err(|e| e.to_string())?;
+    let form = reqwest::multipart::Form::new().part("image", part);
+    reqwest::Client::new()
+        .post(format!("{}/api/playlist/{}/image", server_url, playlist_id))
+        .header("X-ND-Authorization", format!("Bearer {}", token))
+        .multipart(form)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .error_for_status()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn upload_radio_cover(
+    server_url: String,
+    radio_id: String,
+    username: String,
+    password: String,
+    file_bytes: Vec<u8>,
+    mime_type: String,
+) -> Result<(), String> {
+    let token = navidrome_token(&server_url, &username, &password).await?;
+    let part = reqwest::multipart::Part::bytes(file_bytes)
+        .file_name("cover.jpg")
+        .mime_str(&mime_type)
+        .map_err(|e| e.to_string())?;
+    let form = reqwest::multipart::Form::new().part("image", part);
+    reqwest::Client::new()
+        .post(format!("{}/api/radio/{}/image", server_url, radio_id))
+        .header("X-ND-Authorization", format!("Bearer {}", token))
+        .multipart(form)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .error_for_status()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn delete_radio_cover(
+    server_url: String,
+    radio_id: String,
+    username: String,
+    password: String,
+) -> Result<(), String> {
+    let token = navidrome_token(&server_url, &username, &password).await?;
+    let resp = reqwest::Client::new()
+        .delete(format!("{}/api/radio/{}/image", server_url, radio_id))
+        .header("X-ND-Authorization", format!("Bearer {}", token))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    // 404/503 = no image existed — treat as success
+    if !resp.status().is_success() && resp.status() != reqwest::StatusCode::NOT_FOUND && resp.status() != reqwest::StatusCode::SERVICE_UNAVAILABLE {
+        resp.error_for_status().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+const RADIO_PAGE_SIZE: u32 = 25;
+
+/// Search the radio-browser.info directory (needs User-Agent header — CORS would block WebView).
+#[tauri::command]
+async fn search_radio_browser(query: String, offset: u32) -> Result<Vec<serde_json::Value>, String> {
+    let client = reqwest::Client::new();
+    let limit_s = RADIO_PAGE_SIZE.to_string();
+    let offset_s = offset.to_string();
+    let resp = client
+        .get("https://de1.api.radio-browser.info/json/stations/search")
+        .header("User-Agent", "psysonic/1.0")
+        .query(&[
+            ("name", query.as_str()),
+            ("hidebroken", "true"),
+            ("limit", limit_s.as_str()),
+            ("offset", offset_s.as_str()),
+        ])
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .error_for_status()
+        .map_err(|e| e.to_string())?;
+    resp.json::<Vec<serde_json::Value>>().await.map_err(|e| e.to_string())
+}
+
+/// Fetch top-voted stations from radio-browser.info for initial suggestions.
+#[tauri::command]
+async fn get_top_radio_stations(offset: u32) -> Result<Vec<serde_json::Value>, String> {
+    let client = reqwest::Client::new();
+    let limit_s = RADIO_PAGE_SIZE.to_string();
+    let offset_s = offset.to_string();
+    let resp = client
+        .get("https://de1.api.radio-browser.info/json/stations/topvote")
+        .header("User-Agent", "psysonic/1.0")
+        .query(&[("limit", limit_s.as_str()), ("offset", offset_s.as_str())])
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .error_for_status()
+        .map_err(|e| e.to_string())?;
+    resp.json::<Vec<serde_json::Value>>().await.map_err(|e| e.to_string())
+}
+
+/// Fetch arbitrary URL bytes (e.g. radio station favicon) through Rust to bypass CORS.
+/// Returns (bytes, content_type).
+#[tauri::command]
+async fn fetch_url_bytes(url: String) -> Result<(Vec<u8>, String), String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let resp = client
+        .get(&url)
+        .header("User-Agent", "psysonic/1.0")
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .error_for_status()
+        .map_err(|e| e.to_string())?;
+    let content_type = resp
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("image/jpeg")
+        .split(';')
+        .next()
+        .unwrap_or("image/jpeg")
+        .trim()
+        .to_string();
+    let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
+    Ok((bytes.to_vec(), content_type))
+}
+
 /// Proxy Last.fm API calls through Rust/reqwest to avoid WebView networking restrictions.
 /// `params` is a list of [key, value] pairs (method must be included).
 /// If `sign` is true an api_sig is computed. If `get` is true, a GET request is made.
@@ -244,14 +408,24 @@ async fn download_track_offline(
     server_id: String,
     url: String,
     suffix: String,
+    custom_dir: Option<String>,
     app: tauri::AppHandle,
 ) -> Result<String, String> {
-    let cache_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| e.to_string())?
-        .join("psysonic-offline")
-        .join(&server_id);
+    // Determine base cache directory.
+    let cache_dir = if let Some(ref cd) = custom_dir {
+        let base = std::path::PathBuf::from(cd);
+        // Check that the volume/directory is still accessible.
+        if !base.exists() {
+            return Err("VOLUME_NOT_FOUND".to_string());
+        }
+        base.join(&server_id)
+    } else {
+        app.path()
+            .app_data_dir()
+            .map_err(|e| e.to_string())?
+            .join("psysonic-offline")
+            .join(&server_id)
+    };
 
     tokio::fs::create_dir_all(&cache_dir)
         .await
@@ -282,56 +456,93 @@ async fn download_track_offline(
     Ok(path_str)
 }
 
-/// Returns the total size in bytes of all files in the offline cache directory.
+/// Returns the total size in bytes of all files in the offline cache directory (and optional custom dir).
 #[tauri::command]
-async fn get_offline_cache_size(app: tauri::AppHandle) -> u64 {
-    let offline_dir = match app.path().app_data_dir() {
+async fn get_offline_cache_size(custom_dir: Option<String>, app: tauri::AppHandle) -> u64 {
+    fn dir_size(root: std::path::PathBuf) -> u64 {
+        if !root.exists() { return 0; }
+        let mut total: u64 = 0;
+        let mut stack = vec![root];
+        while let Some(dir) = stack.pop() {
+            let rd = match std::fs::read_dir(&dir) {
+                Ok(r) => r,
+                Err(_) => continue,
+            };
+            for entry in rd.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    stack.push(path);
+                } else if let Ok(meta) = std::fs::metadata(&path) {
+                    total += meta.len();
+                }
+            }
+        }
+        total
+    }
+
+    let default_dir = match app.path().app_data_dir() {
         Ok(d) => d.join("psysonic-offline"),
         Err(_) => return 0,
     };
-    if !offline_dir.exists() {
-        return 0;
-    }
-    let mut total: u64 = 0;
-    let mut stack = vec![offline_dir];
-    while let Some(dir) = stack.pop() {
-        let rd = match std::fs::read_dir(&dir) {
-            Ok(r) => r,
-            Err(_) => continue,
-        };
-        for entry in rd.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                stack.push(path);
-            } else if let Ok(meta) = std::fs::metadata(&path) {
-                total += meta.len();
-            }
+    let mut total = dir_size(default_dir);
+
+    if let Some(cd) = custom_dir {
+        let custom = std::path::PathBuf::from(cd);
+        if custom != std::path::PathBuf::from("") {
+            total += dir_size(custom);
         }
     }
     total
 }
 
-/// Removes a cached track from the offline cache directory.
+/// Removes a cached track from the offline cache. Accepts the full local path
+/// (stored in OfflineTrackMeta) so it works regardless of which directory was used.
+/// After deleting the file, empty parent directories up to (but not including)
+/// `base_dir` are pruned using `remove_dir` (never `remove_dir_all`).
 #[tauri::command]
 async fn delete_offline_track(
-    track_id: String,
-    server_id: String,
-    suffix: String,
+    local_path: String,
+    base_dir: Option<String>,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
-    let file_path = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| e.to_string())?
-        .join("psysonic-offline")
-        .join(&server_id)
-        .join(format!("{}.{}", track_id, suffix));
-
+    let file_path = std::path::PathBuf::from(&local_path);
     if file_path.exists() {
         tokio::fs::remove_file(&file_path)
             .await
             .map_err(|e| e.to_string())?;
     }
+
+    // Determine the safe boundary — never delete at or above this directory.
+    let boundary = if let Some(bd) = base_dir.filter(|s| !s.is_empty()) {
+        std::path::PathBuf::from(bd)
+    } else {
+        app.path()
+            .app_data_dir()
+            .map_err(|e| e.to_string())?
+            .join("psysonic-offline")
+    };
+
+    // Walk upward, pruning directories that have become empty.
+    // Stops as soon as a non-empty directory or the boundary is reached.
+    let mut current = file_path.parent().map(|p| p.to_path_buf());
+    while let Some(dir) = current {
+        if dir == boundary || !dir.starts_with(&boundary) {
+            break;
+        }
+        match std::fs::read_dir(&dir) {
+            Ok(mut entries) => {
+                if entries.next().is_some() {
+                    break; // Directory still has contents — stop pruning.
+                }
+                if std::fs::remove_dir(&dir).is_err() {
+                    break; // Could not remove (e.g. permissions) — stop.
+                }
+                current = dir.parent().map(|p| p.to_path_buf());
+            }
+            Err(_) => break,
+        }
+    }
+
     Ok(())
 }
 
@@ -546,6 +757,12 @@ pub fn run() {
             discord::discord_update_presence,
             discord::discord_clear_presence,
             lastfm_request,
+            upload_playlist_cover,
+            upload_radio_cover,
+            delete_radio_cover,
+            search_radio_browser,
+            get_top_radio_stations,
+            fetch_url_bytes,
             download_track_offline,
             delete_offline_track,
             get_offline_cache_size,

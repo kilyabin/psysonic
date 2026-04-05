@@ -1,8 +1,9 @@
-use std::collections::VecDeque;
 use std::io::{Cursor, Read, Seek, SeekFrom};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
+
+use ringbuf::{HeapConsumer, HeapProducer, HeapRb};
 
 use biquad::{Biquad, Coefficients, DirectForm2Transposed, ToHertz, Type as FilterType};
 use rodio::{Sink, Source};
@@ -414,118 +415,438 @@ impl<S: Source<Item = f32>> Source for CountingSource<S> {
     }
 }
 
-// ─── SizedCursorSource — MediaSource with correct byte_len ────────────────────
+// ─── Internet Radio v2 — Lock-Free SPSC + ICY Metadata + Hybrid Pause ────────
 //
-// ─── RadioBuffer — streaming MediaSource for live HTTP radio ─────────────────
+//  HTTP task (tokio)
+//    └─[IcyInterceptor]─► HeapProducer<u8>
+//                              │  (4 MB HeapRb, lock-free)
+//                         HeapConsumer<u8>
+//                              │
+//                       AudioStreamReader (Read + Seek + MediaSource)
+//                              │
+//                       SizedDecoder (symphonia)
+//                              │
+//                           rodio Sink
 //
-// Bridges an async reqwest byte-stream (download task) into a synchronous
-// Read+Seek interface that symphonia / rodio can consume.
+// Pause modes:
+//   Logical pause  — sink.pause(); download task keeps filling (time-shift).
+//   Hard pause     — buffer ≥ RADIO_HARD_PAUSE_THRESH full + paused ≥ 5 s
+//                    → TCP disconnect, is_hard_paused = true.
+//   Resume (warm)  — sink.play(); buffer drains seamlessly.
+//   Resume (cold)  — new HeapRb + new GET; consumer swapped in AudioStreamReader.
 //
-// Back-pressure: the download task pauses when the ring buffer exceeds 4 MB
-// (~4 min at 128 kbps).  Read() blocks (via Condvar) until data arrives so
-// rodio's audio thread can decode in real time.  is_seekable() = false so
-// symphonia never tries to seek backward into consumed data.
+// New Tauri event: "radio:metadata" → String  (ICY StreamTitle)
 
-const RADIO_BUF_MAX: usize = 256 * 1024;
+/// 256 KB on the heap — ≈16 s at 128 kbps, ≈6 s at 320 kbps.
+/// Small enough that stale audio drains within a few seconds on reconnect;
+/// large enough to absorb brief network hiccups without stuttering.
+const RADIO_BUF_CAPACITY: usize = 256 * 1024;
+/// Seconds at stall threshold while paused before hard-disconnect.
+const RADIO_HARD_PAUSE_SECS: u64 = 5;
+/// AudioStreamReader timeout: if no audio bytes arrive for this long → EOF.
+const RADIO_READ_TIMEOUT_SECS: u64 = 15;
+/// Sleep interval when ring buffer is empty (prevents CPU spin).
+const RADIO_YIELD_MS: u64 = 2;
 
-pub(crate) struct RadioInner {
-    data: VecDeque<u8>,
-    eof: bool,
+// ── ICY Metadata State Machine ────────────────────────────────────────────────
+//
+// Shoutcast/Icecast embed metadata every `metaint` audio bytes:
+//
+//   ┌──────────────────────┬───┬─────────────┐
+//   │  audio × metaint     │ N │ meta × N×16 │  (repeating)
+//   └──────────────────────┴───┴─────────────┘
+//
+// N = 0 → no metadata this block.  Metadata bytes are stripped so only
+// pure audio reaches the ring buffer and Symphonia never sees text bytes.
+
+enum IcyState {
+    /// Forwarding audio bytes; `remaining` counts down to the next boundary.
+    ReadingAudio { remaining: usize },
+    /// Next byte is the metadata length multiplier N.
+    ReadingLengthByte,
+    /// Accumulating N×16 metadata bytes.
+    ReadingMetadata { remaining: usize, buf: Vec<u8> },
+}
+
+struct IcyInterceptor {
+    state: IcyState,
+    metaint: usize,
+}
+
+impl IcyInterceptor {
+    fn new(metaint: usize) -> Self {
+        Self { metaint, state: IcyState::ReadingAudio { remaining: metaint } }
+    }
+
+    /// Feed a raw HTTP chunk.
+    /// Appends only audio bytes to `audio_out`.
+    /// Returns `Some(IcyMeta)` when a StreamTitle is extracted.
+    fn process(&mut self, input: &[u8], audio_out: &mut Vec<u8>) -> Option<IcyMeta> {
+        let mut extracted: Option<IcyMeta> = None;
+        let mut i = 0;
+        while i < input.len() {
+            match &mut self.state {
+                IcyState::ReadingAudio { remaining } => {
+                    let n = (input.len() - i).min(*remaining);
+                    audio_out.extend_from_slice(&input[i..i + n]);
+                    i += n;
+                    *remaining -= n;
+                    if *remaining == 0 {
+                        self.state = IcyState::ReadingLengthByte;
+                    }
+                }
+                IcyState::ReadingLengthByte => {
+                    let len_n = input[i] as usize;
+                    i += 1;
+                    self.state = if len_n == 0 {
+                        IcyState::ReadingAudio { remaining: self.metaint }
+                    } else {
+                        IcyState::ReadingMetadata {
+                            remaining: len_n * 16,
+                            buf: Vec::with_capacity(len_n * 16),
+                        }
+                    };
+                }
+                IcyState::ReadingMetadata { remaining, buf } => {
+                    let n = (input.len() - i).min(*remaining);
+                    buf.extend_from_slice(&input[i..i + n]);
+                    i += n;
+                    *remaining -= n;
+                    if *remaining == 0 {
+                        let bytes = std::mem::take(buf);
+                        extracted = parse_icy_meta(&bytes);
+                        self.state = IcyState::ReadingAudio { remaining: self.metaint };
+                    }
+                }
+            }
+        }
+        extracted
+    }
+}
+
+/// ICY metadata parsed from a raw metadata block.
+#[derive(serde::Serialize, Clone)]
+pub(crate) struct IcyMeta {
+    pub title: String,
+    /// `true` when `StreamUrl='0'` — indicates a CDN-injected ad/promo.
+    pub is_ad: bool,
+}
+
+/// Extract `StreamTitle` and `StreamUrl` from a raw ICY metadata block.
+/// Tolerates null padding and non-UTF-8 bytes (lossy conversion).
+fn parse_icy_meta(raw: &[u8]) -> Option<IcyMeta> {
+    let s = String::from_utf8_lossy(raw);
+    let s = s.trim_end_matches('\0');
+
+    const TITLE_TAG: &str = "StreamTitle='";
+    let title_start = s.find(TITLE_TAG)? + TITLE_TAG.len();
+    let title_rest = &s[title_start..];
+    // find (not rfind) — rfind would skip past StreamUrl and corrupt the title
+    let title_end = title_rest.find("';")?;
+    let title = title_rest[..title_end].trim().to_string();
+    if title.is_empty() {
+        return None;
+    }
+
+    const URL_TAG: &str = "StreamUrl='";
+    let stream_url = s.find(URL_TAG).map(|pos| {
+        let rest = &s[pos + URL_TAG.len()..];
+        let end = rest.find("';").unwrap_or(rest.len());
+        rest[..end].trim().to_string()
+    }).unwrap_or_default();
+
+    Some(IcyMeta { title, is_ad: stream_url == "0" })
+}
+
+// ── AudioStreamReader — SPSC consumer → std::io::Read ────────────────────────
+//
+// Bridges HeapConsumer<u8> (non-blocking) into the synchronous Read interface
+// that Symphonia requires.  Designed to run inside tokio::task::spawn_blocking.
+//
+// Empty buffer:  sleeps RADIO_YIELD_MS ms, retries. Never busy-spins.
+// Timeout:       after RADIO_READ_TIMEOUT_SECS with no data → TimedOut.
+// Generation:    if gen_arc != self.gen → Ok(0) (EOF; new track started).
+// Reconnect:     audio_resume sends a fresh HeapConsumer via new_cons_rx.
+//                On the next read() we drain the channel (keep latest) and swap.
+
+struct AudioStreamReader {
+    cons: HeapConsumer<u8>,
+    /// Delivers fresh consumers on hard-pause reconnect (unbounded; drain to latest).
+    /// Wrapped in Mutex so AudioStreamReader is Sync (required by symphonia::MediaSource).
+    /// No real contention: only the audio thread ever calls read().
+    new_cons_rx: Mutex<std::sync::mpsc::Receiver<HeapConsumer<u8>>>,
+    deadline: std::time::Instant,
+    gen_arc: Arc<AtomicU64>,
+    gen: u64,
+    /// Monotonic byte offset for SeekFrom::Current(0) "tell" (Symphonia probe).
     pos: u64,
 }
 
-// The read-side: given to symphonia / rodio.
-struct RadioBuffer {
-    inner: Arc<(Mutex<RadioInner>, Condvar)>,
-}
-
-// The write-side: held by the async download task.
-pub struct RadioFeed {
-    pub inner: Arc<(Mutex<RadioInner>, Condvar)>,
-}
-
-impl RadioBuffer {
-    fn new() -> (RadioBuffer, RadioFeed) {
-        let arc = Arc::new((
-            Mutex::new(RadioInner { data: VecDeque::new(), eof: false, pos: 0 }),
-            Condvar::new(),
-        ));
-        (RadioBuffer { inner: arc.clone() }, RadioFeed { inner: arc })
-    }
-}
-
-impl RadioFeed {
-    pub fn push(&self, chunk: &[u8]) {
-        let (lock, cvar) = &*self.inner;
-        let mut g = lock.lock().unwrap();
-        g.data.extend(chunk.iter().copied());
-        cvar.notify_one();
-    }
-
-    pub fn is_full(&self) -> bool {
-        let (lock, _) = &*self.inner;
-        lock.lock().unwrap().data.len() >= RADIO_BUF_MAX
-    }
-
-    pub fn flush(&self) {
-        let (lock, _) = &*self.inner;
-        lock.lock().unwrap().data.clear();
-    }
-
-    pub fn close(&self) {
-        let (lock, cvar) = &*self.inner;
-        let mut g = lock.lock().unwrap();
-        g.eof = true;
-        cvar.notify_all();
-    }
-}
-
-impl Read for RadioBuffer {
+impl Read for AudioStreamReader {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let (lock, cvar) = &*self.inner;
-        let mut g = lock.lock().unwrap();
-        let deadline = std::time::Instant::now() + Duration::from_secs(10);
-        while g.data.is_empty() && !g.eof {
-            let rem = deadline.saturating_duration_since(std::time::Instant::now());
-            if rem.is_zero() {
-                eprintln!("[radio] RadioBuffer::read() timed out — no data for 10 s");
-                return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "radio: no data after 10 s"));
+        // EOF guard: new track started.
+        if self.gen_arc.load(Ordering::SeqCst) != self.gen {
+            return Ok(0);
+        }
+        // Drain reconnect channel; keep only the most recently delivered consumer
+        // so a double-tap of resume doesn't leave stale data in place.
+        let mut newest: Option<HeapConsumer<u8>> = None;
+        while let Ok(c) = self.new_cons_rx.lock().unwrap().try_recv() {
+            newest = Some(c);
+        }
+        if let Some(c) = newest {
+            self.cons = c;
+            self.deadline =
+                std::time::Instant::now() + Duration::from_secs(RADIO_READ_TIMEOUT_SECS);
+        }
+        loop {
+            if self.gen_arc.load(Ordering::SeqCst) != self.gen {
+                return Ok(0);
             }
-            let (new_g, _) = cvar.wait_timeout(g, rem).unwrap();
-            g = new_g;
+            let available = self.cons.len();
+            if available > 0 {
+                let n = buf.len().min(available);
+                let read = self.cons.pop_slice(&mut buf[..n]);
+                self.pos += read as u64;
+                // Reset deadline: data arrived, so connection is alive.
+                self.deadline =
+                    std::time::Instant::now() + Duration::from_secs(RADIO_READ_TIMEOUT_SECS);
+                return Ok(read);
+            }
+            if std::time::Instant::now() >= self.deadline {
+                eprintln!(
+                    "[radio] AudioStreamReader: {}s without data → EOF",
+                    RADIO_READ_TIMEOUT_SECS
+                );
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    "radio: no data received",
+                ));
+            }
+            std::thread::sleep(Duration::from_millis(RADIO_YIELD_MS));
         }
-        if g.data.is_empty() {
-            eprintln!("[radio] RadioBuffer::read() → EOF (eof flag set, buffer empty)");
-            return Ok(0); // EOF
-        }
-        let n = buf.len().min(g.data.len());
-        for (i, b) in g.data.drain(..n).enumerate() {
-            buf[i] = b;
-        }
-        g.pos += n as u64;
-        // Notify downloader that buffer has drained below the cap.
-        cvar.notify_one();
-        Ok(n)
     }
 }
 
-impl Seek for RadioBuffer {
+impl Seek for AudioStreamReader {
     fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
-        // Live streams cannot seek.  Symphonia will not try because
-        // is_seekable() = false; the only call it makes is SeekFrom::Current(0)
-        // (tell) which we handle.
-        let (lock, _) = &*self.inner;
-        let g = lock.lock().unwrap();
         match pos {
-            SeekFrom::Current(0) => Ok(g.pos),
-            _ => Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "radio stream: not seekable")),
+            SeekFrom::Current(0) => Ok(self.pos),
+            _ => Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "radio stream is not seekable",
+            )),
         }
     }
 }
 
-impl MediaSource for RadioBuffer {
+impl MediaSource for AudioStreamReader {
     fn is_seekable(&self) -> bool { false }
     fn byte_len(&self) -> Option<u64> { None }
+}
+
+// ── Pause / Reconnect Coordination ───────────────────────────────────────────
+
+pub(crate) struct RadioSharedFlags {
+    /// Set by audio_pause; cleared by audio_resume.
+    is_paused: AtomicBool,
+    /// Set by download task on hard disconnect; cleared on resume-reconnect.
+    is_hard_paused: AtomicBool,
+    /// Delivers a fresh HeapConsumer<u8> to AudioStreamReader on reconnect.
+    new_cons_tx: Mutex<std::sync::mpsc::Sender<HeapConsumer<u8>>>,
+}
+
+/// Live state for the current radio session, stored in AudioEngine.
+/// Dropping this struct aborts the HTTP download task immediately.
+pub(crate) struct RadioLiveState {
+    pub url: String,
+    pub gen: u64,
+    pub task: tokio::task::JoinHandle<()>,
+    pub flags: Arc<RadioSharedFlags>,
+}
+
+impl Drop for RadioLiveState {
+    fn drop(&mut self) { self.task.abort(); }
+}
+
+// ── HE-AAC / FDK-AAC Fallback ────────────────────────────────────────────────
+//
+// Symphonia 0.5.x: AAC-LC only.  HE-AAC (AAC+) and HE-AACv2 lack SBR/PS →
+// streams play at half speed with muffled audio.
+//
+// With Cargo feature "fdk-aac": FdkAacDecoder is tried first for CODEC_TYPE_AAC.
+// Enable in Cargo.toml:
+//   symphonia-adapter-fdk-aac = { version = "0.1", optional = true }
+//   [features]
+//   fdk-aac = ["dep:symphonia-adapter-fdk-aac"]
+
+fn try_make_radio_decoder(
+    params: &symphonia::core::codecs::CodecParameters,
+    opts: &DecoderOptions,
+) -> Result<Box<dyn symphonia::core::codecs::Decoder>, symphonia::core::errors::Error> {
+    symphonia::default::get_codecs().make(params, opts)
+}
+
+// ── Async HTTP Download Task ──────────────────────────────────────────────────
+//
+// Lifecycle:
+//   'outer loop — reconnect on TCP drop (up to MAX_RECONNECTS)
+//   'inner loop — read HTTP chunks → ICY interceptor → push audio to ring buffer
+//
+// Hard-pause detection: if push_slice() returns 0 (buffer full) AND sink is
+// paused AND that condition persists for RADIO_HARD_PAUSE_SECS → disconnect.
+// Sets is_hard_paused = true so audio_resume knows it must reconnect.
+
+async fn radio_download_task(
+    gen: u64,
+    gen_arc: Arc<AtomicU64>,
+    mut initial_response: Option<reqwest::Response>,
+    http_client: reqwest::Client,
+    url: String,
+    mut prod: HeapProducer<u8>,
+    flags: Arc<RadioSharedFlags>,
+    app: AppHandle,
+) {
+    let mut bytes_total: u64 = 0;
+    // Counts consecutive failures (reset on each successful chunk).
+    // laut.fm and similar CDNs force-reconnect every ~700 KB; this is normal.
+    let mut reconnect_count: u32 = 0;
+    const MAX_CONSECUTIVE_FAILURES: u32 = 5;
+    let mut audio_scratch: Vec<u8> = Vec::with_capacity(65_536);
+
+    'outer: loop {
+        if gen_arc.load(Ordering::SeqCst) != gen { return; }
+
+        // ── Obtain response (initial or reconnect) ────────────────────────────
+        let response = match initial_response.take() {
+            Some(r) => r,
+            None => {
+                if reconnect_count >= MAX_CONSECUTIVE_FAILURES {
+                    eprintln!("[radio] {MAX_CONSECUTIVE_FAILURES} consecutive failures — giving up");
+                    break 'outer;
+                }
+                tokio::time::sleep(Duration::from_millis(500)).await;
+                if gen_arc.load(Ordering::SeqCst) != gen { return; }
+                match http_client
+                    .get(&url)
+                    .header("Icy-MetaData", "1")
+                    .send()
+                    .await
+                {
+                    Ok(r) if r.status().is_success() => {
+                        eprintln!("[radio] reconnected ({bytes_total} B so far)");
+                        r
+                    }
+                    Ok(r) => {
+                        eprintln!("[radio] reconnect: HTTP {} — giving up", r.status());
+                        break 'outer;
+                    }
+                    Err(e) => {
+                        eprintln!("[radio] reconnect error: {e} — giving up");
+                        break 'outer;
+                    }
+                }
+            }
+        };
+
+        // Parse ICY metaint from each response (consistent across reconnects).
+        let metaint: Option<usize> = response
+            .headers()
+            .get("icy-metaint")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse().ok());
+        let mut icy = metaint.map(IcyInterceptor::new);
+
+        let mut byte_stream = response.bytes_stream();
+        // Stall timer: tracks how long push_slice() returns 0 while paused.
+        let mut stall_since: Option<std::time::Instant> = None;
+
+        'inner: loop {
+            if gen_arc.load(Ordering::SeqCst) != gen { return; }
+
+            // ── Back-pressure + hard-pause detection ──────────────────────────
+            if prod.is_full() {
+                if flags.is_paused.load(Ordering::Relaxed) {
+                    let since = stall_since.get_or_insert(std::time::Instant::now());
+                    if since.elapsed() >= Duration::from_secs(RADIO_HARD_PAUSE_SECS) {
+                        let fill_pct = ((1.0
+                            - prod.free_len() as f32 / RADIO_BUF_CAPACITY as f32)
+                            * 100.0) as u32;
+                        eprintln!(
+                            "[radio] hard pause: {fill_pct}% full, \
+                             paused >{RADIO_HARD_PAUSE_SECS}s → disconnecting"
+                        );
+                        flags.is_hard_paused.store(true, Ordering::Release);
+                        return; // Drop HeapProducer → TCP connection released.
+                    }
+                } else {
+                    stall_since = None;
+                }
+                tokio::time::sleep(Duration::from_millis(50)).await;
+                continue 'inner;
+            }
+            stall_since = None;
+
+            // ── Read HTTP chunk ───────────────────────────────────────────────
+            match byte_stream.next().await {
+                Some(Ok(chunk)) => {
+                    bytes_total += chunk.len() as u64;
+                    // Successful data → reset consecutive-failure counter.
+                    reconnect_count = 0;
+                    audio_scratch.clear();
+
+                    if let Some(ref mut interceptor) = icy {
+                        if let Some(meta) = interceptor.process(&chunk, &mut audio_scratch) {
+                            let label = if meta.is_ad { "[Ad]" } else { "" };
+                            eprintln!("[radio] ICY StreamTitle: {}{}", label, meta.title);
+                            let _ = app.emit("radio:metadata", &meta);
+                        }
+                    } else {
+                        audio_scratch.extend_from_slice(&chunk);
+                    }
+
+                    // Push with per-chunk back-pressure: yield 5 ms if full mid-chunk.
+                    let mut offset = 0;
+                    while offset < audio_scratch.len() {
+                        if gen_arc.load(Ordering::SeqCst) != gen { return; }
+                        let pushed = prod.push_slice(&audio_scratch[offset..]);
+                        if pushed == 0 {
+                            tokio::time::sleep(Duration::from_millis(5)).await;
+                        } else {
+                            offset += pushed;
+                        }
+                    }
+                }
+                Some(Err(e)) => {
+                    reconnect_count += 1;
+                    eprintln!("[radio] stream error: {e} → reconnecting (consecutive #{reconnect_count})");
+                    break 'inner;
+                }
+                None => {
+                    reconnect_count += 1;
+                    eprintln!("[radio] stream ended cleanly → reconnecting (consecutive #{reconnect_count})");
+                    break 'inner;
+                }
+            }
+        } // 'inner
+
+        // Do NOT swap the ring buffer here.  The remaining bytes in the buffer
+        // are still valid audio and will drain naturally during reconnect.
+        // Clearing it would cause an immediate underrun/glitch.
+        // The buffer is kept small (RADIO_BUF_CAPACITY) so stale audio drains
+        // within a few seconds rather than minutes.
+    } // 'outer
+
+    eprintln!("[radio] download task done ({bytes_total} B total)");
+}
+
+fn content_type_to_hint(ct: &str) -> Option<String> {
+    let ct = ct.to_ascii_lowercase();
+    if ct.contains("mpeg") || ct.contains("mp3") { Some("mp3".into()) }
+    else if ct.contains("aac") || ct.contains("aacp") { Some("aac".into()) }
+    else if ct.contains("ogg") { Some("ogg".into()) }
+    else if ct.contains("flac") { Some("flac".into()) }
+    else { None }
 }
 
 // ─── SizedCursorSource — correct byte_len for seekable in-memory sources ──────
@@ -689,8 +1010,7 @@ impl SizedDecoder {
         let track_id = track.id;
         // Live streams have no known total frame count → total_duration = None.
         let total_duration = None;
-        let mut decoder = symphonia::default::get_codecs()
-            .make(&track.codec_params, &DecoderOptions::default())
+        let mut decoder = try_make_radio_decoder(&track.codec_params, &DecoderOptions::default())
             .map_err(|e| format!("radio: codec init failed: {e}"))?;
         let mut format = probed.format;
 
@@ -1055,6 +1375,9 @@ pub struct AudioEngine {
     /// Instant (as nanos since UNIX epoch via Instant hack) of the last gapless
     /// auto-advance. Commands arriving within 500 ms are rejected as ghost commands.
     pub gapless_switch_at: Arc<AtomicU64>,
+    /// Active radio session state.  None for regular (non-radio) tracks.
+    /// Dropping the value aborts the HTTP download task via RadioLiveState::Drop.
+    pub radio_state: Mutex<Option<RadioLiveState>>,
 }
 
 pub struct AudioCurrent {
@@ -1155,6 +1478,7 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
         current_sample_rate: Arc::new(AtomicU32::new(0)),
         current_channels: Arc::new(AtomicU32::new(2)),
         gapless_switch_at: Arc::new(AtomicU64::new(0)),
+        radio_state: Mutex::new(None),
     };
 
     (engine, thread)
@@ -1759,38 +2083,95 @@ pub fn audio_pause(state: State<'_, AudioEngine>) {
         if !sink.is_paused() {
             let pos = cur.position();
             sink.pause();
-            cur.paused_at = Some(pos);
+            cur.paused_at    = Some(pos);
             cur.play_started = None;
         }
     }
+    // Notify the download task so it can start measuring the hard-pause stall timer.
+    if let Some(rs) = state.radio_state.lock().unwrap().as_ref() {
+        rs.flags.is_paused.store(true, Ordering::Release);
+    }
 }
 
+/// Resume playback.
+///
+/// **Warm resume** (`is_hard_paused = false`): download task is still running,
+/// buffer has buffered audio.  `sink.play()` suffices.
+///
+/// **Cold resume** (`is_hard_paused = true`): TCP was dropped.  A fresh 4 MB
+/// ring buffer is created, its consumer is sent to `AudioStreamReader` (which
+/// swaps it in on the next `read()`), and a new download task is spawned.
 #[tauri::command]
-pub fn audio_resume(state: State<'_, AudioEngine>) {
-    let mut cur = state.current.lock().unwrap();
-    if let Some(sink) = &cur.sink {
-        if sink.is_paused() {
-            let pos = cur.paused_at.unwrap_or(cur.seek_offset);
-            sink.play();
-            cur.seek_offset = pos;
-            cur.play_started = Some(Instant::now());
-            cur.paused_at = None;
+pub async fn audio_resume(state: State<'_, AudioEngine>, app: AppHandle) -> Result<(), String> {
+    // Detect radio hard-disconnect.
+    let reconnect_info = {
+        let guard = state.radio_state.lock().unwrap();
+        guard
+            .as_ref()
+            .filter(|rs| rs.flags.is_hard_paused.load(Ordering::Acquire))
+            .map(|rs| (rs.url.clone(), rs.gen, rs.flags.clone()))
+    };
+
+    if let Some((url, gen, flags)) = reconnect_info {
+        let rb = HeapRb::<u8>::new(RADIO_BUF_CAPACITY);
+        let (new_prod, new_cons) = rb.split();
+
+        // Send new consumer to AudioStreamReader (non-blocking; unbounded channel).
+        let ok = flags.new_cons_tx.lock().unwrap().send(new_cons).is_ok();
+
+        if ok {
+            let new_task = tokio::spawn(radio_download_task(
+                gen,
+                state.generation.clone(),
+                None, // task performs its own fresh GET
+                state.http_client.clone(),
+                url,
+                new_prod,
+                flags.clone(),
+                app,
+            ));
+            if let Some(rs) = state.radio_state.lock().unwrap().as_mut() {
+                let old = std::mem::replace(&mut rs.task, new_task);
+                old.abort(); // ensure any lingering old task is gone
+                rs.flags.is_hard_paused.store(false, Ordering::Release);
+                rs.flags.is_paused.store(false, Ordering::Release);
+            }
+        } else {
+            eprintln!("[radio] resume: AudioStreamReader gone — skipping reconnect");
         }
     }
+
+    // Resume the rodio Sink (works for both warm and cold resume).
+    {
+        let mut cur = state.current.lock().unwrap();
+        if let Some(sink) = &cur.sink {
+            if sink.is_paused() {
+                let pos = cur.paused_at.unwrap_or(cur.seek_offset);
+                sink.play();
+                cur.seek_offset  = pos;
+                cur.play_started = Some(Instant::now());
+                cur.paused_at    = None;
+            }
+        }
+    }
+    if let Some(rs) = state.radio_state.lock().unwrap().as_ref() {
+        rs.flags.is_paused.store(false, Ordering::Release);
+    }
+    Ok(())
 }
 
 #[tauri::command]
 pub fn audio_stop(state: State<'_, AudioEngine>) {
     state.generation.fetch_add(1, Ordering::SeqCst);
     *state.chained_info.lock().unwrap() = None;
+    // Drop RadioLiveState → triggers Drop → task.abort() → TCP released.
+    drop(state.radio_state.lock().unwrap().take());
     let mut cur = state.current.lock().unwrap();
-    if let Some(sink) = cur.sink.take() {
-        sink.stop();
-    }
+    if let Some(sink) = cur.sink.take() { sink.stop(); }
     cur.duration_secs = 0.0;
-    cur.seek_offset = 0.0;
-    cur.play_started = None;
-    cur.paused_at = None;
+    cur.seek_offset   = 0.0;
+    cur.play_started  = None;
+    cur.paused_at     = None;
 }
 
 #[tauri::command]
@@ -1868,11 +2249,11 @@ pub async fn autoeq_entries(state: State<'_, AudioEngine>) -> Result<String, Str
         .text().await.map_err(|e| e.to_string())
 }
 
-/// Fetches the AutoEQ GraphicEQ profile for a specific headphone from GitHub raw content.
+/// Fetches the AutoEQ FixedBandEQ profile for a specific headphone from GitHub raw content.
 ///
 /// Directory layout in the AutoEQ repo:
-///   results/{source}/{form}/{name}/{name} GraphicEQ.txt           (most sources)
-///   results/{source}/{rig} {form}/{name}/{name} GraphicEQ.txt     (crinacle — rig-prefixed dir)
+///   results/{source}/{form}/{name}/{name} FixedBandEQ.txt           (most sources)
+///   results/{source}/{rig} {form}/{name}/{name} FixedBandEQ.txt     (crinacle — rig-prefixed dir)
 ///
 /// We try the rig-prefixed path first (when rig is present), then fall back to form-only.
 #[tauri::command]
@@ -1884,7 +2265,7 @@ pub async fn autoeq_fetch_profile(
     state: State<'_, AudioEngine>,
 ) -> Result<String, String> {
     let base = "https://raw.githubusercontent.com/jaakkopasanen/AutoEq/master/results";
-    let filename = format!("{} GraphicEQ.txt", name);
+    let filename = format!("{} FixedBandEQ.txt", name);
 
     let candidates: Vec<String> = if let Some(ref r) = rig {
         vec![
@@ -1902,7 +2283,7 @@ pub async fn autoeq_fetch_profile(
         }
     }
 
-    Err(format!("GraphicEQ profile not found for '{}'", name))
+    Err(format!("FixedBandEQ profile not found for '{}'", name))
 }
 
 #[tauri::command]
@@ -1942,10 +2323,9 @@ pub async fn audio_preload(
 
 /// Play a live internet radio stream.
 ///
-/// Unlike `audio_play`, the stream URL is infinite so bytes cannot be
-/// downloaded upfront.  A `RadioBuffer` bridges the async HTTP download into
-/// the synchronous Read interface that symphonia/rodio expect.  Emits
-/// `audio:playing` with `duration = 0.0` to signal "unknown duration" to JS.
+/// Sends `Icy-MetaData: 1` to request inline ICY metadata.
+/// Emits `audio:playing` with `duration = 0.0` (sentinel for live stream)
+/// and `radio:metadata` whenever the StreamTitle changes.
 #[tauri::command]
 pub async fn audio_play_radio(
     url: String,
@@ -1955,7 +2335,9 @@ pub async fn audio_play_radio(
 ) -> Result<(), String> {
     let gen = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
 
-    // Cancel pending chain and fading-out sink immediately so audio stops.
+    // Abort any previous radio task before stopping the sink.
+    drop(state.radio_state.lock().unwrap().take());
+
     *state.chained_info.lock().unwrap() = None;
     {
         let mut cur = state.current.lock().unwrap();
@@ -1963,12 +2345,17 @@ pub async fn audio_play_radio(
     }
     if let Some(old) = state.fading_out_sink.lock().unwrap().take() { old.stop(); }
 
-    // Open the HTTP stream.
+    // ── Open initial HTTP connection ──────────────────────────────────────────
     let response = state.http_client
         .get(&url)
-        .header("Icy-MetaData", "0") // opt-out of Shoutcast inline metadata
-        .send().await
-        .map_err(|e| { let m = format!("radio: connection failed: {e}"); app.emit("audio:error", &m).ok(); m })?;
+        .header("Icy-MetaData", "1")
+        .send()
+        .await
+        .map_err(|e| {
+            let m = format!("radio: connection failed: {e}");
+            app.emit("audio:error", &m).ok();
+            m
+        })?;
 
     if !response.status().is_success() {
         let m = format!("radio: HTTP {}", response.status());
@@ -1976,139 +2363,98 @@ pub async fn audio_play_radio(
         return Err(m);
     }
 
-    // Derive a format hint from Content-Type so symphonia probes faster.
-    let ct = response.headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("")
-        .to_lowercase();
-    let fmt_hint: Option<String> = if ct.contains("mpeg") || ct.contains("mp3") {
-        Some("mp3".into())
-    } else if ct.contains("aac") || ct.contains("aacp") {
-        Some("aac".into())
-    } else if ct.contains("ogg") {
-        Some("ogg".into())
-    } else if ct.contains("flac") {
-        Some("flac".into())
-    } else {
-        None
+    let fmt_hint = content_type_to_hint(
+        response.headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or(""),
+    );
+
+    // ── Build 4 MB lock-free SPSC ring buffer ─────────────────────────────────
+    let rb = HeapRb::<u8>::new(RADIO_BUF_CAPACITY);
+    let (prod, cons) = rb.split();
+
+    let (new_cons_tx, new_cons_rx) = std::sync::mpsc::channel::<HeapConsumer<u8>>();
+    let flags = Arc::new(RadioSharedFlags {
+        is_paused:      AtomicBool::new(false),
+        is_hard_paused: AtomicBool::new(false),
+        new_cons_tx:    Mutex::new(new_cons_tx),
+    });
+
+    // ── Spawn download task ───────────────────────────────────────────────────
+    let task = tokio::spawn(radio_download_task(
+        gen,
+        state.generation.clone(),
+        Some(response),
+        state.http_client.clone(),
+        url.clone(),
+        prod,
+        flags.clone(),
+        app.clone(),
+    ));
+
+    *state.radio_state.lock().unwrap() = Some(RadioLiveState {
+        url:  url.clone(),
+        gen,
+        task,
+        flags: flags.clone(),
+    });
+
+    // ── Build Symphonia decoder in a blocking thread ──────────────────────────
+    let reader = AudioStreamReader {
+        cons,
+        new_cons_rx: Mutex::new(new_cons_rx),
+        deadline: std::time::Instant::now() + Duration::from_secs(RADIO_READ_TIMEOUT_SECS),
+        gen_arc:  state.generation.clone(),
+        gen,
+        pos: 0,
     };
 
-    let (radio_buf, feed) = RadioBuffer::new();
-    let feed = Arc::new(feed);
-
-    // Background task: stream HTTP chunks into RadioBuffer with auto-reconnect.
-    // Many radio CDNs (Shoutcast/Icecast) close the TCP connection periodically.
-    // Rather than stopping, we reconnect to the same URL and keep pushing into
-    // the same RadioBuffer so the decoder recovers with only a brief glitch.
-    {
-        let gen_arc = state.generation.clone();
-        let feed2 = feed.clone();
-        let http_client2 = state.http_client.clone();
-        let url2 = url.clone();
-        tokio::spawn(async move {
-            let mut bytes_total: u64 = 0;
-            let mut reconnects: u32 = 0;
-            // Use the already-open response for the first connection; reconnect as needed.
-            let mut response_opt: Option<reqwest::Response> = Some(response);
-
-            'outer: loop {
-                if gen_arc.load(Ordering::SeqCst) != gen {
-                    eprintln!("[radio] download: gen mismatch → exit ({bytes_total} bytes, {reconnects} reconnects)");
-                    break 'outer;
-                }
-
-                let resp = match response_opt.take() {
-                    Some(r) => r,
-                    None => {
-                        tokio::time::sleep(Duration::from_millis(500)).await;
-                        if gen_arc.load(Ordering::SeqCst) != gen { break 'outer; }
-                        match http_client2.get(&url2).header("Icy-MetaData", "0").send().await {
-                            Ok(r) if r.status().is_success() => {
-                                reconnects += 1;
-                                eprintln!("[radio] reconnected #{reconnects} ({bytes_total} bytes so far)");
-                                feed2.flush(); // clear stale buffer so decoder gets a clean stream start
-                                r
-                            },
-                            Ok(r) => { eprintln!("[radio] reconnect failed: HTTP {} — giving up", r.status()); break 'outer; },
-                            Err(e) => { eprintln!("[radio] reconnect error: {e} — giving up"); break 'outer; },
-                        }
-                    },
-                };
-
-                let mut stream = resp.bytes_stream();
-                loop {
-                    if gen_arc.load(Ordering::SeqCst) != gen { break 'outer; }
-                    if feed2.is_full() {
-                        tokio::time::sleep(Duration::from_millis(50)).await;
-                        continue;
-                    }
-                    match stream.next().await {
-                        Some(Ok(chunk)) => {
-                            bytes_total += chunk.len() as u64;
-                            feed2.push(&chunk);
-                        },
-                        Some(Err(e)) => {
-                            eprintln!("[radio] stream error: {e} → reconnecting (attempt {})", reconnects + 1);
-                            break; // triggers outer reconnect
-                        },
-                        None => {
-                            eprintln!("[radio] stream ended cleanly → reconnecting (attempt {})", reconnects + 1);
-                            break;
-                        },
-                    }
-                }
-            }
-
-            eprintln!("[radio] download task exiting, closing feed");
-            feed2.close();
-        });
-    }
-
     if state.generation.load(Ordering::SeqCst) != gen { return Ok(()); }
 
-    // Build symphonia decoder in a blocking thread (RadioBuffer::read blocks).
+    let hint_clone = fmt_hint.clone();
     let decoder = tokio::task::spawn_blocking(move || {
-        SizedDecoder::new_streaming(Box::new(radio_buf), fmt_hint.as_deref())
-    }).await.map_err(|e| e.to_string())??;
+        SizedDecoder::new_streaming(Box::new(reader), hint_clone.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())??;
 
     if state.generation.load(Ordering::SeqCst) != gen { return Ok(()); }
 
-    let sample_rate = decoder.sample_rate();
-    let channels = decoder.channels();
-
-    let done_flag = Arc::new(AtomicBool::new(false));
-    state.samples_played.store(0, Ordering::Relaxed);
-
-    // Radio: no gapless trim, no ReplayGain, 5 ms micro-fade to suppress click.
-    let dyn_src = DynSource::new(decoder.convert_samples::<f32>());
+    let sample_rate     = decoder.sample_rate();
+    let channels        = decoder.channels();
+    let done_flag       = Arc::new(AtomicBool::new(false));
     let fadeout_trigger = Arc::new(AtomicBool::new(false));
     let fadeout_samples = Arc::new(AtomicU64::new(0));
-    let eq_src = EqSource::new(dyn_src, state.eq_gains.clone(), state.eq_enabled.clone(), state.eq_pre_gain.clone());
-    let fade_in = EqualPowerFadeIn::new(eq_src, Duration::from_millis(5));
-    let fade_out = TriggeredFadeOut::new(fade_in, fadeout_trigger.clone(), fadeout_samples.clone());
+    state.samples_played.store(0, Ordering::Relaxed);
+
+    // Radio: no gapless trim, no ReplayGain, 5 ms fade-in to suppress click.
+    let dyn_src   = DynSource::new(decoder.convert_samples::<f32>());
+    let eq_src    = EqSource::new(dyn_src, state.eq_gains.clone(),
+                                  state.eq_enabled.clone(), state.eq_pre_gain.clone());
+    let fade_in   = EqualPowerFadeIn::new(eq_src, Duration::from_millis(5));
+    let fade_out  = TriggeredFadeOut::new(fade_in, fadeout_trigger.clone(), fadeout_samples.clone());
     let notifying = NotifyingSource::new(fade_out, done_flag.clone());
-    let counting = CountingSource::new(notifying, state.samples_played.clone());
+    let counting  = CountingSource::new(notifying, state.samples_played.clone());
 
     if state.generation.load(Ordering::SeqCst) != gen { return Ok(()); }
 
     let sink = Sink::try_new(&*state.stream_handle).map_err(|e| e.to_string())?;
-    let effective_vol = (volume.clamp(0.0, 1.0) * MASTER_HEADROOM).clamp(0.0, 1.0);
-    sink.set_volume(effective_vol);
+    sink.set_volume((volume.clamp(0.0, 1.0) * MASTER_HEADROOM).clamp(0.0, 1.0));
     sink.append(counting);
 
     {
         let mut cur = state.current.lock().unwrap();
         if let Some(old) = cur.sink.take() { old.stop(); }
-        cur.sink = Some(sink);
-        cur.duration_secs = 0.0; // sentinel: live stream
-        cur.seek_offset = 0.0;
-        cur.play_started = Some(Instant::now());
-        cur.paused_at = None;
+        cur.sink              = Some(sink);
+        cur.duration_secs     = 0.0; // sentinel: live stream
+        cur.seek_offset       = 0.0;
+        cur.play_started      = Some(Instant::now());
+        cur.paused_at         = None;
         cur.replay_gain_linear = 1.0;
-        cur.base_volume = volume.clamp(0.0, 1.0);
-        cur.fadeout_trigger = Some(fadeout_trigger);
-        cur.fadeout_samples = Some(fadeout_samples);
+        cur.base_volume       = volume.clamp(0.0, 1.0);
+        cur.fadeout_trigger   = Some(fadeout_trigger);
+        cur.fadeout_samples   = Some(fadeout_samples);
     }
 
     state.current_sample_rate.store(sample_rate, Ordering::Relaxed);
@@ -2137,7 +2483,7 @@ pub async fn audio_play_radio(
 #[tauri::command]
 pub fn audio_set_crossfade(enabled: bool, secs: f32, state: State<'_, AudioEngine>) {
     state.crossfade_enabled.store(enabled, Ordering::Relaxed);
-    state.crossfade_secs.store(secs.clamp(0.5, 12.0).to_bits(), Ordering::Relaxed);
+    state.crossfade_secs.store(secs.clamp(0.1, 12.0).to_bits(), Ordering::Relaxed);
 }
 
 #[tauri::command]

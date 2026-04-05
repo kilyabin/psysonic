@@ -311,6 +311,15 @@
   font-style: italic;
   margin: 0 0 2px;
 }
+.app-updater-error {
+  font-size: 10px;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border-radius: 4px;
+  padding: 4px 6px;
+  margin-bottom: 4px;
+  word-break: break-all;
+}
 .app-updater-btn-primary {
   display: inline-flex;
   align-items: center;

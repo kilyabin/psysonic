@@ -26,6 +26,7 @@ interface AuthState {
   scrobblingEnabled: boolean;
   maxCacheMb: number;
   downloadFolder: string;
+  offlineDownloadDir: string;
   excludeAudiobooks: boolean;
   customGenreBlacklist: string[];
   replayGainEnabled: boolean;
@@ -62,6 +63,7 @@ interface AuthState {
   setScrobblingEnabled: (v: boolean) => void;
   setMaxCacheMb: (v: number) => void;
   setDownloadFolder: (v: string) => void;
+  setOfflineDownloadDir: (v: string) => void;
   setExcludeAudiobooks: (v: boolean) => void;
   setCustomGenreBlacklist: (v: string[]) => void;
   setReplayGainEnabled: (v: boolean) => void;
@@ -99,6 +101,7 @@ export const useAuthStore = create<AuthState>()(
       scrobblingEnabled: true,
       maxCacheMb: 500,
       downloadFolder: '',
+      offlineDownloadDir: '',
       excludeAudiobooks: false,
       customGenreBlacklist: [],
       replayGainEnabled: false,
@@ -162,6 +165,7 @@ export const useAuthStore = create<AuthState>()(
       setScrobblingEnabled: (v) => set({ scrobblingEnabled: v }),
       setMaxCacheMb: (v) => set({ maxCacheMb: v }),
       setDownloadFolder: (v) => set({ downloadFolder: v }),
+      setOfflineDownloadDir: (v) => set({ offlineDownloadDir: v }),
       setExcludeAudiobooks: (v) => set({ excludeAudiobooks: v }),
       setCustomGenreBlacklist: (v) => set({ customGenreBlacklist: v }),
       setReplayGainEnabled: (v) => {

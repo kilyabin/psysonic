@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getArtists, SubsonicArtist, buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
-import { LayoutGrid, List, Images } from 'lucide-react';
+import { LayoutGrid, List, Images, ChevronDown } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import CachedImage from '../components/CachedImage';
@@ -254,9 +254,9 @@ export default function Artists() {
       )}
 
       {!loading && hasMore && (
-        <div style={{ margin: '2rem 0', display: 'flex', justifyContent: 'center' }}>
-          <button className="btn btn-ghost" onClick={loadMore}>
-            {t('artists.loadMore')}
+        <div style={{ marginTop: 32, marginBottom: '2rem', display: 'flex', justifyContent: 'center' }}>
+          <button className="btn btn-primary" onClick={loadMore}>
+            <ChevronDown size={16} /> {t('artists.loadMore')}
           </button>
         </div>
       )}

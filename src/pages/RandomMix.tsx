@@ -325,7 +325,7 @@ export default function RandomMix() {
             <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><div className="spinner" /></div>
           ) : (
             <div className="tracklist">
-              <div className="tracklist-header" style={{ gridTemplateColumns: '60px minmax(80px, 1.5fr) minmax(60px, 1fr) minmax(60px, 1fr) 70px 60px' }}>
+              <div className="tracklist-header" style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(80px, 1fr) minmax(80px, 1fr) 70px 65px' }}>
                 <div></div>
                 <div>{t('randomMix.trackTitle')}</div>
                 <div>{t('randomMix.trackArtist')}</div>
@@ -344,7 +344,7 @@ export default function RandomMix() {
                   <div
                     key={song.id}
                     className={`track-row${isCurrentTrack ? ' active' : ''}${contextMenuSongId === song.id ? ' context-active' : ''}`}
-                    style={{ gridTemplateColumns: '60px minmax(80px, 1.5fr) minmax(60px, 1fr) minmax(60px, 1fr) 70px 60px' }}
+                    style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(80px, 1fr) minmax(80px, 1fr) 70px 65px' }}
                     onClick={e => { if ((e.target as HTMLElement).closest('button, a, input')) return; playTrack(track, queueSongs); }}
                     role="row"
                     onContextMenu={e => { e.preventDefault(); setContextMenuSongId(song.id); openContextMenu(e.clientX, e.clientY, track, 'song'); }}
@@ -414,7 +414,7 @@ export default function RandomMix() {
         </div>
       ) : (
         <div className="tracklist">
-          <div className="tracklist-header" style={{ gridTemplateColumns: '60px minmax(80px, 1.5fr) minmax(60px, 1fr) minmax(60px, 1fr) 120px 70px 60px' }}>
+          <div className="tracklist-header" style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(80px, 1fr) minmax(80px, 1fr) 120px 70px 65px' }}>
             <div></div>
             <div>{t('randomMix.trackTitle')}</div>
             <div>{t('randomMix.trackArtist')}</div>
@@ -443,7 +443,7 @@ export default function RandomMix() {
               <div
                 key={song.id}
                 className={`track-row${isCurrentTrack ? ' active' : ''}${contextMenuSongId === song.id ? ' context-active' : ''}`}
-                style={{ gridTemplateColumns: '60px minmax(80px, 1.5fr) minmax(60px, 1fr) minmax(60px, 1fr) 120px 70px 60px' }}
+                style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(80px, 1fr) minmax(80px, 1fr) 120px 70px 65px' }}
                 onClick={e => { if ((e.target as HTMLElement).closest('button, a, input')) return; playTrack(track, queueSongs); }}
                 role="row"
                 onContextMenu={e => {

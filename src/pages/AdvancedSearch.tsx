@@ -273,7 +273,7 @@ export default function AdvancedSearch() {
                 )}
               </h2>
               <div className="tracklist">
-                <div className="tracklist-header" style={{ gridTemplateColumns: '32px 1fr 1fr 1fr 90px 70px' }}>
+                <div className="tracklist-header" style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(80px, 1fr) minmax(80px, 1fr) 90px 65px' }}>
                   <span />
                   <span>{t('randomMix.trackTitle')}</span>
                   <span>{t('randomMix.trackArtist')}</span>
@@ -287,7 +287,7 @@ export default function AdvancedSearch() {
                     <div
                       key={song.id}
                       className="track-row"
-                      style={{ gridTemplateColumns: '32px 1fr 1fr 1fr 90px 70px' }}
+                      style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(80px, 1fr) minmax(80px, 1fr) 90px 65px' }}
                       onDoubleClick={() => playTrack(track, results.songs.map(songToTrack))}
                       role="row"
                       onContextMenu={e => { e.preventDefault(); openContextMenu(e.clientX, e.clientY, track, 'song'); }}

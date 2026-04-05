@@ -388,7 +388,7 @@ export default function ArtistDetail() {
             {t('artistDetail.topTracks')}
           </h2>
           <div className="tracklist" style={{ padding: 0, marginBottom: '2rem' }}>
-            <div className="tracklist-header" style={{ gridTemplateColumns: '36px minmax(150px, 2fr) minmax(100px, 1fr) 60px' }}>
+            <div className="tracklist-header" style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(100px, 1fr) 65px' }}>
               <div style={{ textAlign: 'center' }}>#</div>
               <div>{t('artistDetail.trackTitle')}</div>
               <div>{t('artistDetail.trackAlbum')}</div>
@@ -400,7 +400,7 @@ export default function ArtistDetail() {
                      <div
                        key={song.id}
                        className="track-row"
-                       style={{ gridTemplateColumns: '36px minmax(150px, 2fr) minmax(100px, 1fr) 60px' }}
+                       style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(100px, 1fr) 65px' }}
                        onClick={e => {
                          if ((e.target as HTMLElement).closest('button, a, input')) return;
                          playTrack(track, topSongs.map(songToTrack));

@@ -158,6 +158,24 @@ let seekTarget: number | null = null;
 // to the Rust backend before it has finished the previous one.
 let togglePlayLock = false;
 
+// ── HTML5 Radio Player ────────────────────────────────────────────────────────
+// Internet radio streams are played via a native <audio> element instead of
+// the Rust/Symphonia engine.  This gives us browser-native reconnect logic,
+// codec support (MP3, AAC, HE-AAC, OGG) and stable ICY stream handling for
+// free, without touching the regular playback pipeline at all.
+const radioAudio = new Audio();
+radioAudio.preload = 'none';
+let radioStopping = false;
+radioAudio.addEventListener('ended', () => {
+  // Stream disconnected unexpectedly — clear radio state.
+  usePlayerStore.setState({ isPlaying: false, currentRadio: null, progress: 0, currentTime: 0 });
+});
+radioAudio.addEventListener('error', () => {
+  if (radioStopping) { radioStopping = false; return; }
+  usePlayerStore.setState({ isPlaying: false, currentRadio: null });
+  showToast('Radio stream error', 3000, 'error');
+});
+
 // Timestamp of the last gapless auto-advance (from audio:track_switched).
 // Used to suppress ghost-commands from stale IPC arriving after the switch.
 let lastGaplessSwitchTime = 0;
@@ -579,7 +597,13 @@ export const usePlayerStore = create<PlayerState>()(
 
       // ── stop ────────────────────────────────────────────────────────────────
       stop: () => {
-        invoke('audio_stop').catch(console.error);
+        if (get().currentRadio) {
+          radioStopping = true;
+          radioAudio.pause();
+          radioAudio.src = '';
+        } else {
+          invoke('audio_stop').catch(console.error);
+        }
         isAudioPaused = false;
         if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; } seekTarget = null;
         set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0, currentRadio: null });
@@ -592,8 +616,13 @@ export const usePlayerStore = create<PlayerState>()(
         isAudioPaused = false;
         gaplessPreloadingId = null;
         if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; } seekTarget = null;
-        invoke('audio_play_radio', { url: station.streamUrl, volume }).catch((err: unknown) => {
-          console.error('[psysonic] audio_play_radio failed:', err);
+        // Stop Rust engine in case a regular track was playing.
+        invoke('audio_stop').catch(() => {});
+        // Play via HTML5 audio — browser handles reconnects, codec negotiation, buffering.
+        radioAudio.src = station.streamUrl;
+        radioAudio.volume = volume;
+        radioAudio.play().catch((err: unknown) => {
+          console.error('[psysonic] radio HTML5 play failed:', err);
           set({ isPlaying: false, currentRadio: null });
         });
         set({
@@ -622,13 +651,23 @@ export const usePlayerStore = create<PlayerState>()(
         gaplessPreloadingId = null; // new track — allow fresh preload for next
         if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; } seekTarget = null;
 
+        // If a radio stream is active, stop it before the new track starts so
+        // the PlayerBar clears radio mode immediately and the stream is released.
+        if (get().currentRadio) {
+          radioStopping = true;
+          radioAudio.pause();
+          radioAudio.src = '';
+        }
+
         const state = get();
         const newQueue = queue ?? state.queue;
         const idx = newQueue.findIndex(t => t.id === track.id);
 
         // Set state immediately so the UI updates before the download completes.
+        // currentRadio: null ensures the PlayerBar switches out of radio mode right away.
         set({
           currentTrack: track,
+          currentRadio: null,
           queue: newQueue,
           queueIndex: idx >= 0 ? idx : 0,
           progress: 0,
@@ -680,12 +719,21 @@ export const usePlayerStore = create<PlayerState>()(
 
       // ── pause / resume / togglePlay ──────────────────────────────────────────
       pause: () => {
-        invoke('audio_pause').catch(console.error);
-        isAudioPaused = true;
+        if (get().currentRadio) {
+          radioAudio.pause();
+        } else {
+          invoke('audio_pause').catch(console.error);
+          isAudioPaused = true;
+        }
         set({ isPlaying: false });
       },
 
       resume: () => {
+        if (get().currentRadio) {
+          radioAudio.play().catch(console.error);
+          set({ isPlaying: true });
+          return;
+        }
         const { currentTrack, queue, currentTime } = get();
         if (!currentTrack) return;
 
@@ -912,6 +960,7 @@ export const usePlayerStore = create<PlayerState>()(
       setVolume: (v) => {
         const clamped = Math.max(0, Math.min(1, v));
         invoke('audio_set_volume', { volume: clamped }).catch(console.error);
+        radioAudio.volume = clamped;
         set({ volume: clamped });
       },
 

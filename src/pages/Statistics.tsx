@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getAlbumList, getArtists, getGenres, SubsonicAlbum } from '../api/subsonic';
+import { getAlbumList, getArtists, getGenres, getRandomSongs, SubsonicAlbum, SubsonicGenre } from '../api/subsonic';
 import AlbumRow from '../components/AlbumRow';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
@@ -12,6 +12,13 @@ function relativeTime(timestamp: number, t: (key: string, opts?: any) => string)
   if (diff < 3600) return t('statistics.lfmMinutesAgo', { n: Math.floor(diff / 60) });
   if (diff < 86400) return t('statistics.lfmHoursAgo', { n: Math.floor(diff / 3600) });
   return t('statistics.lfmDaysAgo', { n: Math.floor(diff / 86400) });
+}
+
+function formatPlaytime(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h > 0) return `${h.toLocaleString()}h ${m}m`;
+  return `${m}m`;
 }
 
 const PERIODS: { key: LastfmPeriod; label: string }[] = [
@@ -32,7 +39,13 @@ export default function Statistics() {
   const [artistCount, setArtistCount] = useState<number | null>(null);
   const [totalSongs, setTotalSongs] = useState<number | null>(null);
   const [totalAlbums, setTotalAlbums] = useState<number | null>(null);
+  const [genres, setGenres] = useState<SubsonicGenre[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [totalPlaytime, setTotalPlaytime] = useState<number | null>(null);
+  const [playtimeCapped, setPlaytimeCapped] = useState(false);
+  const [formatData, setFormatData] = useState<{ format: string; count: number }[] | null>(null);
+  const [formatSampleSize, setFormatSampleSize] = useState(0);
 
   const [lfmPeriod, setLfmPeriod] = useState<LastfmPeriod>('1month');
   const [lfmTopArtists, setLfmTopArtists] = useState<LastfmTopArtist[]>([]);
@@ -54,10 +67,60 @@ export default function Statistics() {
       setFrequent(fr);
       setHighest(hi);
       setArtistCount(a.length);
-      setTotalSongs(g.reduce((acc: number, genre: any) => acc + genre.songCount, 0));
-      setTotalAlbums(g.reduce((acc: number, genre: any) => acc + genre.albumCount, 0));
+      setTotalSongs(g.reduce((acc: number, genre: SubsonicGenre) => acc + genre.songCount, 0));
+      setTotalAlbums(g.reduce((acc: number, genre: SubsonicGenre) => acc + genre.albumCount, 0));
+      const sorted = [...g].sort((a, b) => b.songCount - a.songCount);
+      setGenres(sorted);
       setLoading(false);
     }).catch(() => setLoading(false));
+  }, []);
+
+  // Background fetch: total playtime (paginate getAlbumList up to 10 pages of 500)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      let total = 0;
+      let offset = 0;
+      const pageSize = 500;
+      const maxPages = 10;
+      let capped = false;
+      for (let page = 0; page < maxPages; page++) {
+        try {
+          const albums = await getAlbumList('newest', pageSize, offset);
+          if (cancelled) return;
+          for (const a of albums) total += (a.duration ?? 0);
+          if (albums.length < pageSize) break;
+          if (page === maxPages - 1) capped = true;
+          offset += pageSize;
+        } catch {
+          break;
+        }
+      }
+      if (!cancelled) {
+        setTotalPlaytime(total);
+        setPlaytimeCapped(capped);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Background fetch: format distribution (sample of 500 random songs)
+  useEffect(() => {
+    let cancelled = false;
+    getRandomSongs(500).then(songs => {
+      if (cancelled) return;
+      const counts: Record<string, number> = {};
+      for (const song of songs) {
+        const fmt = song.suffix?.toUpperCase() ?? 'Unknown';
+        counts[fmt] = (counts[fmt] ?? 0) + 1;
+      }
+      const sorted = Object.entries(counts)
+        .map(([format, count]) => ({ format, count }))
+        .sort((a, b) => b.count - a.count);
+      setFormatData(sorted);
+      setFormatSampleSize(songs.length);
+    }).catch(() => {});
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -97,11 +160,19 @@ export default function Statistics() {
     }
   };
 
+  const playtimeDisplay = totalPlaytime === null
+    ? t('statistics.computing')
+    : (playtimeCapped ? '≥ ' : '') + formatPlaytime(totalPlaytime);
+
   const stats = [
-    { label: t('statistics.statArtists'), value: artistCount },
-    { label: t('statistics.statAlbums'), value: totalAlbums },
-    { label: t('statistics.statSongs'), value: totalSongs },
+    { label: t('statistics.statArtists'), value: artistCount?.toLocaleString() ?? '—' },
+    { label: t('statistics.statAlbums'), value: totalAlbums?.toLocaleString() ?? '—' },
+    { label: t('statistics.statSongs'), value: totalSongs?.toLocaleString() ?? '—' },
+    { label: t('statistics.statPlaytime'), value: playtimeDisplay },
   ];
+
+  const topGenres = genres.slice(0, 10);
+  const maxGenreSongs = topGenres[0]?.songCount ?? 1;
 
   return (
     <div className="content-body animate-fade-in">
@@ -115,11 +186,84 @@ export default function Statistics() {
           <div className="stats-overview">
             {stats.map(s => (
               <div key={s.label} className="stats-card">
-                <span className="stats-card-value">{s.value?.toLocaleString() ?? '—'}</span>
+                <span className="stats-card-value">{s.value}</span>
                 <span className="stats-card-label">{s.label}</span>
               </div>
             ))}
           </div>
+
+          {/* Genre Insights + Format Distribution */}
+          {(topGenres.length > 0 || formatData) && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginBottom: '0.5rem' }}>
+
+              {topGenres.length > 0 && (
+                <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '12px', padding: '1.25rem', backdropFilter: 'blur(8px)' }}>
+                  <h3 style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--accent)', marginBottom: '1rem' }}>
+                    {t('statistics.genreInsights')}
+                  </h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                    {topGenres.map(g => (
+                      <div key={g.value}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.2rem' }}>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>
+                            {g.value}
+                          </span>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', flexShrink: 0, marginLeft: '0.5rem' }}>
+                            {g.songCount.toLocaleString()}
+                          </span>
+                        </div>
+                        <div style={{ height: '4px', borderRadius: '2px', background: 'var(--glass-border)', overflow: 'hidden' }}>
+                          <div style={{
+                            height: '100%',
+                            width: `${(g.songCount / maxGenreSongs) * 100}%`,
+                            background: 'var(--accent)',
+                            opacity: 0.7,
+                            borderRadius: '2px',
+                            transition: 'width 0.4s ease',
+                          }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {formatData && (
+                <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '12px', padding: '1.25rem', backdropFilter: 'blur(8px)' }}>
+                  <h3 style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--accent)', marginBottom: '0.25rem' }}>
+                    {t('statistics.formatDistribution')}
+                  </h3>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+                    {t('statistics.formatSample', { n: formatSampleSize.toLocaleString() })}
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                    {formatData.map(f => {
+                      const pct = formatSampleSize > 0 ? Math.round((f.count / formatSampleSize) * 100) : 0;
+                      return (
+                        <div key={f.format}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.2rem' }}>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 600, fontFamily: 'monospace' }}>{f.format}</span>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{pct}%</span>
+                          </div>
+                          <div style={{ height: '4px', borderRadius: '2px', background: 'var(--glass-border)', overflow: 'hidden' }}>
+                            <div style={{
+                              height: '100%',
+                              width: `${pct}%`,
+                              background: 'var(--accent)',
+                              opacity: 0.6,
+                              borderRadius: '2px',
+                              transition: 'width 0.4s ease',
+                            }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          )}
 
           {recent.length > 0 && (
             <AlbumRow title={t('statistics.recentlyPlayed')} albums={recent} />

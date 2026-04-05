@@ -61,11 +61,12 @@ export default function PlayerBar() {
   const duration = currentTrack?.duration ?? 0;
 
   // Cover art: prefer radio station art, fall back to track art.
+  // Note: getCoverArt.view needs ra-{id}, not the raw coverArt filename Navidrome returns.
   const radioCoverSrc = useMemo(
-    () => currentRadio?.coverArt ? buildCoverArtUrl(currentRadio.coverArt, 128) : '',
-    [currentRadio?.coverArt]
+    () => currentRadio?.coverArt ? buildCoverArtUrl(`ra-${currentRadio.id}`, 128) : '',
+    [currentRadio?.coverArt, currentRadio?.id]
   );
-  const radioCoverKey = currentRadio?.coverArt ? coverArtCacheKey(currentRadio.coverArt, 128) : '';
+  const radioCoverKey = currentRadio?.coverArt ? coverArtCacheKey(`ra-${currentRadio.id}`, 128) : '';
   const coverSrc = useMemo(() => currentTrack?.coverArt ? buildCoverArtUrl(currentTrack.coverArt, 128) : '', [currentTrack?.coverArt]);
   const coverKey = currentTrack?.coverArt ? coverArtCacheKey(currentTrack.coverArt, 128) : '';
 

@@ -3,6 +3,8 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
 import { buildStreamUrl, getArtist, getAlbum } from '../api/subsonic';
 import type { SubsonicSong } from '../api/subsonic';
+import { useAuthStore } from './authStore';
+import { showToast } from '../utils/toast';
 
 export interface OfflineTrackMeta {
   id: string;
@@ -156,6 +158,7 @@ export const useOfflineStore = create<OfflineState>()(
 
               const suffix = song.suffix || 'mp3';
               const url = buildStreamUrl(song.id);
+              const customDir = useAuthStore.getState().offlineDownloadDir || null;
 
               try {
                 const localPath = await invoke<string>('download_track_offline', {
@@ -163,6 +166,7 @@ export const useOfflineStore = create<OfflineState>()(
                   serverId,
                   url,
                   suffix,
+                  customDir,
                 });
 
                 set(state => ({
@@ -195,7 +199,11 @@ export const useOfflineStore = create<OfflineState>()(
                       : j,
                   ),
                 }));
-              } catch {
+              } catch (err) {
+                const msg = typeof err === 'string' ? err : (err instanceof Error ? err.message : '');
+                if (msg === 'VOLUME_NOT_FOUND') {
+                  showToast('Speichermedium nicht gefunden. Bitte Verzeichnis in den Einstellungen prüfen.', 6000, 'error');
+                }
                 set(state => ({
                   jobs: state.jobs.map(j =>
                     j.trackId === song.id && j.albumId === albumId
@@ -263,9 +271,8 @@ export const useOfflineStore = create<OfflineState>()(
             const meta = get().tracks[`${serverId}:${trackId}`];
             if (!meta) return;
             await invoke('delete_offline_track', {
-              trackId,
-              serverId,
-              suffix: meta.suffix,
+              localPath: meta.localPath,
+              baseDir: useAuthStore.getState().offlineDownloadDir || null,
             }).catch(() => {});
           }),
         );

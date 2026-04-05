@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.32.0] - 2026-04-05 — *The Big Easter Update* 🐣
+
+### Added
+
+- **Internet Radio — full release**: The Radio page is now accessible from the sidebar. Complete UI rewrite to a card-based layout (cover art, name, edit/homepage buttons) consistent with the Playlists look. Covers can be uploaded or removed via a hover menu directly on the card.
+- **Internet Radio — Edit Modal**: A dedicated modal lets you change station name, stream URL, and homepage URL, and upload or remove cover art.
+- **Internet Radio — Radio Browser directory** *(via [radio-browser.info](https://www.radio-browser.info))*: Discover new stations directly inside Psysonic. Top stations by vote are shown as suggestions; a debounced search finds stations by name. Favicon images can be imported as cover art in one click.
+- **Settings — Backup & Restore**: Export all your settings (servers, theme, font, keybindings, EQ preset, sidebar order) to a single JSON file and import them on another machine or after a reinstall. Available in Settings → Storage.
+- **Albums — Year Range Filter**: A From/To year input now appears in the Albums toolbar alongside the existing genre filter. Filtering by year and by genre can be combined; clearing both inputs returns to the default view.
+- **Statistics — Library Insights** *(requested via [#88](https://github.com/Psychotoxical/psysonic/issues/88))*:
+  - **Total Playtime** card: computed in the background by paginating your full album list (up to 5 000 albums). Shows `≥ Xh Ym` if the library is larger.
+  - **Genre Insights**: Top 10 genres ranked by song count with proportional progress bars.
+  - **Format Distribution**: Codec breakdown from a random 500-track sample — shows format name and percentage.
+- **Playlist Detail — Cover Upload**: Change or remove a playlist's cover image via the hover menu that appears on the hero artwork — no external tool needed.
+- **Tracklist columns — Playlists & Favorites** *(work in progress)*: PlaylistDetail and Favorites now support the same resizable, configurable column system introduced in v1.31.0 for Album tracklists. Column widths and visibility are persisted independently per page. The feature is still being refined.
+
+### Changed
+
+- **Crossfade — fine-grained control**: The crossfade duration slider now ranges from 0.1 s to 10 s in 0.1 s steps (previously 1 s minimum, 0.5 s steps). The current value is shown with one decimal place.
+- **Settings — Storage tab redesign**: The "Offline Library" section now has a short description and includes Cache settings. The "Downloads" section is now labelled "ZIP Export & Archiving". Both sections have been visually consolidated.
+- **Artists page — Load More button** *(reported via [#90](https://github.com/Psychotoxical/psysonic/issues/90))*: The button is now styled as `btn-primary` with a `ChevronDown` icon and proper spacing. Previously it was an unstyled ghost button with no visual affordance.
+- **Tracklist layout consistency**: The Play-button column is now uniformly 60 px and the title column uses `minmax(150px, 1fr)` across all list views — Search Results, Artist Detail, Random Mix, and Advanced Search now match the Album tracklist layout.
+- **Internet Radio — HTML5 playback**: Radio now streams via the browser's native `<audio>` element instead of a custom Rust pipeline. This improves compatibility with AAC/MP3/HLS streams.
+- **AppUpdater — error visibility** *(experimental, still in progress)*: Update failures are now shown inside the update card rather than silently logged. Auto-update remains experimental — a direct GitHub Releases link is always shown as a fallback.
+- **Queue panel — radio drag**: Dragging a radio station card onto the queue is now silently rejected instead of causing an error.
+
+### Fixed
+
+- **PlayerBar stuck on Radio info**: Switching from an Internet Radio station to a regular track no longer leaves the station name and cover in the player bar. `playTrack` now clears `currentRadio` state and stops the audio element immediately.
+- **Radio favourite icon**: The heart icon is now correctly used for favourite radio stations on both the Internet Radio page and the Favourites page. It was incorrectly showing a star.
+- **Offline track deletion — orphaned directories**: Deleting a cached track now removes empty parent directories up to the configured base directory. Uses `std::fs::remove_dir` (safe — only removes empty directories) to avoid accidental data loss.
+
+---
+
 ## [1.31.0] - 2026-04-04
 
 > **Note:** This is likely the last update for the coming week — taking a short break. See you on the other side. ☀️
