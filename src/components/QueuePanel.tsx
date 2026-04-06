@@ -333,7 +333,7 @@ export default function QueuePanel() {
     if (!queueListRef.current || queueIndex < 0) return;
     if (activeTab !== 'queue') return;
     const songs = queueListRef.current!.querySelectorAll<HTMLElement>('[data-queue-idx]');
-    const nextSong = songs[queueIndex];
+    const nextSong = songs[queueIndex + 1];
     if (!nextSong) return;
     nextSong.scrollIntoView({ block: "start", behavior: "instant" });
   }, [currentTrack, activeTab]);       
