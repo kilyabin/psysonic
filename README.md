@@ -92,6 +92,12 @@ Navigate to the [Releases](https://github.com/Psychotoxical/psysonic/releases) p
 
 ### 🐧 Linux
 
+**Quick Install (Recommended):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/Psychotoxical/psysonic/main/scripts/install.sh | sudo bash
+```
+
+**Manual Installation:**
 - **Ubuntu / Debian**: `.deb` from GitHub Releases
 - **Fedora / RHEL**: `.rpm` from GitHub Releases
 
