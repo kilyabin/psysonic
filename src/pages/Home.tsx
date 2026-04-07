@@ -6,9 +6,11 @@ import { useTranslation } from 'react-i18next';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import { useHomeStore } from '../store/homeStore';
+import { useAuthStore } from '../store/authStore';
 
 export default function Home() {
   const homeSections = useHomeStore(s => s.sections);
+  const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const isVisible = (id: string) => homeSections.find(s => s.id === id)?.visible ?? true;
 
   const [starred, setStarred] = useState<SubsonicAlbum[]>([]);
@@ -44,7 +46,7 @@ export default function Home() {
       setRandomArtists(shuffled.slice(0, 16));
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, []);
+  }, [musicLibraryFilterVersion, homeSections]);
 
   const loadMore = async (
     type: 'starred' | 'newest' | 'random' | 'frequent' | 'recent',

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { X, Search, Disc3, Users, Music, Music2, Clock, ChevronRight } from 'lucide-react';
 import { search, SearchResults, buildCoverArtUrl } from '../api/subsonic';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
+import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
 
 const STORAGE_KEY = 'psysonic_recent_searches';
@@ -34,6 +35,7 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
   const [loading, setLoading] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>(loadRecent);
   const inputRef = useRef<HTMLInputElement>(null);
+  const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
@@ -50,7 +52,7 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
       try { setResults(await search(q)); }
       finally { setLoading(false); }
     }, 300),
-    []
+    [musicLibraryFilterVersion]
   );
 
   useEffect(() => { doSearch(query); }, [query, doSearch]);

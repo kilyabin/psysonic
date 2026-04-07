@@ -23,6 +23,9 @@ export const deTranslation = {
     genres: 'Genres',
     playlists: 'Playlists',
     radio: 'Internetradio',
+    libraryScope: 'Bibliotheksumfang',
+    libraryScopeHint: 'Gesamten Server-Katalog oder nur einen Medienordner durchsuchen.',
+    allLibraries: 'Alle Bibliotheken',
   },
   home: {
     hero: 'Featured',

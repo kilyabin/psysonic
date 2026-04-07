@@ -23,6 +23,9 @@ export const enTranslation = {
     genres: 'Genres',
     playlists: 'Playlists',
     radio: 'Internet Radio',
+    libraryScope: 'Library scope',
+    libraryScopeHint: 'Browse either your whole server catalog or a single media folder.',
+    allLibraries: 'All libraries',
   },
   home: {
     hero: 'Featured',

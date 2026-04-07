@@ -53,6 +53,7 @@ import AppUpdater from './components/AppUpdater';
 import { version } from '../package.json';
 import { useConnectionStatus } from './hooks/useConnectionStatus';
 import { useAuthStore } from './store/authStore';
+import { getMusicFolders } from './api/subsonic';
 import { useOfflineStore } from './store/offlineStore';
 import { initHotCachePrefetch } from './hotCachePrefetch';
 import { usePlayerStore, initAudioListeners } from './store/playerStore';
@@ -82,8 +83,27 @@ function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const serverId = useAuthStore(s => s.activeServerId ?? '');
+  const isLoggedIn = useAuthStore(s => s.isLoggedIn);
+  const activeServerId = useAuthStore(s => s.activeServerId);
+  const setMusicFolders = useAuthStore(s => s.setMusicFolders);
   const offlineAlbums = useOfflineStore(s => s.albums);
   const hasOfflineContent = Object.values(offlineAlbums).some(a => a.serverId === serverId);
+
+  useEffect(() => {
+    if (!isLoggedIn || !activeServerId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const folders = await getMusicFolders();
+        if (!cancelled) setMusicFolders(folders);
+      } catch {
+        if (!cancelled) setMusicFolders([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn, activeServerId, setMusicFolders]);
 
   // Auto-navigate to offline library when no connection but cached content exists
   const prevConnStatus = useRef(connStatus);

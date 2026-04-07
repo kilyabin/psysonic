@@ -70,6 +70,7 @@ export default function ArtistDetail() {
   const isPlaying = usePlayerStore(state => state.isPlaying);
   const { downloadArtist, bulkProgress } = useOfflineStore();
   const activeServerId = useAuthStore(s => s.activeServerId) ?? '';
+  const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
 
   useEffect(() => {
     if (!id) return;
@@ -126,7 +127,7 @@ export default function ArtistDetail() {
         setFeaturedAlbums([...albumMap.values()]);
         setFeaturedLoading(false);
       });
-  }, [artist?.id]);
+  }, [artist?.id, musicLibraryFilterVersion]);
 
   useEffect(() => {
     if (!artist || !lastfmIsConfigured()) return;
@@ -152,7 +153,7 @@ export default function ArtistDetail() {
       setSimilarArtists(found);
       setSimilarLoading(false);
     }).catch(() => setSimilarLoading(false));
-  }, [artist?.id]);
+  }, [artist?.id, musicLibraryFilterVersion]);
 
   const openLink = (url: string, key: string) => {
     open(url);

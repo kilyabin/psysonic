@@ -86,10 +86,11 @@ export default function Artists() {
   const openContextMenu = usePlayerStore(state => state.openContextMenu);
   const showArtistImages = useAuthStore(s => s.showArtistImages);
   const setShowArtistImages = useAuthStore(s => s.setShowArtistImages);
+  const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
 
   useEffect(() => {
     getArtists().then(data => { setArtists(data); setLoading(false); }).catch(() => setLoading(false));
-  }, []);
+  }, [musicLibraryFilterVersion]);
 
   const loadMore = useCallback(() => {
     setVisibleCount(prev => prev + 50);

@@ -23,6 +23,9 @@ export const nlTranslation = {
     genres: 'Genres',
     playlists: 'Playlists',
     radio: 'Internetradio',
+    libraryScope: 'Bibliotheekbereik',
+    libraryScopeHint: 'Doorzoek de hele servercatalogus of één mediabibliotheek.',
+    allLibraries: 'Alle bibliotheken',
   },
   home: {
     hero: 'Uitgelicht',

@@ -7,6 +7,7 @@ import {
   Tags, type LucideIcon,
 } from 'lucide-react';
 import { getGenres, SubsonicGenre } from '../api/subsonic';
+import { useAuthStore } from '../store/authStore';
 
 function getGenreIcon(name: string): LucideIcon {
   const n = name.toLowerCase();
@@ -48,6 +49,7 @@ const SCROLL_KEY = 'genres-scroll';
 export default function Genres() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const [genres, setGenres] = useState<SubsonicGenre[]>([]);
   const [loading, setLoading] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -59,7 +61,7 @@ export default function Genres() {
         setGenres(sorted);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [musicLibraryFilterVersion]);
 
   // Restore scroll position after genres are rendered
   useEffect(() => {

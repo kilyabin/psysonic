@@ -93,6 +93,165 @@
   overflow-y: auto;
 }
 
+/* Library scope: Navidrome-style dropdown trigger + fixed panel (portal) */
+.nav-library-scope-trigger {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  width: calc(100% - 2 * var(--space-3));
+  margin: var(--space-3) var(--space-3) var(--space-2);
+  padding: var(--space-2) var(--space-2);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: var(--radius-md);
+  background: var(--bg-tertiary, rgba(0, 0, 0, 0.2));
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.nav-library-scope-trigger:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-default, rgba(255, 255, 255, 0.12));
+}
+
+/* «Все библиотеки»: как секция навигации, без рамки и подложки */
+.nav-library-scope-trigger--plain {
+  border-color: transparent;
+  background: transparent;
+  align-items: center;
+}
+
+.nav-library-scope-trigger--plain:hover {
+  border-color: transparent;
+}
+
+.nav-library-scope-trigger--plain .nav-library-scope-chevron {
+  margin-top: 0;
+}
+
+.nav-library-scope-trigger--open:not(.nav-library-scope-trigger--plain) {
+  border-color: var(--accent, var(--border-default));
+}
+
+.nav-library-scope-trigger--open.nav-library-scope-trigger--plain {
+  border-color: var(--border-subtle, rgba(255, 255, 255, 0.08));
+  background: var(--bg-tertiary, rgba(0, 0, 0, 0.2));
+}
+
+.nav-library-scope-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  opacity: 0.85;
+}
+
+.nav-library-scope-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-library-scope-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.nav-library-scope-subtitle {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-library-scope-chevron {
+  flex-shrink: 0;
+  margin-top: 2px;
+  opacity: 0.7;
+  transition: transform var(--transition-fast);
+}
+
+.nav-library-scope-trigger--open .nav-library-scope-chevron {
+  transform: rotate(180deg);
+}
+
+.nav-library-dropdown-panel {
+  z-index: 10050;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-1);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-dropdown, rgba(255, 255, 255, 0.12));
+  background: var(--bg-secondary, #1e1e2e);
+  box-shadow: 0 8px 24px var(--shadow-dropdown, rgba(0, 0, 0, 0.45));
+  box-sizing: border-box;
+  overflow-y: visible;
+}
+
+/* >10 папок: «Все библиотеки» + до 10 строк папок, дальше — прокрутка */
+.nav-library-dropdown-panel--many-libraries {
+  --nav-lib-dropdown-row-h: calc(2 * var(--space-2) + 1.35rem);
+  max-height: min(
+    calc(11 * var(--nav-lib-dropdown-row-h) + 2 * var(--space-1)),
+    70vh
+  );
+  overflow-y: auto;
+}
+
+.nav-library-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.nav-library-dropdown-item:hover {
+  background: var(--bg-hover);
+}
+
+.nav-library-dropdown-item--selected {
+  color: var(--accent);
+}
+
+.nav-library-dropdown-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-library-dropdown-check {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.nav-library-dropdown-check-spacer {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
 .nav-section-label {
   font-size: 10px;
   font-weight: 600;

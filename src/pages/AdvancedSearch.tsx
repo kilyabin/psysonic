@@ -11,6 +11,7 @@ import AlbumRow from '../components/AlbumRow';
 import ArtistRow from '../components/ArtistRow';
 import CustomSelect from '../components/CustomSelect';
 import { useDragDrop } from '../contexts/DragDropContext';
+import { useAuthStore } from '../store/authStore';
 
 type ResultType = 'all' | 'artists' | 'albums' | 'songs';
 
@@ -31,6 +32,7 @@ interface Results {
 export default function AdvancedSearch() {
   const { t } = useTranslation();
   const [params] = useSearchParams();
+  const qFromUrl = params.get('q') ?? '';
   const navigate = useNavigate();
   const psyDrag = useDragDrop();
   const playTrack = usePlayerStore(s => s.playTrack);
@@ -46,6 +48,7 @@ export default function AdvancedSearch() {
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [genreNote, setGenreNote] = useState(false);
+  const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
 
   const runSearch = async (opts: SearchOpts) => {
     setLoading(true);
@@ -109,9 +112,8 @@ export default function AdvancedSearch() {
     getGenres().then(data =>
       setGenres(data.sort((a, b) => a.value.localeCompare(b.value)))
     ).catch(() => {});
-    const q = params.get('q') ?? '';
-    if (q) runSearch({ query: q, genre: '', yearFrom: '', yearTo: '', resultType: 'all' });
-  }, []);
+    if (qFromUrl) runSearch({ query: qFromUrl, genre: '', yearFrom: '', yearTo: '', resultType: 'all' });
+  }, [musicLibraryFilterVersion, qFromUrl]);
 
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();

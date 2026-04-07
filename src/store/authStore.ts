@@ -54,6 +54,16 @@ interface AuthState {
   /** Parent directory; actual cache is `<dir>/psysonic-hot-cache/`. Empty = app data. */
   hotCacheDownloadDir: string;
 
+  /** Subsonic music folders for the active server (not persisted; refetched on login / server change). */
+  musicFolders: Array<{ id: string; name: string }>;
+  /**
+   * Per server: `all` = no musicFolderId param; otherwise a single folder id.
+   * Only one library or all — no multi-folder merge.
+   */
+  musicLibraryFilterByServer: Record<string, 'all' | string>;
+  /** Bumps when `setMusicLibraryFilter` runs so pages refetch catalog data. */
+  musicLibraryFilterVersion: number;
+
   // Status
   isLoggedIn: boolean;
   isConnecting: boolean;
@@ -99,6 +109,8 @@ interface AuthState {
   setHotCacheMaxMb: (v: number) => void;
   setHotCacheDebounceSec: (v: number) => void;
   setHotCacheDownloadDir: (v: string) => void;
+  setMusicFolders: (folders: Array<{ id: string; name: string }>) => void;
+  setMusicLibraryFilter: (folderId: 'all' | string) => void;
   logout: () => void;
 
   // Derived
@@ -146,6 +158,9 @@ export const useAuthStore = create<AuthState>()(
       hotCacheMaxMb: 256,
       hotCacheDebounceSec: 30,
       hotCacheDownloadDir: '',
+      musicFolders: [],
+      musicLibraryFilterByServer: {},
+      musicLibraryFilterVersion: 0,
       isLoggedIn: false,
       isConnecting: false,
       connectionError: null,
@@ -175,7 +190,7 @@ export const useAuthStore = create<AuthState>()(
         });
       },
 
-      setActiveServer: (id) => set({ activeServerId: id }),
+      setActiveServer: (id) => set({ activeServerId: id, musicFolders: [] }),
 
       setLoggedIn: (v) => set({ isLoggedIn: v }),
       setConnecting: (v) => set({ isConnecting: v }),
@@ -227,7 +242,28 @@ export const useAuthStore = create<AuthState>()(
       setHotCacheDebounceSec: (v) => set({ hotCacheDebounceSec: v }),
       setHotCacheDownloadDir: (v) => set({ hotCacheDownloadDir: v }),
 
-      logout: () => set({ isLoggedIn: false }),
+      setMusicFolders: (folders) => {
+        set({ musicFolders: folders });
+        const sid = get().activeServerId;
+        if (!sid) return;
+        const f = get().musicLibraryFilterByServer[sid];
+        if (f && f !== 'all' && !folders.some(x => x.id === f)) {
+          set(s => ({
+            musicLibraryFilterByServer: { ...s.musicLibraryFilterByServer, [sid]: 'all' },
+          }));
+        }
+      },
+
+      setMusicLibraryFilter: (folderId) => {
+        const sid = get().activeServerId;
+        if (!sid) return;
+        set(s => ({
+          musicLibraryFilterByServer: { ...s.musicLibraryFilterByServer, [sid]: folderId },
+          musicLibraryFilterVersion: s.musicLibraryFilterVersion + 1,
+        }));
+      },
+
+      logout: () => set({ isLoggedIn: false, musicFolders: [] }),
 
       getBaseUrl: () => {
         const s = get();
@@ -244,6 +280,10 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'psysonic-auth',
       storage: createJSONStorage(() => localStorage),
+      partialize: state => {
+        const { musicFolders: _mf, musicLibraryFilterVersion: _fv, ...rest } = state;
+        return rest;
+      },
     }
   )
 );

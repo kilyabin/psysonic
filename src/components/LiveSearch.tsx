@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, Disc3, Users, Music, SlidersHorizontal } from 'lucide-react';
 import { search, SearchResults, buildCoverArtUrl } from '../api/subsonic';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
+import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
 
 function debounce(fn: (q: string) => void, ms: number): (q: string) => void {
@@ -24,6 +25,7 @@ export default function LiveSearch() {
   const playTrack = usePlayerStore(state => state.playTrack);
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
 
   const doSearch = useCallback(
     debounce(async (q: string) => {
@@ -37,7 +39,7 @@ export default function LiveSearch() {
         setLoading(false);
       }
     }, 300),
-    []
+    [musicLibraryFilterVersion]
   );
 
   useEffect(() => { doSearch(query); setActiveIndex(-1); }, [query, doSearch]);

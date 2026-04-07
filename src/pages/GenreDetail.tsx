@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Disc3 } from 'lucide-react';
 import { getAlbumsByGenre, SubsonicAlbum } from '../api/subsonic';
+import { useAuthStore } from '../store/authStore';
 import AlbumCard from '../components/AlbumCard';
 
 const PAGE_SIZE = 50;
@@ -17,6 +18,7 @@ export default function GenreDetail() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
+  const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
 
   useEffect(() => {
     setAlbums([]);

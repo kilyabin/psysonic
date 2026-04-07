@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useRef, useLayoutEffect, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { usePlayerStore } from '../store/playerStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useAuthStore } from '../store/authStore';
@@ -7,7 +8,8 @@ import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Disc3, Users, Music4, Radio, Settings, Heart, BarChart3, Shuffle,
-  PanelLeftClose, PanelLeft, HelpCircle, Dices, AudioLines, HardDriveDownload, Tags, ListMusic, Cast
+  PanelLeftClose, PanelLeft, HelpCircle, Dices, AudioLines, HardDriveDownload, Tags, ListMusic, Cast,
+  ChevronDown, Check, Music2,
 } from 'lucide-react';
 import PsysonicLogo from './PsysonicLogo';
 import PSmallLogo from './PSmallLogo';
@@ -44,8 +46,70 @@ export default function Sidebar({
   const activeJobs = offlineJobs.filter(j => j.status === 'queued' || j.status === 'downloading');
   const offlineAlbums = useOfflineStore(s => s.albums);
   const serverId = useAuthStore(s => s.activeServerId ?? '');
+  const isLoggedIn = useAuthStore(s => s.isLoggedIn);
+  const musicFolders = useAuthStore(s => s.musicFolders);
+  const musicLibraryFilterByServer = useAuthStore(s => s.musicLibraryFilterByServer);
+  const setMusicLibraryFilter = useAuthStore(s => s.setMusicLibraryFilter);
   const hasOfflineContent = Object.values(offlineAlbums).some(a => a.serverId === serverId);
   const sidebarItems = useSidebarStore(s => s.items);
+  const [libraryDropdownOpen, setLibraryDropdownOpen] = useState(false);
+  const [dropdownRect, setDropdownRect] = useState({ top: 0, left: 0, width: 0 });
+  const libraryTriggerRef = useRef<HTMLButtonElement>(null);
+  const showLibraryPicker = !isCollapsed && isLoggedIn && musicFolders.length > 1;
+
+  const filterId = serverId ? (musicLibraryFilterByServer[serverId] ?? 'all') : 'all';
+  const selectedFolderName =
+    filterId === 'all' ? null : musicFolders.find(f => f.id === filterId)?.name ?? null;
+  const libraryTriggerPlain = filterId === 'all';
+
+  const updateDropdownPosition = useCallback(() => {
+    const el = libraryTriggerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setDropdownRect({
+      top: r.bottom + 4,
+      left: r.left,
+      width: r.width,
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!libraryDropdownOpen) return;
+    updateDropdownPosition();
+    const onWin = () => updateDropdownPosition();
+    window.addEventListener('resize', onWin);
+    window.addEventListener('scroll', onWin, true);
+    return () => {
+      window.removeEventListener('resize', onWin);
+      window.removeEventListener('scroll', onWin, true);
+    };
+  }, [libraryDropdownOpen, updateDropdownPosition]);
+
+  useEffect(() => {
+    if (!libraryDropdownOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (libraryTriggerRef.current?.contains(t)) return;
+      const panel = document.querySelector('.nav-library-dropdown-panel');
+      if (panel?.contains(t)) return;
+      setLibraryDropdownOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLibraryDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [libraryDropdownOpen]);
+
+  const pickLibrary = (id: 'all' | string) => {
+    setMusicLibraryFilter(id);
+    setLibraryDropdownOpen(false);
+  };
+
   // Resolve ordered, visible items per section from store config
   const visibleLibrary = sidebarItems
     .filter(cfg => cfg.visible && ALL_NAV_ITEMS[cfg.id]?.section === 'library')
@@ -73,8 +137,81 @@ export default function Sidebar({
         {isCollapsed ? <PanelLeft size={14} /> : <PanelLeftClose size={14} />}
       </button>
 
-      <nav className="sidebar-nav" aria-label="Hauptnavigation">
-        {!isCollapsed && <span className="nav-section-label">{t('sidebar.library')}</span>}
+      <nav className="sidebar-nav" aria-label="Main navigation">
+        {!isCollapsed && (showLibraryPicker ? (
+          <>
+            <button
+              ref={libraryTriggerRef}
+              type="button"
+              className={`nav-library-scope-trigger ${libraryTriggerPlain ? 'nav-library-scope-trigger--plain' : ''} ${libraryDropdownOpen ? 'nav-library-scope-trigger--open' : ''}`}
+              onClick={() => {
+                setLibraryDropdownOpen(o => !o);
+              }}
+              aria-label={t('sidebar.libraryScope')}
+              aria-expanded={libraryDropdownOpen}
+              aria-haspopup="listbox"
+              data-tooltip={t('sidebar.libraryScope')}
+              data-tooltip-pos="bottom"
+            >
+              {!libraryTriggerPlain ? (
+                <Music2 size={16} className="nav-library-scope-icon" strokeWidth={2} aria-hidden />
+              ) : null}
+              <div className="nav-library-scope-text">
+                <span className="nav-library-scope-title">{t('sidebar.library')}</span>
+                {selectedFolderName ? (
+                  <span className="nav-library-scope-subtitle" title={selectedFolderName}>
+                    {selectedFolderName}
+                  </span>
+                ) : null}
+              </div>
+              <ChevronDown size={16} strokeWidth={2.25} className="nav-library-scope-chevron" aria-hidden />
+            </button>
+            {libraryDropdownOpen &&
+              createPortal(
+                <div
+                  className={`nav-library-dropdown-panel${musicFolders.length > 10 ? ' nav-library-dropdown-panel--many-libraries' : ''}`}
+                  role="listbox"
+                  aria-label={t('sidebar.libraryScope')}
+                  style={{
+                    position: 'fixed',
+                    top: dropdownRect.top,
+                    left: dropdownRect.left,
+                    width: dropdownRect.width,
+                    minWidth: dropdownRect.width,
+                    maxWidth: dropdownRect.width,
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={filterId === 'all'}
+                    className={`nav-library-dropdown-item ${filterId === 'all' ? 'nav-library-dropdown-item--selected' : ''}`}
+                    onClick={() => pickLibrary('all')}
+                  >
+                    <span className="nav-library-dropdown-item-label">{t('sidebar.allLibraries')}</span>
+                    {filterId === 'all' ? <Check size={16} className="nav-library-dropdown-check" strokeWidth={2.5} /> : <span className="nav-library-dropdown-check-spacer" />}
+                  </button>
+                  {musicFolders.map(f => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      role="option"
+                      aria-selected={filterId === f.id}
+                      className={`nav-library-dropdown-item ${filterId === f.id ? 'nav-library-dropdown-item--selected' : ''}`}
+                      onClick={() => pickLibrary(f.id)}
+                    >
+                      <span className="nav-library-dropdown-item-label">{f.name}</span>
+                      {filterId === f.id ? <Check size={16} className="nav-library-dropdown-check" strokeWidth={2.5} /> : <span className="nav-library-dropdown-check-spacer" />}
+                    </button>
+                  ))}
+                </div>,
+                document.body
+              )}
+          </>
+        ) : (
+          <span className="nav-section-label">{t('sidebar.library')}</span>
+        ))}
         {visibleLibrary.map(item => (
           <NavLink
             key={item.to}
@@ -117,7 +254,7 @@ export default function Sidebar({
         )}
 
         {visibleSystem.length > 0 && !isCollapsed && <span className="nav-section-label">{t('sidebar.system')}</span>}
-{visibleSystem.map(item => (
+        {visibleSystem.map(item => (
           <NavLink
             key={item.to}
             to={item.to}

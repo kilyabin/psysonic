@@ -3,6 +3,7 @@ import AlbumCard from '../components/AlbumCard';
 import GenreFilterBar from '../components/GenreFilterBar';
 import { getAlbumList, getAlbumsByGenre, SubsonicAlbum } from '../api/subsonic';
 import { useTranslation } from 'react-i18next';
+import { useAuthStore } from '../store/authStore';
 import { X } from 'lucide-react';
 
 type SortType = 'alphabeticalByName' | 'alphabeticalByArtist';
@@ -18,6 +19,7 @@ async function fetchByGenres(genres: string[]): Promise<SubsonicAlbum[]> {
 
 export default function Albums() {
   const { t } = useTranslation();
+  const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
   const [sort, setSort] = useState<SortType>('alphabeticalByName');
   const [loading, setLoading] = useState(true);
@@ -50,7 +52,7 @@ export default function Albums() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [musicLibraryFilterVersion]);
 
   const loadFiltered = useCallback(async (genres: string[], sortType: SortType) => {
     setLoading(true);
@@ -66,7 +68,7 @@ export default function Albums() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [musicLibraryFilterVersion]);
 
   useEffect(() => {
     setPage(0);

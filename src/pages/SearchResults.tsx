@@ -7,6 +7,7 @@ import AlbumRow from '../components/AlbumRow';
 import ArtistRow from '../components/ArtistRow';
 import { useTranslation } from 'react-i18next';
 import { useDragDrop } from '../contexts/DragDropContext';
+import { useAuthStore } from '../store/authStore';
 
 function formatDuration(s: number) {
   return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
@@ -21,6 +22,7 @@ export default function SearchResults() {
   const playTrack = usePlayerStore(s => s.playTrack);
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const psyDrag = useDragDrop();
+  const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
 
   useEffect(() => {
     if (!query.trim()) { setResults(null); return; }
@@ -28,7 +30,7 @@ export default function SearchResults() {
     search(query, { artistCount: 20, albumCount: 20, songCount: 50 })
       .then(r => setResults(r))
       .finally(() => setLoading(false));
-  }, [query]);
+  }, [query, musicLibraryFilterVersion]);
 
   const hasResults = results && (results.artists.length || results.albums.length || results.songs.length);
 

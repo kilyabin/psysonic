@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { unstar } from '../api/subsonic';
 import { useDragDrop } from '../contexts/DragDropContext';
+import { useAuthStore } from '../store/authStore';
 
 const FAV_COLUMNS: readonly ColDef[] = [
   { key: 'num',      i18nKey: null,            minWidth: 60,  defaultWidth: 60,  required: true  },
@@ -63,6 +64,7 @@ export default function Favorites() {
 
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const navigate = useNavigate();
+  const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
 
   useEffect(() => {
     const loadAll = async () => {
@@ -87,7 +89,7 @@ export default function Favorites() {
       setLoading(false);
     };
     loadAll();
-  }, []);
+  }, [musicLibraryFilterVersion]);
 
   if (loading) {
     return (

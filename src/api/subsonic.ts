@@ -40,6 +40,15 @@ async function api<T>(endpoint: string, extra: Record<string, unknown> = {}, tim
   return data as T;
 }
 
+/** Optional `musicFolderId` when the user narrowed browsing to one Subsonic library (see `getMusicFolders`). */
+export function libraryFilterParams(): Record<string, string | number> {
+  const { activeServerId, musicLibraryFilterByServer } = useAuthStore.getState();
+  if (!activeServerId) return {};
+  const f = musicLibraryFilterByServer[activeServerId];
+  if (f === undefined || f === 'all') return {};
+  return { musicFolderId: f };
+}
+
 // ─── Types ────────────────────────────────────────────────────
 export interface SubsonicAlbum {
   id: string;
@@ -139,6 +148,11 @@ export interface SubsonicGenre {
   albumCount: number;
 }
 
+export interface SubsonicMusicFolder {
+  id: string;
+  name: string;
+}
+
 export interface SubsonicArtistInfo {
   biography?: string;
   musicBrainzId?: string;
@@ -150,6 +164,19 @@ export interface SubsonicArtistInfo {
 }
 
 // ─── API Methods ──────────────────────────────────────────────
+export async function getMusicFolders(): Promise<SubsonicMusicFolder[]> {
+  const data = await api<{ musicFolders: { musicFolder: SubsonicMusicFolder | SubsonicMusicFolder[] } }>(
+    'getMusicFolders.view',
+  );
+  const raw = data.musicFolders?.musicFolder;
+  if (!raw) return [];
+  const arr = Array.isArray(raw) ? raw : [raw];
+  return arr.map(f => ({
+    id: String((f as { id: string | number }).id),
+    name: (f as { name?: string }).name ?? 'Library',
+  }));
+}
+
 export async function ping(): Promise<boolean> {
   try {
     await api('ping.view');
@@ -178,7 +205,11 @@ export async function pingWithCredentials(serverUrl: string, username: string, p
 }
 
 export async function getRandomAlbums(size = 6): Promise<SubsonicAlbum[]> {
-  const data = await api<{ albumList2: { album: SubsonicAlbum[] } }>('getAlbumList2.view', { type: 'random', size });
+  const data = await api<{ albumList2: { album: SubsonicAlbum[] } }>('getAlbumList2.view', {
+    type: 'random',
+    size,
+    ...libraryFilterParams(),
+  });
   return data.albumList2?.album ?? [];
 }
 
@@ -188,12 +219,19 @@ export async function getAlbumList(
   offset = 0,
   extra: Record<string, unknown> = {}
 ): Promise<SubsonicAlbum[]> {
-  const data = await api<{ albumList2: { album: SubsonicAlbum[] } }>('getAlbumList2.view', { type, size, offset, _t: Date.now(), ...extra });
+  const data = await api<{ albumList2: { album: SubsonicAlbum[] } }>('getAlbumList2.view', {
+    type,
+    size,
+    offset,
+    _t: Date.now(),
+    ...libraryFilterParams(),
+    ...extra,
+  });
   return data.albumList2?.album ?? [];
 }
 
 export async function getRandomSongs(size = 50, genre?: string, timeout = 15000): Promise<SubsonicSong[]> {
-  const params: Record<string, string | number> = { size, _t: Date.now() };
+  const params: Record<string, string | number> = { size, _t: Date.now(), ...libraryFilterParams() };
   if (genre) params.genre = genre;
   const data = await api<{ randomSongs: { song: SubsonicSong[] } }>('getRandomSongs.view', params, timeout);
   return data.randomSongs?.song ?? [];
@@ -215,7 +253,9 @@ export async function getAlbum(id: string): Promise<{ album: SubsonicAlbum; song
 }
 
 export async function getArtists(): Promise<SubsonicArtist[]> {
-  const data = await api<{ artists: { index: Array<{ artist: SubsonicArtist[] }> } }>('getArtists.view');
+  const data = await api<{ artists: { index: Array<{ artist: SubsonicArtist[] }> } }>('getArtists.view', {
+    ...libraryFilterParams(),
+  });
   const indices = data.artists?.index ?? [];
   return indices.flatMap(i => i.artist ?? []);
 }
@@ -258,7 +298,12 @@ export async function getGenres(): Promise<SubsonicGenre[]> {
 
 export async function getAlbumsByGenre(genre: string, size = 50, offset = 0): Promise<SubsonicAlbum[]> {
   const data = await api<{ albumList2: { album: SubsonicAlbum | SubsonicAlbum[] } }>('getAlbumList2.view', {
-    type: 'byGenre', genre, size, offset, _t: Date.now(),
+    type: 'byGenre',
+    genre,
+    size,
+    offset,
+    _t: Date.now(),
+    ...libraryFilterParams(),
   });
   const raw = data.albumList2?.album;
   if (!raw) return [];
@@ -284,7 +329,7 @@ export async function getStarred(): Promise<StarredResults> {
       album?: SubsonicAlbum[];
       song?: SubsonicSong[];
     }
-  }>('getStarred2.view');
+  }>('getStarred2.view', { ...libraryFilterParams() });
   const r = data.starred2 ?? {};
   return { artists: r.artist ?? [], albums: r.album ?? [], songs: r.song ?? [] };
 }
@@ -318,6 +363,7 @@ export async function search(query: string, options?: { albumCount?: number; art
     artistCount: options?.artistCount ?? 5,
     albumCount: options?.albumCount ?? 5,
     songCount: options?.songCount ?? 10,
+    ...libraryFilterParams(),
   });
   const r = data.searchResult3 ?? {};
   return { artists: r.artist ?? [], albums: r.album ?? [], songs: r.song ?? [] };

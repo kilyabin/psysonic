@@ -36,6 +36,7 @@ export default function RandomMix() {
   const psyDrag = useDragDrop();
   const [starredSongs, setStarredSongs] = useState<Set<string>>(new Set());
   const { excludeAudiobooks, setExcludeAudiobooks, customGenreBlacklist, setCustomGenreBlacklist } = useAuthStore();
+  const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const [addedGenre, setAddedGenre] = useState<string | null>(null);
   const [addedArtist, setAddedArtist] = useState<string | null>(null);
 
@@ -82,7 +83,7 @@ export default function RandomMix() {
       setAllAvailableGenres(available);
       setDisplayedGenres(available.slice(0, 20));
     }).catch(() => {});
-  }, []);
+  }, [musicLibraryFilterVersion]);
 
   const filteredSongs = songs.filter(song => {
     if (!excludeAudiobooks) return true;

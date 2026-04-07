@@ -4,6 +4,7 @@ import { getAlbumList, getAlbumsByGenre, SubsonicAlbum } from '../api/subsonic';
 import AlbumCard from '../components/AlbumCard';
 import GenreFilterBar from '../components/GenreFilterBar';
 import { useTranslation } from 'react-i18next';
+import { useAuthStore } from '../store/authStore';
 
 const ALBUM_COUNT = 30;
 
@@ -21,6 +22,7 @@ async function fetchByGenres(genres: string[]): Promise<SubsonicAlbum[]> {
 
 export default function RandomAlbums() {
   const { t } = useTranslation();
+  const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
@@ -42,7 +44,7 @@ export default function RandomAlbums() {
       loadingRef.current = false;
       setLoading(false);
     }
-  }, []);
+  }, [musicLibraryFilterVersion]);
 
   useEffect(() => { load(selectedGenres); }, [selectedGenres, load]);
 

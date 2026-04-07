@@ -23,6 +23,9 @@ export const frTranslation = {
     genres: 'Genres',
     playlists: 'Playlists',
     radio: 'Radio Internet',
+    libraryScope: 'Portée de la bibliothèque',
+    libraryScopeHint: 'Parcourir tout le catalogue du serveur ou un seul dossier média.',
+    allLibraries: 'Toutes les bibliothèques',
   },
   home: {
     hero: 'En vedette',

@@ -7,6 +7,7 @@ import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
 import { playAlbum } from '../utils/playAlbum';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { useAuthStore } from '../store/authStore';
 
 const INTERVAL_MS = 10000;
 
@@ -52,6 +53,7 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -59,7 +61,7 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
   useEffect(() => {
     if (albumsProp?.length) { setAlbums(albumsProp); return; }
     getRandomAlbums(8).then(a => { if (a.length) setAlbums(a); }).catch(() => {});
-  }, [albumsProp]);
+  }, [albumsProp, musicLibraryFilterVersion]);
 
   // Start / restart auto-advance timer
   const startTimer = useCallback((len: number) => {

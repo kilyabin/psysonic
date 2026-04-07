@@ -33,6 +33,7 @@ const PERIODS: { key: LastfmPeriod; label: string }[] = [
 export default function Statistics() {
   const { t } = useTranslation();
   const { lastfmSessionKey, lastfmUsername } = useAuthStore();
+  const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const [recent, setRecent] = useState<SubsonicAlbum[]>([]);
   const [frequent, setFrequent] = useState<SubsonicAlbum[]>([]);
   const [highest, setHighest] = useState<SubsonicAlbum[]>([]);
@@ -73,7 +74,7 @@ export default function Statistics() {
       setGenres(sorted);
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, []);
+  }, [musicLibraryFilterVersion]);
 
   // Background fetch: total playtime (paginate getAlbumList up to 10 pages of 500)
   useEffect(() => {
@@ -102,7 +103,7 @@ export default function Statistics() {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [musicLibraryFilterVersion]);
 
   // Background fetch: format distribution (sample of 500 random songs)
   useEffect(() => {
@@ -121,7 +122,7 @@ export default function Statistics() {
       setFormatSampleSize(songs.length);
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [musicLibraryFilterVersion]);
 
   useEffect(() => {
     if (!lastfmIsConfigured() || !lastfmSessionKey || !lastfmUsername) return;

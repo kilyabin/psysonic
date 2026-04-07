@@ -4,6 +4,7 @@ import { ChevronLeft } from 'lucide-react';
 import AlbumCard from '../components/AlbumCard';
 import { search, SubsonicAlbum } from '../api/subsonic';
 import { useTranslation } from 'react-i18next';
+import { useAuthStore } from '../store/authStore';
 
 export default function LabelAlbums() {
   const { t } = useTranslation();
@@ -11,6 +12,7 @@ export default function LabelAlbums() {
   const navigate = useNavigate();
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
   const [loading, setLoading] = useState(true);
+  const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
 
   useEffect(() => {
     if (!name) return;
@@ -31,7 +33,7 @@ export default function LabelAlbums() {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [name]);
+  }, [name, musicLibraryFilterVersion]);
 
   return (
     <div className="animate-fade-in" style={{ padding: '0 var(--space-6)' }}>

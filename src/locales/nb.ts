@@ -23,6 +23,9 @@ export const nbTranslation = {
     genres: 'Sjangere',
     playlists: 'Spillelister',
     radio: 'Internettradio',
+    libraryScope: 'Biblioteksomfang',
+    libraryScopeHint: 'Vis hele serverkatalogen eller én mediemappe.',
+    allLibraries: 'Alle biblioteker',
   },
   home: {
     hero: 'Utvalgt',
