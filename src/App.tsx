@@ -75,6 +75,7 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 function AppShell() {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
+  const [isWindowFullscreen, setIsWindowFullscreen] = useState(false);
   const isFullscreenOpen = usePlayerStore(s => s.isFullscreenOpen);
   const toggleFullscreen = usePlayerStore(s => s.toggleFullscreen);
   const isQueueVisible = usePlayerStore(s => s.isQueueVisible);
@@ -261,14 +262,14 @@ function AppShell() {
       className="app-shell"
       data-mobile={isMobile || undefined}
       data-mobile-player={isMobilePlayer || undefined}
-      data-titlebar={(IS_LINUX && useCustomTitlebar) || undefined}
+      data-titlebar={(IS_LINUX && useCustomTitlebar && !isWindowFullscreen) || undefined}
       style={{
         '--sidebar-width': isMobile ? '0px' : (isSidebarCollapsed ? '72px' : 'clamp(200px, 15vw, 220px)'),
         '--queue-width': isMobile ? '0px' : (isQueueVisible ? `${queueWidth}px` : '0px')
       } as React.CSSProperties}
       onContextMenu={e => e.preventDefault()}
     >
-      {IS_LINUX && useCustomTitlebar && <TitleBar />}
+      {IS_LINUX && useCustomTitlebar && !isWindowFullscreen && <TitleBar />}
       {!isMobile && (
         <Sidebar
           isCollapsed={isSidebarCollapsed}
@@ -406,7 +407,10 @@ function TauriEventBridge() {
         case 'fullscreen-player': toggleFullscreen(); break;
         case 'native-fullscreen': {
           const win = getCurrentWindow();
-          win.isFullscreen().then(fs => win.setFullscreen(!fs));
+          win.isFullscreen().then(fs => {
+            win.setFullscreen(!fs);
+            setIsWindowFullscreen(!fs);
+          });
           break;
         }
       }
