@@ -544,6 +544,13 @@ export const enTranslation = {
     infiniteQueue: 'Infinite Queue',
     infiniteQueueDesc: 'Automatically append random tracks when the queue runs out',
     experimental: 'Experimental',
+    seekbarStyle: 'Seekbar Style',
+    seekbarStyleDesc: 'Choose the look of the player seek bar',
+    seekbarWaveform: 'Waveform',
+    seekbarLinedot: 'Line & Dot',
+    seekbarBar: 'Bar',
+    seekbarThick: 'Thick Bar',
+    seekbarSegmented: 'Segmented',
   },
   changelog: {
     modalTitle: "What's New",

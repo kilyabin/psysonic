@@ -541,6 +541,13 @@ export const nlTranslation = {
     infiniteQueue: 'Oneindige wachtrij',
     infiniteQueueDesc: 'Automatisch willekeurige nummers toevoegen als de wachtrij leeg raakt',
     experimental: 'Experimenteel',
+    seekbarStyle: 'Zoekbalkstijl',
+    seekbarStyleDesc: 'Kies het uiterlijk van de afspeelbalk',
+    seekbarWaveform: 'Golfvorm',
+    seekbarLinedot: 'Lijn & punt',
+    seekbarBar: 'Balk',
+    seekbarThick: 'Dikke balk',
+    seekbarSegmented: 'Gesegmenteerd',
   },
   changelog: {
     modalTitle: 'Wat is nieuw',

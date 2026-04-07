@@ -11,6 +11,8 @@ export interface ServerProfile {
   password: string;
 }
 
+export type SeekbarStyle = 'waveform' | 'linedot' | 'bar' | 'thick' | 'segmented';
+
 interface AuthState {
   // Multi-server
   servers: ServerProfile[];
@@ -48,6 +50,8 @@ interface AuthState {
   showFullscreenLyrics: boolean;
   showChangelogOnUpdate: boolean;
   lastSeenChangelogVersion: string;
+
+  seekbarStyle: SeekbarStyle;
 
   /** Alpha: native hi-res sample rate output (disabled = safe 44.1 kHz mode) */
   enableHiRes: boolean;
@@ -112,6 +116,7 @@ interface AuthState {
   setShowFullscreenLyrics: (v: boolean) => void;
   setShowChangelogOnUpdate: (v: boolean) => void;
   setLastSeenChangelogVersion: (v: string) => void;
+  setSeekbarStyle: (v: SeekbarStyle) => void;
   setEnableHiRes: (v: boolean) => void;
   setHotCacheEnabled: (v: boolean) => void;
   setHotCacheMaxMb: (v: number) => void;
@@ -164,6 +169,7 @@ export const useAuthStore = create<AuthState>()(
       showFullscreenLyrics: true,
       showChangelogOnUpdate: true,
       lastSeenChangelogVersion: '',
+      seekbarStyle: 'waveform',
       enableHiRes: false,
       hotCacheEnabled: false,
       hotCacheMaxMb: 256,
@@ -250,6 +256,7 @@ export const useAuthStore = create<AuthState>()(
       setShowChangelogOnUpdate: (v) => set({ showChangelogOnUpdate: v }),
       setLastSeenChangelogVersion: (v) => set({ lastSeenChangelogVersion: v }),
 
+      setSeekbarStyle: (v) => set({ seekbarStyle: v }),
       setEnableHiRes: (v) => set({ enableHiRes: v }),
       setHotCacheEnabled: (v) => set({ hotCacheEnabled: v }),
       setHotCacheMaxMb: (v) => set({ hotCacheMaxMb: v }),

@@ -543,6 +543,13 @@ export const deTranslation = {
     infiniteQueue: 'Endlose Warteschlange',
     infiniteQueueDesc: 'Automatisch Zufallstitel anhängen wenn die Warteschlange leer wird',
     experimental: 'Experimentell',
+    seekbarStyle: 'Seekbar-Stil',
+    seekbarStyleDesc: 'Aussehen der Wiedergabe-Seekbar auswählen',
+    seekbarWaveform: 'Wellenform',
+    seekbarLinedot: 'Linie & Punkt',
+    seekbarBar: 'Balken',
+    seekbarThick: 'Dicker Balken',
+    seekbarSegmented: 'Segmentiert',
   },
   changelog: {
     modalTitle: 'Was ist neu',

@@ -537,6 +537,13 @@ export const zhTranslation = {
     infiniteQueue: '无限队列',
     infiniteQueueDesc: '队列播完时自动追加随机曲目',
     experimental: '实验性',
+    seekbarStyle: '进度条样式',
+    seekbarStyleDesc: '选择播放进度条的外观',
+    seekbarWaveform: '波形',
+    seekbarLinedot: '线条与点',
+    seekbarBar: '条形',
+    seekbarThick: '粗条形',
+    seekbarSegmented: '分段式',
   },
   changelog: {
     modalTitle: '新功能',

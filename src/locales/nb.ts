@@ -540,6 +540,13 @@ export const nbTranslation = {
     preloadEarly: 'Tidlig (etter 5 s avspilling)',
     preloadCustom: 'Egendefinert',
     preloadCustomSeconds: 'Sekunder før slutt: {{n}}',
+    seekbarStyle: 'Søkefelt-stil',
+    seekbarStyleDesc: 'Velg utseendet på avspillingssøkefeltet',
+    seekbarWaveform: 'Bølgeform',
+    seekbarLinedot: 'Linje & punkt',
+    seekbarBar: 'Linje',
+    seekbarThick: 'Tykk linje',
+    seekbarSegmented: 'Segmentert',
   },
   changelog: {
     modalTitle: "Nyheter",

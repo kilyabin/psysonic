@@ -564,6 +564,13 @@ export const ruTranslation = {
     infiniteQueue: 'Бесконечная очередь',
     infiniteQueueDesc: 'Подмешивать случайные треки, когда очередь закончится',
     experimental: 'Экспериментально',
+    seekbarStyle: 'Стиль прогресс-бара',
+    seekbarStyleDesc: 'Выбор внешнего вида полосы воспроизведения',
+    seekbarWaveform: 'Форма волны',
+    seekbarLinedot: 'Линия и точка',
+    seekbarBar: 'Полоса',
+    seekbarThick: 'Толстая полоса',
+    seekbarSegmented: 'Сегменты',
   },
   changelog: {
     modalTitle: 'Что нового',

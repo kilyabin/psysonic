@@ -541,6 +541,13 @@ export const frTranslation = {
     infiniteQueue: 'File infinie',
     infiniteQueueDesc: 'Ajouter automatiquement des morceaux aléatoires quand la file est épuisée',
     experimental: 'Expérimental',
+    seekbarStyle: 'Style de la barre de lecture',
+    seekbarStyleDesc: 'Choisir l\'apparence de la barre de progression',
+    seekbarWaveform: 'Forme d\'onde',
+    seekbarLinedot: 'Ligne & point',
+    seekbarBar: 'Barre',
+    seekbarThick: 'Barre épaisse',
+    seekbarSegmented: 'Segmentée',
   },
   changelog: {
     modalTitle: 'Quoi de neuf',
