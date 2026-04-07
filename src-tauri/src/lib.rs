@@ -41,6 +41,11 @@ fn exit_app(app_handle: tauri::AppHandle) {
 fn set_window_decorations(enabled: bool, app_handle: tauri::AppHandle) {
     if let Some(win) = app_handle.get_webview_window("main") {
         let _ = win.set_decorations(enabled);
+        // Re-enabling native decorations on GTK causes the window manager to
+        // re-stack the window, which drops focus. Bring it back immediately.
+        if enabled {
+            let _ = win.set_focus();
+        }
     }
 }
 
