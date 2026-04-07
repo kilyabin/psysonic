@@ -2917,10 +2917,13 @@
   height: 130%;
   left: -35%;
   bottom: -35%;
-  background: radial-gradient(ellipse, var(--accent-glow, rgba(120, 80, 255, 0.14)) 0%, transparent 65%);
+  background: radial-gradient(ellipse,
+    color-mix(in srgb, var(--dynamic-fs-accent, var(--accent)), transparent 86%) 0%,
+    transparent 65%);
   filter: blur(55px);
   animation: mesh-aura-a 26s ease-in-out infinite;
   animation-delay: 350ms;
+  transition: background 400ms ease-in-out;
 }
 
 .fs-mesh-blob-b {
@@ -2928,10 +2931,13 @@
   height: 110%;
   right: -25%;
   top: -25%;
-  background: radial-gradient(ellipse, var(--accent-dim, rgba(120, 80, 255, 0.08)) 0%, transparent 65%);
+  background: radial-gradient(ellipse,
+    color-mix(in srgb, var(--dynamic-fs-accent, var(--accent)), transparent 92%) 0%,
+    transparent 65%);
   filter: blur(65px);
   animation: mesh-aura-b 20s ease-in-out infinite;
   animation-delay: 350ms;
+  transition: background 400ms ease-in-out;
 }
 
 /* ── Artist portrait — right half, object-fit: contain ── */
@@ -3043,7 +3049,8 @@
   box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.7),
     0 0 0 1px rgba(255, 255, 255, 0.07),
-    0 0 28px var(--accent-glow, var(--accent));
+    0 0 28px color-mix(in srgb, var(--dynamic-fs-accent, var(--accent)), transparent 30%);
+  transition: box-shadow 200ms ease-in-out;
 }
 
 /* Each layer is absolutely stacked — layers crossfade via opacity */
@@ -3071,13 +3078,14 @@
   font-family: var(--font-display);
   font-size: clamp(28px, 4.5vw, 68px);
   font-weight: 900;
-  color: var(--accent);
+  color: var(--dynamic-fs-accent, var(--accent));
   margin: 0;
   line-height: 1.05;
-  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.5), 0 0 40px var(--accent-glow, var(--accent));
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.5), 0 0 40px var(--dynamic-fs-accent, var(--accent-glow, var(--accent)));
   white-space: normal;
   word-wrap: break-word;
   overflow-wrap: break-word;
+  transition: color 200ms ease-in-out, text-shadow 200ms ease-in-out;
 }
 
 /* Artist name — secondary, below track title */
@@ -3125,7 +3133,7 @@
   border-radius: 50%;
   color: rgba(255, 255, 255, 0.65);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--transition-fast), color 200ms ease-in-out, background-color 200ms ease-in-out;
   background: transparent;
 }
 
@@ -3136,7 +3144,7 @@
 }
 
 .fs-btn.active {
-  color: var(--accent);
+  color: var(--dynamic-fs-accent, var(--accent));
 }
 
 .fs-btn-sm {
@@ -3147,22 +3155,22 @@
 .fs-btn-play {
   width: 52px;
   height: 52px;
-  background: var(--accent);
+  background: var(--dynamic-fs-accent, var(--accent));
   color: var(--ctp-crust);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5), 0 0 20px var(--accent-glow, var(--accent));
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5), 0 0 20px var(--dynamic-fs-accent, var(--accent-glow, var(--accent)));
 }
 
 .fs-btn-play:hover {
-  background: var(--accent);
+  background: var(--dynamic-fs-accent, var(--accent));
   color: var(--ctp-crust);
   transform: scale(1.1);
   filter: brightness(1.12);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 28px var(--accent-glow, var(--accent));
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 28px var(--dynamic-fs-accent, var(--accent-glow, var(--accent)));
 }
 
 .fs-btn-heart:hover,
 .fs-btn-heart.active {
-  color: var(--color-star-active, var(--accent));
+  color: var(--dynamic-fs-accent, var(--color-star-active, var(--accent)));
   background: rgba(255, 255, 255, 0.08);
 }
 
@@ -3217,9 +3225,10 @@
   top: 0;
   left: 0;
   bottom: 0;
-  background: var(--accent);
-  box-shadow: 0 0 15px var(--accent-glow, var(--accent));
+  background: var(--dynamic-fs-accent, var(--accent));
+  box-shadow: 0 0 15px var(--dynamic-fs-accent, var(--accent-glow, var(--accent)));
   pointer-events: none;
+  transition: background-color 200ms ease-in-out, box-shadow 200ms ease-in-out;
 }
 
 .fs-seekbar input[type="range"] {
@@ -5476,6 +5485,20 @@
 .radio-card-chip:hover {
   background: var(--accent);
   color: var(--ctp-crust);
+}
+
+/* Radio card: buttons row always pinned to bottom */
+.radio-card {
+  display: flex;
+  flex-direction: column;
+}
+.radio-card .album-card-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.radio-card .album-card-artist {
+  margin-top: auto;
 }
 
 /* ─ Alphabet Filter Bar ─ */

@@ -7,6 +7,7 @@ import { usePlayerStore } from '../store/playerStore';
 import { buildCoverArtUrl, coverArtCacheKey, getArtistInfo, star, unstar } from '../api/subsonic';
 import { useCachedUrl } from './CachedImage';
 import { getCachedUrl } from '../utils/imageCache';
+import { extractCoverColors } from '../utils/dynamicColors';
 import { useTranslation } from 'react-i18next';
 import { useLyrics } from '../hooks/useLyrics';
 import { useAuthStore } from '../store/authStore';
@@ -284,6 +285,25 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
   // `false` = no fetchUrl fallback — prevents double crossfade (fetchUrl → blobUrl).
   const resolvedCoverUrl = useCachedUrl(coverUrl, coverKey, false);
 
+  // Dynamic accent color extracted from the current album cover.
+  // Applied as --dynamic-fs-accent on the root element so it inherits to all
+  // children; CSS rules use var(--dynamic-fs-accent, var(--accent)) as fallback.
+  // Reset to null on track change so the previous color doesn't linger while
+  // the new one is being extracted.
+  const [dynamicAccent, setDynamicAccent] = useState<string | null>(null);
+  useEffect(() => {
+    setDynamicAccent(null);
+    if (!artUrl || !artKey) return;
+    let cancelled = false;
+    getCachedUrl(artUrl, artKey).then(blobUrl => {
+      if (cancelled || !blobUrl) return;
+      extractCoverColors(blobUrl).then(colors => {
+        if (!cancelled && colors.accent) setDynamicAccent(colors.accent);
+      });
+    });
+    return () => { cancelled = true; };
+  }, [artKey]); // artKey is stable per track — artUrl would also work
+
   // Artist image → portrait on right. Falls back to cover art.
   const [artistBgUrl, setArtistBgUrl] = useState<string>('');
   useEffect(() => {
@@ -362,6 +382,7 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
       aria-label={t('player.fullscreen')}
       data-idle={isIdle}
       onMouseMove={handleMouseMove}
+      style={dynamicAccent ? { '--dynamic-fs-accent': dynamicAccent } as React.CSSProperties : undefined}
     >
 
       {/* Layer 0 — animated dark mesh gradient (real divs = will-change possible) */}
@@ -445,7 +466,7 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
             onClick={() => useAuthStore.getState().setShowFullscreenLyrics(!showFullscreenLyrics)}
             aria-label={t('player.fsLyricsToggle')}
             data-tooltip={t('player.fsLyricsToggle')}
-            style={{ color: showFullscreenLyrics ? 'var(--accent)' : 'rgba(255,255,255,0.35)' }}
+            style={{ color: showFullscreenLyrics ? (dynamicAccent ?? 'var(--accent)') : 'rgba(255,255,255,0.35)' }}
           >
             <MicVocal size={14} />
           </button>
