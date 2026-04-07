@@ -146,6 +146,13 @@ export const enTranslation = {
     ratingLabel: 'Rating',
     enlargeCover: 'Enlarge',
   },
+  entityRating: {
+    albumShort: 'Album rating',
+    artistShort: 'Artist rating',
+    albumAriaLabel: 'Album rating',
+    artistAriaLabel: 'Artist rating',
+    saveFailed: 'Could not save rating.',
+  },
   artistDetail: {
     back: 'Back',
     albums: 'Albums',

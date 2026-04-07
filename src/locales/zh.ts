@@ -145,6 +145,13 @@ export const zhTranslation = {
     ratingLabel: '评分',
     enlargeCover: '放大',
   },
+  entityRating: {
+    albumShort: '专辑评分',
+    artistShort: '艺人评分',
+    albumAriaLabel: '专辑评分',
+    artistAriaLabel: '艺人评分',
+    saveFailed: '无法保存评分。',
+  },
   artistDetail: {
     back: '返回',
     albums: '专辑',

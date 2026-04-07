@@ -145,6 +145,13 @@ export const nbTranslation = {
     ratingLabel: 'Vurdering',
     enlargeCover: 'Forstørr',
   },
+  entityRating: {
+    albumShort: 'Albumvurdering',
+    artistShort: 'Artistvurdering',
+    albumAriaLabel: 'Albumvurdering',
+    artistAriaLabel: 'Artistvurdering',
+    saveFailed: 'Kunne ikke lagre vurderingen.',
+  },
   artistDetail: {
     back: 'Tilbake',
     albums: 'Album',

@@ -145,6 +145,13 @@ export const nlTranslation = {
     ratingLabel: 'Beoordeling',
     enlargeCover: 'Vergroten',
   },
+  entityRating: {
+    albumShort: 'Albumbeoordeling',
+    artistShort: 'Artiestbeoordeling',
+    albumAriaLabel: 'Albumbeoordeling',
+    artistAriaLabel: 'Artiestbeoordeling',
+    saveFailed: 'Beoordeling opslaan mislukt.',
+  },
   artistDetail: {
     back: 'Terug',
     albums: 'Albums',

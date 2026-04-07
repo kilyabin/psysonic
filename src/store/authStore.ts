@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
+import type { EntityRatingSupportLevel } from '../api/subsonic';
 import { usePlayerStore } from './playerStore';
 
 export interface ServerProfile {
@@ -68,6 +69,13 @@ interface AuthState {
   musicLibraryFilterByServer: Record<string, 'all' | string>;
   /** Bumps when `setMusicLibraryFilter` runs so pages refetch catalog data. */
   musicLibraryFilterVersion: number;
+
+  /**
+   * Per server: whether `setRating` is assumed to work for album/artist ids (OpenSubsonic-style).
+   * Absent key = not probed yet (`unknown` in UI).
+   */
+  entityRatingSupportByServer: Record<string, EntityRatingSupportLevel>;
+  setEntityRatingSupport: (serverId: string, level: EntityRatingSupportLevel) => void;
 
   // Status
   isLoggedIn: boolean;
@@ -172,6 +180,7 @@ export const useAuthStore = create<AuthState>()(
       musicFolders: [],
       musicLibraryFilterByServer: {},
       musicLibraryFilterVersion: 0,
+      entityRatingSupportByServer: {},
       isLoggedIn: false,
       isConnecting: false,
       connectionError: null,
@@ -193,10 +202,12 @@ export const useAuthStore = create<AuthState>()(
         set(s => {
           const newServers = s.servers.filter(srv => srv.id !== id);
           const switchedAway = s.activeServerId === id;
+          const { [id]: _r, ...entityRatingRest } = s.entityRatingSupportByServer;
           return {
             servers: newServers,
             activeServerId: switchedAway ? (newServers[0]?.id ?? null) : s.activeServerId,
             isLoggedIn: switchedAway ? false : s.isLoggedIn,
+            entityRatingSupportByServer: entityRatingRest,
           };
         });
       },
@@ -278,6 +289,11 @@ export const useAuthStore = create<AuthState>()(
           musicLibraryFilterVersion: s.musicLibraryFilterVersion + 1,
         }));
       },
+
+      setEntityRatingSupport: (serverId, level) =>
+        set(s => ({
+          entityRatingSupportByServer: { ...s.entityRatingSupportByServer, [serverId]: level },
+        })),
 
       logout: () => set({ isLoggedIn: false, musicFolders: [] }),
 

@@ -145,6 +145,13 @@ export const deTranslation = {
     ratingLabel: 'Bewertung',
     enlargeCover: 'Vergrößern',
   },
+  entityRating: {
+    albumShort: 'Albumbewertung',
+    artistShort: 'Künstlerbewertung',
+    albumAriaLabel: 'Albumbewertung',
+    artistAriaLabel: 'Künstlerbewertung',
+    saveFailed: 'Bewertung konnte nicht gespeichert werden.',
+  },
   artistDetail: {
     back: 'Zurück',
     albums: 'Alben',

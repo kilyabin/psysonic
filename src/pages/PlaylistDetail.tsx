@@ -21,6 +21,7 @@ import CachedImage, { useCachedUrl } from '../components/CachedImage';
 import { coverArtCacheKey, buildCoverArtUrl } from '../api/subsonic';
 import { useTranslation } from 'react-i18next';
 import { showToast } from '../utils/toast';
+import StarRating from '../components/StarRating';
 
 function sanitizeFilename(name: string): string {
   return name
@@ -50,23 +51,6 @@ function codecLabel(song: SubsonicSong): string {
   return parts.join(' · ');
 }
 
-function StarRating({ value, onChange }: { value: number; onChange: (r: number) => void }) {
-  const [hover, setHover] = React.useState(0);
-  return (
-    <div className="star-rating">
-      {[1, 2, 3, 4, 5].map(n => (
-        <button
-          key={n}
-          className={`star ${(hover || value) >= n ? 'filled' : ''}`}
-          onMouseEnter={() => setHover(n)}
-          onMouseLeave={() => setHover(0)}
-          onClick={() => onChange(n)}
-        >★</button>
-      ))}
-    </div>
-  );
-}
-
 // ── Column configuration ──────────────────────────────────────────────────────
 const PL_COLUMNS: readonly ColDef[] = [
   { key: 'num',      i18nKey: null,            minWidth: 60,  defaultWidth: 60,  required: true  },
@@ -74,7 +58,7 @@ const PL_COLUMNS: readonly ColDef[] = [
   { key: 'artist',   i18nKey: 'trackArtist',   minWidth: 80,  defaultWidth: 180, required: false },
   { key: 'favorite', i18nKey: 'trackFavorite', minWidth: 50,  defaultWidth: 70,  required: false },
   { key: 'rating',   i18nKey: 'trackRating',   minWidth: 80,  defaultWidth: 120, required: false },
-  { key: 'duration', i18nKey: 'trackDuration', minWidth: 50,  defaultWidth: 65,  required: false },
+  { key: 'duration', i18nKey: 'trackDuration', minWidth: 72,  defaultWidth: 92,  required: false },
   { key: 'format',   i18nKey: 'trackFormat',   minWidth: 60,  defaultWidth: 90,  required: false },
   { key: 'delete',   i18nKey: null,            minWidth: 36,  defaultWidth: 36,  required: true  },
 ];
@@ -750,8 +734,17 @@ export default function PlaylistDetail() {
               if (key === 'delete') return <div key="delete" />;
               return (
                 <div key={key} style={{ position: 'relative', padding: 0, margin: 0, minWidth: 0, overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', width: '100%', height: '100%', alignItems: 'center', justifyContent: isCentered ? 'center' : 'flex-start', paddingLeft: isCentered ? 0 : 12 }}>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                  <div
+                    style={{
+                      display: 'flex',
+                      width: '100%',
+                      height: '100%',
+                      alignItems: 'center',
+                      justifyContent: isCentered ? 'center' : 'flex-start',
+                      paddingLeft: isCentered ? 0 : 12,
+                    }}
+                  >
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
                   </div>
                   {!isLastCol && key !== 'delete' && (
                     <div className="col-resize-handle" onMouseDown={e => startResize(e, colIndex, 1)} />
@@ -917,7 +910,7 @@ export default function PlaylistDetail() {
                 if (key === 'title') return <div key="title" style={{ paddingLeft: 12 }}>{label}</div>;
                 if (key === 'delete') return <div key="delete" />;
                 if (key === 'favorite' || key === 'rating') return <div key={key} />;
-                return <div key={key} className={isCentered ? 'col-center' : ''}>{label}</div>;
+                return <div key={key} className={isCentered ? 'col-center' : ''} style={!isCentered ? { paddingLeft: 12 } : undefined}>{label}</div>;
               })}
             </div>
 

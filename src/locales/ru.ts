@@ -147,6 +147,13 @@ export const ruTranslation = {
     ratingLabel: 'Оценка',
     enlargeCover: 'Увеличить обложку',
   },
+  entityRating: {
+    albumShort: 'Оценка альбома',
+    artistShort: 'Оценка исполнителя',
+    albumAriaLabel: 'Оценка альбома',
+    artistAriaLabel: 'Оценка исполнителя',
+    saveFailed: 'Не удалось сохранить оценку.',
+  },
   artistDetail: {
     back: 'Назад',
     albums: 'Альбомы',

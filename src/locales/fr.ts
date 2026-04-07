@@ -145,6 +145,13 @@ export const frTranslation = {
     ratingLabel: 'Note',
     enlargeCover: 'Agrandir',
   },
+  entityRating: {
+    albumShort: 'Note de l’album',
+    artistShort: 'Note de l’artiste',
+    albumAriaLabel: 'Note de l’album',
+    artistAriaLabel: 'Note de l’artiste',
+    saveFailed: 'Impossible d’enregistrer la note.',
+  },
   artistDetail: {
     back: 'Retour',
     albums: 'Albums',

@@ -64,6 +64,8 @@ export interface SubsonicAlbum {
   starred?: string;
   recordLabel?: string;
   created?: string;
+  /** Present on some servers (e.g. OpenSubsonic) for album-level rating. */
+  userRating?: number;
 }
 
 export interface SubsonicSong {
@@ -141,6 +143,8 @@ export interface SubsonicArtist {
   albumCount?: number;
   coverArt?: string;
   starred?: string;
+  /** Present on some servers (e.g. OpenSubsonic) for artist-level rating. */
+  userRating?: number;
 }
 
 export interface SubsonicGenre {
@@ -372,6 +376,28 @@ export async function search(query: string, options?: { albumCount?: number; art
 
 export async function setRating(id: string, rating: number): Promise<void> {
   await api('setRating.view', { id, rating });
+}
+
+/** How aggressively we assume `setRating` accepts album/artist ids (OpenSubsonic-style). */
+export type EntityRatingSupportLevel = 'track_only' | 'full';
+
+/**
+ * Probe server for OpenSubsonic extensions. When `openSubsonic: true`, we treat album/artist
+ * rating as supported (same `setRating.view` + entity id); otherwise track-only.
+ */
+export async function probeEntityRatingSupport(): Promise<EntityRatingSupportLevel> {
+  try {
+    const data = await api<{ openSubsonic?: boolean; openSubsonicExtensions?: unknown[] }>(
+      'getOpenSubsonicExtensions.view',
+      {},
+      8000,
+    );
+    if (data.openSubsonic === true) return 'full';
+    if (Array.isArray(data.openSubsonicExtensions)) return 'full';
+    return 'track_only';
+  } catch {
+    return 'track_only';
+  }
 }
 
 export async function scrobbleSong(id: string, time: number): Promise<void> {
