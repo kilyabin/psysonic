@@ -447,6 +447,9 @@ export const ruTranslation = {
     hotCacheDebounceImmediate: 'Сразу',
     hotCacheDebounceSeconds: '{{n}} с',
     hotCacheClearBtn: 'Очистить горячий кэш',
+    hiResTitle: 'Нативное воспроизведение Hi-Res',
+    hiResEnabled: 'Включить нативное Hi-Res воспроизведение',
+    hiResDesc: "По умолчанию ограничивает вывод до 44,1 кГц для максимальной стабильности. Включайте только если оборудование и сеть надёжно поддерживают высокие частоты (88,2 кГц+).",
     showArtistImages: 'Фото исполнителей',
     showArtistImagesDesc:
       'Показывать обложки в разделе «Исполнители». По умолчанию выключено — меньше нагрузки на диск и сеть.',

@@ -13,7 +13,7 @@ use symphonia::core::{
     audio::{AudioBufferRef, SampleBuffer, SignalSpec},
     codecs::{DecoderOptions, CODEC_TYPE_NULL},
     formats::{FormatOptions, FormatReader, SeekMode, SeekTo},
-    io::{MediaSource, MediaSourceStream},
+    io::{MediaSource, MediaSourceStream, MediaSourceStreamOptions},
     meta::MetadataOptions,
     probe::Hint,
     units::{self, Time},
@@ -908,9 +908,13 @@ impl SizedDecoder {
             inner: Cursor::new(data),
             len: data_len,
         };
+        // 4 MB read-ahead buffer for Symphonia. Since the source is an in-memory
+        // Cursor<Vec<u8>>, reads are free — the large buffer reduces the number of
+        // Read::read() calls Symphonia makes while demuxing, lowering decode-loop
+        // overhead for high-bitrate hi-res files (88.2kHz/24-bit FLAC ≈1800 kbps).
         let mss = MediaSourceStream::new(
             Box::new(source) as Box<dyn MediaSource>,
-            Default::default(),
+            MediaSourceStreamOptions { buffer_len: 4 * 1024 * 1024 },
         );
 
         let mut hint = Hint::new();
@@ -996,7 +1000,9 @@ impl SizedDecoder {
     /// Uses `enable_gapless: false` — live streams are not seekable; gapless
     /// trimming requires seeking to read the LAME/iTunSMPB end-padding info.
     fn new_streaming(media: Box<dyn MediaSource>, format_hint: Option<&str>) -> Result<Self, String> {
-        let mss = MediaSourceStream::new(media, Default::default());
+        // Larger read-ahead buffer for the live radio SPSC consumer — reduces
+        // read() call frequency into the ring buffer, easing I/O spikes.
+        let mss = MediaSourceStream::new(media, MediaSourceStreamOptions { buffer_len: 512 * 1024 });
         let mut hint = Hint::new();
         if let Some(ext) = format_hint { hint.with_extension(ext); }
         let format_opts = FormatOptions { enable_gapless: false, ..Default::default() };
@@ -1350,7 +1356,12 @@ pub(crate) struct ChainedInfo {
 }
 
 pub struct AudioEngine {
-    pub stream_handle: Arc<rodio::OutputStreamHandle>,
+    pub stream_handle: Arc<std::sync::Mutex<rodio::OutputStreamHandle>>,
+    /// Sample rate the output stream was last opened at (updated on every re-open).
+    pub stream_sample_rate: Arc<AtomicU32>,
+    /// Sends `(desired_rate, reply_tx)` to the audio-stream thread to re-open the
+    /// output device at a different native sample rate.
+    pub stream_reopen_tx: std::sync::mpsc::SyncSender<(u32, std::sync::mpsc::SyncSender<rodio::OutputStreamHandle>)>,
     pub current: Arc<Mutex<AudioCurrent>>,
     /// Monotonically incremented on each audio_play (non-chain) / audio_stop call.
     pub generation: Arc<AtomicU64>,
@@ -1411,25 +1422,90 @@ impl AudioCurrent {
     }
 }
 
-pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
-    let (tx, rx) = std::sync::mpsc::sync_channel::<rodio::OutputStreamHandle>(0);
+/// Open the system default output device at `desired_rate` Hz (0 = device default).
+///
+/// Resolution order:
+///   1. Exact rate match in the device's supported config ranges.
+///   2. Highest available rate (for hardware that doesn't support the source rate).
+///   3. Device default.
+///   4. System default (last resort).
+///
+/// Returns `(OutputStream, OutputStreamHandle, actual_sample_rate)`.
+fn open_stream_for_rate(desired_rate: u32) -> (rodio::OutputStream, rodio::OutputStreamHandle, u32) {
+    use rodio::cpal::traits::{DeviceTrait, HostTrait};
 
-    // Request a larger audio buffer from PipeWire/PulseAudio to reduce ALSA underruns.
-    // Only set if the user hasn't already configured these themselves.
-    // PIPEWIRE_LATENCY: 4096 frames / 48000 Hz ≈ 85 ms — enough to absorb scheduler jitter.
-    #[cfg(target_os = "linux")]
-    {
-        if std::env::var("PIPEWIRE_LATENCY").is_err() {
-            std::env::set_var("PIPEWIRE_LATENCY", "4096/48000");
+    let host = rodio::cpal::default_host();
+
+    if let Some(device) = host.default_output_device() {
+        if desired_rate > 0 {
+            if let Ok(supported) = device.supported_output_configs() {
+                let configs: Vec<_> = supported.collect();
+
+                // 1. Exact rate match — prefer more channels (stereo > mono).
+                let exact = configs.iter()
+                    .filter(|c| {
+                        c.min_sample_rate().0 <= desired_rate
+                            && desired_rate <= c.max_sample_rate().0
+                    })
+                    .max_by_key(|c| c.channels());
+
+                if let Some(cfg) = exact {
+                    let config = cfg.clone()
+                        .with_sample_rate(rodio::cpal::SampleRate(desired_rate));
+                    if let Ok((stream, handle)) =
+                        rodio::OutputStream::try_from_device_config(&device, config)
+                    {
+                        eprintln!("[psysonic] audio stream opened at {} Hz (exact)", desired_rate);
+                        return (stream, handle, desired_rate);
+                    }
+                }
+
+                // 2. No exact match — use the highest supported rate.
+                let best = configs.iter()
+                    .max_by_key(|c| c.max_sample_rate().0);
+
+                if let Some(cfg) = best {
+                    let rate = cfg.max_sample_rate().0;
+                    let config = cfg.clone()
+                        .with_sample_rate(rodio::cpal::SampleRate(rate));
+                    if let Ok((stream, handle)) =
+                        rodio::OutputStream::try_from_device_config(&device, config)
+                    {
+                        eprintln!(
+                            "[psysonic] audio stream opened at {} Hz (highest, wanted {})",
+                            rate, desired_rate
+                        );
+                        return (stream, handle, rate);
+                    }
+                }
+            }
         }
-        if std::env::var("PULSE_LATENCY_MSEC").is_err() {
-            std::env::set_var("PULSE_LATENCY_MSEC", "85");
+
+        // 3. Device default.
+        if let Ok((stream, handle)) = rodio::OutputStream::try_from_device(&device) {
+            let rate = device
+                .default_output_config()
+                .map(|c| c.sample_rate().0)
+                .unwrap_or(44100);
+            eprintln!("[psysonic] audio stream opened at {} Hz (device default)", rate);
+            return (stream, handle, rate);
         }
     }
 
+    // 4. Last resort: system default.
+    eprintln!("[psysonic] audio stream falling back to system default");
+    let (stream, handle) = rodio::OutputStream::try_default()
+        .expect("cannot open any audio output device");
+    let rate = rodio::cpal::default_host()
+        .default_output_device()
+        .and_then(|d| d.default_output_config().ok())
+        .map(|c| c.sample_rate().0)
+        .unwrap_or(44100);
+    (stream, handle, rate)
+}
+
+pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
     // macOS: request a smaller CoreAudio buffer to reduce output latency.
-    // Smaller buffers = lower latency between decoded samples and DAC output,
-    // which tightens the gap between actual audio and UI event delivery.
     #[cfg(target_os = "macos")]
     {
         if std::env::var("COREAUDIO_BUFFER_SIZE").is_err() {
@@ -1437,21 +1513,67 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
         }
     }
 
+    // Channels: main thread ←→ audio-stream thread.
+    //   init_tx/rx : (OutputStreamHandle, actual_rate) sent once at startup.
+    //   reopen_tx/rx: (desired_rate, reply_tx) — triggers a stream re-open.
+    let (init_tx, init_rx) =
+        std::sync::mpsc::sync_channel::<(rodio::OutputStreamHandle, u32)>(0);
+    let (reopen_tx, reopen_rx) =
+        std::sync::mpsc::sync_channel::<(u32, std::sync::mpsc::SyncSender<rodio::OutputStreamHandle>)>(4);
+
     let thread = std::thread::Builder::new()
         .name("psysonic-audio-stream".into())
-        .spawn(move || match rodio::OutputStream::try_default() {
-            Ok((_stream, handle)) => {
-                tx.send(handle).ok();
-                loop { std::thread::park(); }
+        .spawn(move || {
+            // Set PipeWire / PulseAudio latency hints before the first open.
+            #[cfg(target_os = "linux")]
+            {
+                if std::env::var("PIPEWIRE_LATENCY").is_err() {
+                    std::env::set_var("PIPEWIRE_LATENCY", "4096/48000");
+                }
+                if std::env::var("PULSE_LATENCY_MSEC").is_err() {
+                    std::env::set_var("PULSE_LATENCY_MSEC", "85");
+                }
             }
-            Err(e) => { eprintln!("[psysonic] audio output error: {e}"); }
+
+            // Boost scheduler priority so the audio thread is not pre-empted
+            // during high-rate playback. Silently ignored without CAP_SYS_NICE.
+            thread_priority::set_current_thread_priority(
+                thread_priority::ThreadPriority::Max
+            ).ok();
+
+            let (mut _stream, handle, rate) = open_stream_for_rate(0);
+            init_tx.send((handle, rate)).ok();
+
+            // Keep the stream alive and handle sample-rate switch requests.
+            while let Ok((desired_rate, reply_tx)) = reopen_rx.recv() {
+                drop(_stream); // close old stream before opening new one
+
+                // Scale the PipeWire quantum with the sample rate so wall-clock
+                // latency stays roughly constant (≈93 ms) at all rates.
+                // 8192 frames at 88200 Hz ≈ 92.9 ms (same as 4096 at 48000 Hz).
+                #[cfg(target_os = "linux")]
+                {
+                    let frames: u32 = if desired_rate > 48_000 { 8192 } else { 4096 };
+                    std::env::set_var("PIPEWIRE_LATENCY", format!("{frames}/{desired_rate}"));
+                    // Keep PULSE_LATENCY_MSEC in sync so PulseAudio-based setups
+                    // get the same wall-clock quantum as PipeWire.
+                    let latency_ms = (frames as f64 / desired_rate as f64 * 1000.0).round() as u64;
+                    std::env::set_var("PULSE_LATENCY_MSEC", latency_ms.to_string());
+                }
+
+                let (new_stream, new_handle, _actual) = open_stream_for_rate(desired_rate);
+                _stream = new_stream;
+                reply_tx.send(new_handle).ok();
+            }
         })
         .expect("spawn audio stream thread");
 
-    let stream_handle = rx.recv().expect("audio stream handle");
+    let (initial_handle, initial_rate) = init_rx.recv().expect("audio stream handle");
 
     let engine = AudioEngine {
-        stream_handle: Arc::new(stream_handle),
+        stream_handle: Arc::new(std::sync::Mutex::new(initial_handle)),
+        stream_sample_rate: Arc::new(AtomicU32::new(initial_rate)),
+        stream_reopen_tx: reopen_tx,
         current: Arc::new(Mutex::new(AudioCurrent {
             sink: None,
             duration_secs: 0.0,
@@ -1605,6 +1727,7 @@ pub async fn audio_play(
     replay_gain_db: Option<f32>,
     replay_gain_peak: Option<f32>,
     manual: bool, // true = user-initiated skip → bypass crossfade, start immediately
+    hi_res_enabled: bool, // false = safe 44.1 kHz mode; true = native rate (alpha)
     app: AppHandle,
     state: State<'_, AudioEngine>,
 ) -> Result<(), String> {
@@ -1757,8 +1880,58 @@ pub async fn audio_play(
         return Ok(());
     }
 
-    let sink = Sink::try_new(&*state.stream_handle).map_err(|e| e.to_string())?;
+    // ── Native-rate stream switch ─────────────────────────────────────────────
+    // If the decoded track's sample rate differs from the current output stream,
+    // ask the audio-stream thread to re-open the device at the native rate.
+    // This keeps the signal bit-perfect (no rodio resampler in the path).
+    // Falls back silently if the switch times out (rodio will resample instead).
+    // Safe mode (default): lock to 44.1 kHz — rodio resamples internally.
+    // Hi-Res mode (alpha): request the file's native rate from the audio thread.
+    let effective_rate = if hi_res_enabled { output_rate } else { 44_100 };
+
+    let current_stream_rate = state.stream_sample_rate.load(Ordering::Relaxed);
+    let stream_was_switched = effective_rate != current_stream_rate && effective_rate > 0;
+    if stream_was_switched {
+        let (reply_tx, reply_rx) = std::sync::mpsc::sync_channel::<rodio::OutputStreamHandle>(0);
+        if state.stream_reopen_tx.send((effective_rate, reply_tx)).is_ok() {
+            match reply_rx.recv_timeout(std::time::Duration::from_secs(5)) {
+                Ok(new_handle) => {
+                    *state.stream_handle.lock().unwrap() = new_handle;
+                    state.stream_sample_rate.store(effective_rate, Ordering::Relaxed);
+                    // Give PipeWire time to reconfigure its processing graph at
+                    // the new sample rate before we open a Sink and start feeding
+                    // frames. Without this delay the first quantum is often stale
+                    // and triggers an snd_pcm_recover underrun.
+                    if effective_rate > 48_000 {
+                        tokio::time::sleep(Duration::from_millis(150)).await;
+                    }
+                }
+                Err(_) => {
+                    eprintln!("[psysonic] stream rate switch timed out, keeping {current_stream_rate} Hz");
+                }
+            }
+        }
+    }
+
+    // Re-check gen: a rapid skip during the settle sleep would have bumped it.
+    if state.generation.load(Ordering::SeqCst) != gen {
+        return Ok(());
+    }
+
+    let sink = Sink::try_new(&*state.stream_handle.lock().unwrap()).map_err(|e| e.to_string())?;
     sink.set_volume(effective_volume);
+
+    // ── Sink pre-fill for hi-res tracks ──────────────────────────────────────
+    // At sample rates > 48 kHz the hardware quantum is larger and the first
+    // period demands more decoded frames than at 44.1/48 kHz.
+    // Strategy: pause the sink before appending so rodio's internal mixer
+    // decodes into its ring buffer ahead of the hardware. After a short delay
+    // we resume — the buffer is already full and the hardware gets its frames
+    // without an underrun on the very first period.
+    let needs_prefill = effective_rate > 48_000;
+    if needs_prefill {
+        sink.pause();
+    }
 
     // Gapless OFF: prepend a short silence so tracks are clearly separated.
     // Only when this is an auto-advance (near end), not on manual skip.
@@ -1782,6 +1955,19 @@ pub async fn audio_play(
     }
 
     sink.append(source);
+
+    if needs_prefill {
+        // 500 ms lets rodio decode several seconds of hi-res audio into its
+        // internal buffer while the sink is paused. The hardware sees no gap
+        // because the output is held — it only starts draining after sink.play().
+        // 500 ms gives ~5 quanta of headroom at 8192-frame/88200 Hz quantum size,
+        // absorbing scheduler jitter and PipeWire graph wake-up latency.
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        if state.generation.load(Ordering::SeqCst) != gen {
+            return Ok(()); // skipped during pre-fill — abort silently
+        }
+        sink.play();
+    }
 
     // Atomically swap sinks — extract old sink + its fade-out trigger.
     let (old_sink, old_fadeout_trigger, old_fadeout_samples) = {
@@ -1869,6 +2055,7 @@ pub async fn audio_chain_preload(
     duration_hint: f64,
     replay_gain_db: Option<f32>,
     replay_gain_peak: Option<f32>,
+    hi_res_enabled: bool,
     state: State<'_, AudioEngine>,
 ) -> Result<(), String> {
     // Idempotent: already chained this track → nothing to do.
@@ -1956,6 +2143,25 @@ pub async fn audio_chain_preload(
 
     // Final gen check — reject if a manual skip happened during decode.
     if state.generation.load(Ordering::SeqCst) != snapshot_gen {
+        return Ok(());
+    }
+
+    // In hi-res mode: if the next track's native rate differs from the current
+    // output stream, we cannot chain gaplessly — audio_play will do a hard cut
+    // with a stream re-open. Store raw bytes to avoid re-downloading.
+    // In safe mode (44.1 kHz locked): the stream rate is always 44100, so the
+    // chain proceeds and rodio resamples internally — no bail needed.
+    let next_rate = if hi_res_enabled { built.output_rate } else { 44_100 };
+    let stream_rate = state.stream_sample_rate.load(Ordering::Relaxed);
+    if hi_res_enabled && stream_rate > 0 && next_rate != stream_rate {
+        eprintln!(
+            "[psysonic] gapless chain skipped: next track rate {} Hz ≠ stream {} Hz",
+            next_rate, stream_rate
+        );
+        *state.preloaded.lock().unwrap() = Some(PreloadedTrack {
+            url,
+            data: Arc::try_unwrap(raw_bytes).unwrap_or_else(|a| (*a).clone()),
+        });
         return Ok(());
     }
 
@@ -2498,7 +2704,7 @@ pub async fn audio_play_radio(
 
     if state.generation.load(Ordering::SeqCst) != gen { return Ok(()); }
 
-    let sink = Sink::try_new(&*state.stream_handle).map_err(|e| e.to_string())?;
+    let sink = Sink::try_new(&*state.stream_handle.lock().unwrap()).map_err(|e| e.to_string())?;
     sink.set_volume((volume.clamp(0.0, 1.0) * MASTER_HEADROOM).clamp(0.0, 1.0));
     sink.append(counting);
 

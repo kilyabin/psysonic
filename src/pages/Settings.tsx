@@ -5,7 +5,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Wifi, WifiOff, Globe, Music2, Sliders, LogOut, CheckCircle2, FolderOpen,
   Palette, Server, Plus, Trash2, Eye, EyeOff, Info, ExternalLink, Shuffle, X, Play, Type, Keyboard, ChevronDown,
-  GripVertical, PanelLeft, RotateCcw, LayoutGrid, AppWindow, HardDrive, Upload, Download
+  GripVertical, PanelLeft, RotateCcw, LayoutGrid, AppWindow, HardDrive, Upload, Download, Waves
 } from 'lucide-react';
 import { exportBackup, importBackup } from '../utils/backup';
 import { showToast } from '../utils/toast';
@@ -542,6 +542,41 @@ export default function Settings() {
                 </div>
               )}
 
+            </div>
+          </section>
+
+          {/* Native Hi-Res Playback */}
+          <section className="settings-section">
+            <div className="settings-section-header">
+              <Waves size={18} />
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {t('settings.hiResTitle')}
+                <span style={{
+                  fontSize: 10, fontWeight: 600, textTransform: 'uppercase',
+                  letterSpacing: '0.04em', padding: '2px 6px', borderRadius: 4,
+                  background: 'color-mix(in srgb, var(--color-warning, #f59e0b) 22%, transparent)',
+                  color: 'var(--text-primary)',
+                }}>
+                  {t('settings.hotCacheAlphaBadge')}
+                </span>
+              </h2>
+            </div>
+            <div className="settings-card">
+              <div className="settings-toggle-row">
+                <div>
+                  <div style={{ fontWeight: 500 }}>{t('settings.hiResEnabled')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.hiResDesc')}</div>
+                </div>
+                <label className="toggle-switch" aria-label={t('settings.hiResEnabled')}>
+                  <input
+                    type="checkbox"
+                    checked={auth.enableHiRes}
+                    onChange={e => auth.setEnableHiRes(e.target.checked)}
+                    id="hires-enabled-toggle"
+                  />
+                  <span className="toggle-track" />
+                </label>
+              </div>
             </div>
           </section>
 

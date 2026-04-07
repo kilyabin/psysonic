@@ -310,6 +310,7 @@ function handleAudioProgress(current_time: number, duration: number) {
           durationHint: nextTrack.duration,
           replayGainDb,
           replayGainPeak,
+          hiResEnabled: useAuthStore.getState().enableHiRes,
         }).catch(() => {});
       } else {
         // Gapless OFF: just pre-download bytes so audio_play finds them cached.
@@ -744,6 +745,7 @@ export const usePlayerStore = create<PlayerState>()(
           replayGainDb,
           replayGainPeak,
           manual,
+          hiResEnabled: authState.enableHiRes,
         }).catch((err: unknown) => {
           if (playGeneration !== gen) return;
           setDeferHotCachePrefetch(false);
@@ -825,6 +827,7 @@ export const usePlayerStore = create<PlayerState>()(
               replayGainDb: replayGainDbCold,
               manual: false,
               replayGainPeak: replayGainPeakCold,
+              hiResEnabled: useAuthStore.getState().enableHiRes,
             }).then(() => {
               if (playGeneration === gen && currentTime > 1) {
                 invoke('audio_seek', { seconds: currentTime }).catch(console.error);
@@ -855,6 +858,7 @@ export const usePlayerStore = create<PlayerState>()(
                replayGainDb: replayGainDbCold,
                replayGainPeak: replayGainPeakCold,
                manual: false,
+               hiResEnabled: useAuthStore.getState().enableHiRes,
              }).catch((err: unknown) => {
                if (playGeneration !== gen) return;
                setDeferHotCachePrefetch(false);

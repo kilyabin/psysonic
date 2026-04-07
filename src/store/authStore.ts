@@ -47,6 +47,9 @@ interface AuthState {
   showChangelogOnUpdate: boolean;
   lastSeenChangelogVersion: string;
 
+  /** Alpha: native hi-res sample rate output (disabled = safe 44.1 kHz mode) */
+  enableHiRes: boolean;
+
   /** Alpha: ephemeral queue prefetch cache on disk */
   hotCacheEnabled: boolean;
   hotCacheMaxMb: number;
@@ -95,6 +98,7 @@ interface AuthState {
   setShowFullscreenLyrics: (v: boolean) => void;
   setShowChangelogOnUpdate: (v: boolean) => void;
   setLastSeenChangelogVersion: (v: string) => void;
+  setEnableHiRes: (v: boolean) => void;
   setHotCacheEnabled: (v: boolean) => void;
   setHotCacheMaxMb: (v: number) => void;
   setHotCacheDebounceSec: (v: number) => void;
@@ -142,6 +146,7 @@ export const useAuthStore = create<AuthState>()(
       showFullscreenLyrics: true,
       showChangelogOnUpdate: true,
       lastSeenChangelogVersion: '',
+      enableHiRes: false,
       hotCacheEnabled: false,
       hotCacheMaxMb: 256,
       hotCacheDebounceSec: 30,
@@ -222,6 +227,7 @@ export const useAuthStore = create<AuthState>()(
       setShowChangelogOnUpdate: (v) => set({ showChangelogOnUpdate: v }),
       setLastSeenChangelogVersion: (v) => set({ lastSeenChangelogVersion: v }),
 
+      setEnableHiRes: (v) => set({ enableHiRes: v }),
       setHotCacheEnabled: (v) => set({ hotCacheEnabled: v }),
       setHotCacheMaxMb: (v) => set({ hotCacheMaxMb: v }),
       setHotCacheDebounceSec: (v) => set({ hotCacheDebounceSec: v }),
