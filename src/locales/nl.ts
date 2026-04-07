@@ -775,6 +775,7 @@ export const nlTranslation = {
     removeCover: 'Foto verwijderen',
     coverUpdated: 'Omslag bijgewerkt',
     metaSaved: 'Playlist bijgewerkt',
+    downloadZip: 'Downloaden (ZIP)',
   },
   radio: {
     title: 'Internetradio',

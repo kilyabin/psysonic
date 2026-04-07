@@ -775,6 +775,7 @@ export const frTranslation = {
     removeCover: 'Supprimer la photo',
     coverUpdated: 'Pochette mise à jour',
     metaSaved: 'Playlist mise à jour',
+    downloadZip: 'Télécharger (ZIP)',
   },
   radio: {
     title: 'Radio Internet',

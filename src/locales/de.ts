@@ -775,6 +775,7 @@ export const deTranslation = {
     removeCover: 'Foto entfernen',
     coverUpdated: 'Cover aktualisiert',
     metaSaved: 'Playlist aktualisiert',
+    downloadZip: 'Herunterladen (ZIP)',
   },
   radio: {
     title: 'Internetradio',

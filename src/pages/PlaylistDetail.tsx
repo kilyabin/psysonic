@@ -1,23 +1,34 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronDown, ChevronLeft, Play, ListPlus, Trash2, Search, X, Loader2, Plus, GripVertical, Star, RefreshCw, Shuffle, Heart, HardDriveDownload, Check, Pencil, Globe, Lock, Camera } from 'lucide-react';
+import { ChevronDown, ChevronLeft, Play, ListPlus, Trash2, Search, X, Loader2, Plus, GripVertical, Star, RefreshCw, Shuffle, Heart, HardDriveDownload, Check, Pencil, Globe, Lock, Camera, Download } from 'lucide-react';
 import { useTracklistColumns, type ColDef } from '../utils/useTracklistColumns';
 import { AddToPlaylistSubmenu } from '../components/ContextMenu';
 import {
   getPlaylist, updatePlaylist, updatePlaylistMeta, uploadPlaylistCoverArt,
   search, setRating, star, unstar,
-  getRandomSongs, SubsonicPlaylist, SubsonicSong,
+  getRandomSongs, buildDownloadUrl, SubsonicPlaylist, SubsonicSong,
 } from '../api/subsonic';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { usePlaylistStore } from '../store/playlistStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useAuthStore } from '../store/authStore';
+import { useDownloadModalStore } from '../store/downloadModalStore';
+import { writeFile } from '@tauri-apps/plugin-fs';
+import { join } from '@tauri-apps/api/path';
 import { useDragDrop } from '../contexts/DragDropContext';
 import CachedImage, { useCachedUrl } from '../components/CachedImage';
 import { coverArtCacheKey, buildCoverArtUrl } from '../api/subsonic';
 import { useTranslation } from 'react-i18next';
 import { showToast } from '../utils/toast';
+
+function sanitizeFilename(name: string): string {
+  return name
+    .replace(/[/\\?%*:|"<>]/g, '-')
+    .replace(/\.{2,}/g, '.')
+    .replace(/^[\s.]+|[\s.]+$/g, '')
+    .substring(0, 200) || 'download';
+}
 
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -89,6 +100,9 @@ export default function PlaylistDetail() {
   const { startDrag, isDragging } = useDragDrop();
   const { downloadPlaylist, isAlbumDownloading, isAlbumDownloaded, getAlbumProgress } = useOfflineStore();
   const activeServerId = useAuthStore(s => s.activeServerId) ?? '';
+  const downloadFolder = useAuthStore(s => s.downloadFolder);
+  const setDownloadFolder = useAuthStore(s => s.setDownloadFolder);
+  const requestDownloadFolder = useDownloadModalStore(s => s.requestFolder);
 
   const [playlist, setPlaylist] = useState<SubsonicPlaylist | null>(null);
   const [songs, setSongs] = useState<SubsonicSong[]>([]);
@@ -101,6 +115,7 @@ export default function PlaylistDetail() {
   const [hoveredSuggestionId, setHoveredSuggestionId] = useState<string | null>(null);
   const [contextMenuSongId, setContextMenuSongId] = useState<string | null>(null);
   const contextMenuOpen = usePlayerStore(s => s.contextMenu.isOpen);
+  const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
 
   // ── Bulk select ───────────────────────────────────────────────────
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -292,6 +307,46 @@ export default function PlaylistDetail() {
     }
     showToast(t('playlists.metaSaved'));
     setEditingMeta(false);
+  };
+
+  // ── ZIP Download ──────────────────────────────────────────────
+  const handleDownload = async () => {
+    if (!playlist || !id) return;
+    const folder = downloadFolder || await requestDownloadFolder();
+    if (!folder) return;
+    setDownloadProgress(0);
+    try {
+      const url = buildDownloadUrl(id);
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const contentLength = response.headers.get('Content-Length');
+      const total = contentLength ? parseInt(contentLength, 10) : 0;
+      const chunks: Uint8Array<ArrayBuffer>[] = [];
+      if (total && response.body) {
+        const reader = response.body.getReader();
+        let received = 0;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          received += value.length;
+          setDownloadProgress(Math.round((received / total) * 100));
+        }
+      } else {
+        const buffer = await response.arrayBuffer() as ArrayBuffer;
+        chunks.push(new Uint8Array(buffer));
+        setDownloadProgress(100);
+      }
+      const blob = new Blob(chunks);
+      const buffer = await blob.arrayBuffer();
+      const path = await join(folder, `${sanitizeFilename(playlist.name)}.zip`);
+      await writeFile(path, new Uint8Array(buffer));
+    } catch (e) {
+      console.error('Download failed:', e);
+      setDownloadProgress(null);
+    } finally {
+      setTimeout(() => setDownloadProgress(null), 60000);
+    }
   };
 
   // ── Remove ────────────────────────────────────────────────────
@@ -565,6 +620,21 @@ export default function PlaylistDetail() {
                     </button>
                   );
                 })()}
+                {songs.length > 0 && (
+                  downloadProgress !== null ? (
+                    <div className="download-progress-wrap">
+                      <Download size={14} />
+                      <div className="download-progress-bar">
+                        <div className="download-progress-fill" style={{ width: `${downloadProgress}%` }} />
+                      </div>
+                      <span className="download-progress-pct">{downloadProgress}%</span>
+                    </div>
+                  ) : (
+                    <button className="btn btn-ghost" onClick={handleDownload} data-tooltip={t('playlists.downloadZip')}>
+                      <Download size={16} /> {t('playlists.downloadZip')}
+                    </button>
+                  )
+                )}
               </div>
             </div>
           </div>

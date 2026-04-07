@@ -771,6 +771,7 @@ export const zhTranslation = {
     removeCover: '删除照片',
     coverUpdated: '封面已更新',
     metaSaved: '播放列表已更新',
+    downloadZip: '下载 (ZIP)',
   },
   radio: {
     title: '网络电台',

@@ -776,6 +776,7 @@ export const enTranslation = {
     removeCover: 'Remove photo',
     coverUpdated: 'Cover updated',
     metaSaved: 'Playlist updated',
+    downloadZip: 'Download (ZIP)',
   },
   radio: {
     title: 'Internet Radio',

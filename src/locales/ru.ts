@@ -829,6 +829,7 @@ export const ruTranslation = {
     removeCover: 'Убрать фото',
     coverUpdated: 'Обложка обновлена',
     metaSaved: 'Плейлист сохранён',
+    downloadZip: 'Скачать (ZIP)',
   },
   radio: {
     title: 'Онлайн-радио',

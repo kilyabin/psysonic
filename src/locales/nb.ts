@@ -774,6 +774,7 @@ export const nbTranslation = {
     removeCover: 'Fjern bilde',
     coverUpdated: 'Omslag oppdatert',
     metaSaved: 'Spillelisten er oppdatert',
+    downloadZip: 'Last ned (ZIP)',
   },
   radio: {
     title: 'Internettradio',
