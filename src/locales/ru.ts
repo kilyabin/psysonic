@@ -25,7 +25,6 @@ export const ruTranslation = {
     playlists: 'Плейлисты',
     radio: 'Онлайн-радио',
     libraryScope: 'Область медиатеки',
-    libraryScopeHint: 'Показывать весь каталог сервера или только одну медиапапку.',
     allLibraries: 'Все библиотеки',
   },
   home: {

@@ -243,15 +243,17 @@ export const useAuthStore = create<AuthState>()(
       setHotCacheDownloadDir: (v) => set({ hotCacheDownloadDir: v }),
 
       setMusicFolders: (folders) => {
-        set({ musicFolders: folders });
         const sid = get().activeServerId;
-        if (!sid) return;
-        const f = get().musicLibraryFilterByServer[sid];
-        if (f && f !== 'all' && !folders.some(x => x.id === f)) {
-          set(s => ({
-            musicLibraryFilterByServer: { ...s.musicLibraryFilterByServer, [sid]: 'all' },
-          }));
-        }
+        set(s => {
+          const f = sid ? s.musicLibraryFilterByServer[sid] : undefined;
+          const invalidFilter = f && f !== 'all' && !folders.some(x => x.id === f);
+          return {
+            musicFolders: folders,
+            ...(sid && invalidFilter
+              ? { musicLibraryFilterByServer: { ...s.musicLibraryFilterByServer, [sid]: 'all' } }
+              : {}),
+          };
+        });
       },
 
       setMusicLibraryFilter: (folderId) => {

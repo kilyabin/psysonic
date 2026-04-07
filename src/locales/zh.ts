@@ -24,7 +24,6 @@ export const zhTranslation = {
     playlists: '播放列表',
     radio: '网络电台',
     libraryScope: '资料库范围',
-    libraryScopeHint: '浏览整个服务器目录或仅单个媒体文件夹。',
     allLibraries: '所有资料库',
   },
   home: {

@@ -24,7 +24,6 @@ export const nbTranslation = {
     playlists: 'Spillelister',
     radio: 'Internettradio',
     libraryScope: 'Biblioteksomfang',
-    libraryScopeHint: 'Vis hele serverkatalogen eller én mediemappe.',
     allLibraries: 'Alle biblioteker',
   },
   home: {

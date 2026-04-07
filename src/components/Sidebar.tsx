@@ -159,7 +159,7 @@ export default function Sidebar({
               <div className="nav-library-scope-text">
                 <span className="nav-library-scope-title">{t('sidebar.library')}</span>
                 {selectedFolderName ? (
-                  <span className="nav-library-scope-subtitle" title={selectedFolderName}>
+                  <span className="nav-library-scope-subtitle" data-tooltip={selectedFolderName} data-tooltip-pos="right">
                     {selectedFolderName}
                   </span>
                 ) : null}
