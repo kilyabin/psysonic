@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.34.3] - 2026-04-07
+
+### Added
+
+- **Most Played page** *(closes [#86](https://github.com/Psychotoxical/psysonic/issues/86))*: New dedicated page accessible via the sidebar (TrendingUp icon, `/most-played`). Shows **Top Artists** (ranked by total play count, derived by aggregating album play counts per artist) and a paginated **Top Albums** list with cover art, play count, sort toggle (most/fewest first), and a Load More button.
+
+- **Playlist ZIP download** *(closes [#127](https://github.com/Psychotoxical/psysonic/issues/127))*: Download (ZIP) button in the playlist hero header — same UX as album download. Uses the Subsonic `/rest/download.view` endpoint with the playlist ID, shows a progress bar during transfer, and remembers the last used folder.
+
+- **Fullscreen Player — adaptive accent color**: Extracts the most vibrant pixel from the current album cover (8×8 Canvas downscale, max-HSL-saturation) and applies a WCAG 4.5:1-compliant accent as `--dynamic-fs-accent`. Song title, play button, seekbar, active states, background mesh blobs, and cover art glow all transition smoothly to the extracted color. Resets to the theme accent when the player closes.
+
+- **Dracula theme**: Added to the Open Source Classics group.
+
+- **Discord Rich Presence — Apple Music cover opt-in**: iTunes artwork lookup is now disabled by default. A new toggle in Settings → Integrations ("Fetch covers from Apple Music for Discord") must be explicitly enabled — it sends artist and album name to Apple's search API to find cover art for the Discord profile.
+
+- **Discord Rich Presence — Paused state**: When playback is paused, the Discord presence now shows "Paused" as the status text.
+
+### Fixed
+
+- **M4A playback — older iTunes-purchased files**: Files with an embedded MJPEG cover-art stream and an `iTunSMPB` gapless tag now play correctly. The Symphonia isomp4 patch skips malformed trak atoms gracefully; `parse_gapless_info` now searches for the `" 00000000 "` sentinel to skip the 16-byte binary `data`-atom header, correctly extracting encoder delay and total sample count.
+
+### i18n
+
+- New keys for the Most Played page, playlist download, and Discord Apple Music opt-in added to all 7 languages (EN, DE, FR, NL, ZH, NB, RU).
+
+---
+
 ## [1.34.2] - 2026-04-07
 
 ### Added
