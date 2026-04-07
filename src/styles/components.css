@@ -6417,12 +6417,37 @@
   margin-bottom: 2.5rem;
 }
 
+.mp-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.mp-filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  padding: 4px 10px;
+  opacity: 0.6;
+}
+
+.mp-filter-btn:hover { opacity: 1; }
+
+.mp-filter-btn--active {
+  opacity: 1;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 .mp-section-title {
   font-size: 15px;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  margin-bottom: 0;
   margin: 0 0 1rem;
 }
 

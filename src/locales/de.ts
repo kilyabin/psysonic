@@ -791,6 +791,9 @@ export const deTranslation = {
     sortLeast: 'Wenigste Plays zuerst',
     loadMore: 'Mehr Alben laden',
     noData: 'Noch keine Wiedergabedaten. Fang an zu hören!',
+    noArtists: 'Alle Künstler herausgefiltert.',
+    filterCompilations: 'Sampler-Künstler ausblenden (Various Artists, Soundtracks usw.)',
+    filterCompilationsShort: 'Sampler ausblenden',
   },
   radio: {
     title: 'Internetradio',

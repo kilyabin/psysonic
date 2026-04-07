@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowUpDown, ArrowDown, ArrowUp, TrendingUp } from 'lucide-react';
+import { ArrowUpDown, ArrowDown, ArrowUp, TrendingUp, UsersRound } from 'lucide-react';
 import { getAlbumList, SubsonicAlbum, buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import { useAuthStore } from '../store/authStore';
 import CachedImage from '../components/CachedImage';
@@ -16,11 +16,24 @@ interface ArtistEntry {
   totalPlays: number;
 }
 
-function deriveTopArtists(albums: SubsonicAlbum[]): ArtistEntry[] {
+const COMPILATION_NAMES = new Set([
+  'various artists', 'various', 'va', 'v.a.', 'v.a',
+  'diverse artister', 'diversos artistas', 'artistes variés',
+  'vários artistas', 'verschiedene künstler', 'verscheidene artiesten',
+  'compilations', 'soundtrack', 'original soundtrack', 'ost',
+  'original motion picture soundtrack', 'original score',
+]);
+
+function isCompilation(name: string): boolean {
+  return COMPILATION_NAMES.has(name.toLowerCase().trim());
+}
+
+function deriveTopArtists(albums: SubsonicAlbum[], filterCompilations: boolean): ArtistEntry[] {
   const map = new Map<string, ArtistEntry>();
   for (const a of albums) {
     const plays = a.playCount ?? 0;
     if (plays === 0) continue;
+    if (filterCompilations && isCompilation(a.artist ?? '')) continue;
     const entry = map.get(a.artistId);
     if (entry) {
       entry.totalPlays += plays;
@@ -46,8 +59,9 @@ export default function MostPlayed() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [sortAsc, setSortAsc] = useState(false); // false = most plays first
+  const [filterCompilations, setFilterCompilations] = useState(false);
 
-  const topArtists = deriveTopArtists(albums).slice(0, 10);
+  const topArtists = deriveTopArtists(albums, filterCompilations).slice(0, 10);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -96,9 +110,23 @@ export default function MostPlayed() {
       </div>
 
       {/* ── Top Artists ── */}
-      {!loading && topArtists.length > 0 && (
+      {!loading && (
         <section className="mp-section">
-          <h2 className="mp-section-title">{t('mostPlayed.topArtists')}</h2>
+          <div className="mp-section-header">
+            <h2 className="mp-section-title">{t('mostPlayed.topArtists')}</h2>
+            <button
+              className={`btn btn-ghost mp-filter-btn${filterCompilations ? ' mp-filter-btn--active' : ''}`}
+              onClick={() => setFilterCompilations(v => !v)}
+              data-tooltip={t('mostPlayed.filterCompilations')}
+              data-tooltip-pos="left"
+            >
+              <UsersRound size={14} />
+              {t('mostPlayed.filterCompilationsShort')}
+            </button>
+          </div>
+          {topArtists.length === 0 && (
+            <div className="empty-state" style={{ padding: '12px 0' }}>{t('mostPlayed.noArtists')}</div>
+          )}
           <div className="mp-artist-grid">
             {topArtists.map((artist, i) => (
               <button
