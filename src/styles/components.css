@@ -2384,6 +2384,18 @@
   padding: var(--space-5);
 }
 
+.settings-hint {
+  font-size: 0.8rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-md);
+  line-height: 1.45;
+}
+.settings-hint-info {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--text-secondary);
+}
+
 /* ─ Help Page ─ */
 .help-list {
   display: flex;

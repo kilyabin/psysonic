@@ -1216,6 +1216,11 @@ export default function Settings() {
               <h2>{t('settings.theme')}</h2>
             </div>
             <div className="settings-card">
+              {theme.enableThemeScheduler && (
+                <div className="settings-hint settings-hint-info" style={{ marginBottom: '0.75rem' }}>
+                  {t('settings.themeSchedulerActiveHint')}
+                </div>
+              )}
               <ThemePicker value={theme.theme} onChange={v => theme.setTheme(v as any)} />
             </div>
           </section>

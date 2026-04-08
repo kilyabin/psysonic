@@ -580,6 +580,7 @@ export const frTranslation = {
     themeSchedulerDayStart: 'Début du jour',
     themeSchedulerNightTheme: 'Thème de nuit',
     themeSchedulerNightStart: 'Début de la nuit',
+    themeSchedulerActiveHint: 'Le planificateur de thème est actif - les thèmes changent automatiquement.',
     uiScaleTitle: "Mise à l'échelle de l'interface",
     uiScaleLabel: 'Zoom',
   },

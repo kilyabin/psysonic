@@ -583,6 +583,7 @@ export const enTranslation = {
     themeSchedulerDayStart: 'Day Starts At',
     themeSchedulerNightTheme: 'Night Theme',
     themeSchedulerNightStart: 'Night Starts At',
+    themeSchedulerActiveHint: 'Theme Scheduler is active - theme changes are managed automatically.',
     uiScaleTitle: 'Interface Scale',
     uiScaleLabel: 'Zoom',
   },

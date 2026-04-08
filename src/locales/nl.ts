@@ -580,6 +580,7 @@ export const nlTranslation = {
     themeSchedulerDayStart: 'Dag begint om',
     themeSchedulerNightTheme: 'Nachtthema',
     themeSchedulerNightStart: 'Nacht begint om',
+    themeSchedulerActiveHint: "Thema-planner is actief - thema's worden automatisch gewisseld.",
     uiScaleTitle: 'Interface schaal',
     uiScaleLabel: 'Zoom',
   },

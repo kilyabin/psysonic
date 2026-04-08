@@ -576,6 +576,7 @@ export const zhTranslation = {
     themeSchedulerDayStart: '白天开始时间',
     themeSchedulerNightTheme: '夜晚主题',
     themeSchedulerNightStart: '夜晚开始时间',
+    themeSchedulerActiveHint: '主题定时器已启用 - 主题将自动切换。',
     uiScaleTitle: '界面缩放',
     uiScaleLabel: '缩放',
   },

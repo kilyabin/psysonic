@@ -579,6 +579,7 @@ export const nbTranslation = {
     themeSchedulerDayStart: 'Dag starter kl.',
     themeSchedulerNightTheme: 'Natttema',
     themeSchedulerNightStart: 'Natt starter kl.',
+    themeSchedulerActiveHint: 'Temaplanlegger er aktiv - temaer byttes automatisk.',
     uiScaleTitle: 'Grensesnittskala',
     uiScaleLabel: 'Zoom',
   },

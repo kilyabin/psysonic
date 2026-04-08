@@ -582,6 +582,7 @@ export const deTranslation = {
     themeSchedulerDayStart: 'Tag beginnt um',
     themeSchedulerNightTheme: 'Nacht-Theme',
     themeSchedulerNightStart: 'Nacht beginnt um',
+    themeSchedulerActiveHint: 'Theme-Zeitplan ist aktiv - Themes werden automatisch gewechselt.',
     uiScaleTitle: 'Interface-Skalierung',
     uiScaleLabel: 'Zoom',
   },

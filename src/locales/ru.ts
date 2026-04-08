@@ -606,6 +606,7 @@ export const ruTranslation = {
     themeSchedulerDayStart: 'День начинается в',
     themeSchedulerNightTheme: 'Ночная тема',
     themeSchedulerNightStart: 'Ночь начинается в',
+    themeSchedulerActiveHint: 'Расписание тем активно - темы переключаются автоматически.',
     uiScaleTitle: 'Масштаб интерфейса',
     uiScaleLabel: 'Масштаб',
   },
