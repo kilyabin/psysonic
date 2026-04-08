@@ -816,6 +816,53 @@ fn stop_audio_engine(app: &tauri::AppHandle) {
     if let Some(sink) = cur.sink.take() { sink.stop(); }
 }
 
+/// Returns `true` if running under a tiling window manager (Hyprland, Sway, i3,
+/// bspwm, AwesomeWM, Openbox, etc.).  Detection is based on environment variables
+/// set by the compositor / DE.
+#[cfg(target_os = "linux")]
+fn is_tiling_wm() -> bool {
+    // Direct compositor signatures (most reliable).
+    let direct = [
+        "HYPRLAND_INSTANCE_SIGNATURE", // Hyprland
+        "SWAYSOCK",                     // Sway
+        "I3SOCK",                       // i3
+    ]
+    .iter()
+    .any(|&var| std::env::var_os(var).is_some());
+
+    if direct {
+        return true;
+    }
+
+    // Check XDG_CURRENT_DESKTOP for known tiling WMs.
+    if let Ok(desktop) = std::env::var("XDG_CURRENT_DESKTOP") {
+        let desktop = desktop.to_lowercase();
+        let tiling_wms = [
+            "hyprland", "sway", "i3", "bspwm", "awesome", "openbox",
+            "xmonad", "dwm", "qtile", "herbstluftwm", "leftwm",
+        ];
+        if tiling_wms.iter().any(|&wm| desktop.contains(wm)) {
+            return true;
+        }
+    }
+
+    false
+}
+
+/// Tauri command: lets the frontend know whether we're running under a tiling
+/// WM so it can decide whether to render the custom TitleBar component.
+#[tauri::command]
+fn is_tiling_wm_cmd() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        is_tiling_wm()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        false
+    }
+}
+
 pub fn run() {
     let (audio_engine, _audio_thread) = audio::create_engine();
 
@@ -840,8 +887,9 @@ pub fn run() {
 
         .setup(|app| {
             // ── Custom title bar on Linux ─────────────────────────────────
-            // Remove OS window decorations so the React TitleBar component
-            // takes over. macOS and Windows keep their native decorations.
+            // Remove OS window decorations on all Linux so the React TitleBar
+            // can take over.  The frontend checks is_tiling_wm() to decide
+            // whether to actually render the TitleBar (hidden on tiling WMs).
             #[cfg(target_os = "linux")]
             {
                 use tauri::Manager;
@@ -976,6 +1024,7 @@ pub fn run() {
             greet,
             exit_app,
             set_window_decorations,
+            is_tiling_wm_cmd,
             register_global_shortcut,
             unregister_global_shortcut,
             mpris_set_metadata,
