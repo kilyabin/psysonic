@@ -21,6 +21,7 @@ export const frTranslation = {
     playlists: 'Playlists',
     mostPlayed: 'Les plus joués',
     radio: 'Radio Internet',
+    folderBrowser: 'Explorateur de dossiers',
     libraryScope: 'Portée de la bibliothèque',
     allLibraries: 'Toutes les bibliothèques',
   },
@@ -875,5 +876,9 @@ export const frTranslation = {
     favorite: 'Ajouter aux favoris',
     unfavorite: 'Retirer des favoris',
     noFavorites: 'Aucune station favorite.',
-  }
+  },
+  folderBrowser: {
+    empty: 'Dossier vide',
+    error: 'Échec du chargement',
+  },
 };

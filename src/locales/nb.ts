@@ -21,6 +21,7 @@ export const nbTranslation = {
     playlists: 'Spillelister',
     mostPlayed: 'Mest spilt',
     radio: 'Internettradio',
+    folderBrowser: 'Mappeleser',
     libraryScope: 'Biblioteksomfang',
     allLibraries: 'Alle biblioteker',
   },
@@ -874,5 +875,9 @@ export const nbTranslation = {
     favorite: 'Legg til i favoritter',
     unfavorite: 'Fjern fra favoritter',
     noFavorites: 'Ingen favorittstasjoner.',
-  }
+  },
+  folderBrowser: {
+    empty: 'Tom mappe',
+    error: 'Kunne ikke laste',
+  },
 };

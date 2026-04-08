@@ -22,6 +22,7 @@ export const ruTranslation = {
     playlists: 'Плейлисты',
     mostPlayed: 'Часто слушаемое',
     radio: 'Онлайн-радио',
+    folderBrowser: 'Браузер папок',
     libraryScope: 'Область медиатеки',
     allLibraries: 'Все библиотеки',
   },
@@ -932,5 +933,9 @@ export const ruTranslation = {
     favorite: 'В избранное',
     unfavorite: 'Убрать из избранного',
     noFavorites: 'Избранных станций нет.',
+  },
+  folderBrowser: {
+    empty: 'Папка пуста',
+    error: 'Ошибка загрузки',
   },
 };

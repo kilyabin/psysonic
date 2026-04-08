@@ -181,6 +181,68 @@ export interface SubsonicArtistInfo {
 }
 
 // ─── API Methods ──────────────────────────────────────────────
+export interface SubsonicDirectoryEntry {
+  id: string;
+  parent?: string;
+  title: string;
+  isDir: boolean;
+  album?: string;
+  artist?: string;
+  albumId?: string;
+  artistId?: string;
+  coverArt?: string;
+  duration?: number;
+  track?: number;
+  year?: number;
+  bitRate?: number;
+  suffix?: string;
+  size?: number;
+  genre?: string;
+  starred?: string;
+  userRating?: number;
+}
+
+export interface SubsonicDirectory {
+  id: string;
+  parent?: string;
+  name: string;
+  child: SubsonicDirectoryEntry[];
+}
+
+export async function getMusicDirectory(id: string): Promise<SubsonicDirectory> {
+  const data = await api<{ directory: { id: string; parent?: string; name: string; child?: SubsonicDirectoryEntry | SubsonicDirectoryEntry[] } }>(
+    'getMusicDirectory.view',
+    { id },
+  );
+  const dir = data.directory;
+  const raw = dir.child;
+  const child: SubsonicDirectoryEntry[] = !raw ? [] : Array.isArray(raw) ? raw : [raw];
+  return { id: dir.id, parent: dir.parent, name: dir.name, child };
+}
+
+/** Returns the top-level artist/directory entries for a music folder root.
+ *  Music folder IDs from getMusicFolders() are NOT valid getMusicDirectory IDs —
+ *  use getIndexes.view with musicFolderId instead. */
+export async function getMusicIndexes(musicFolderId: string): Promise<SubsonicDirectoryEntry[]> {
+  type IndexArtist = { id: string; name: string; coverArt?: string };
+  type IndexEntry  = { name: string; artist?: IndexArtist | IndexArtist[] };
+  const data = await api<{ indexes: { index?: IndexEntry | IndexEntry[] } }>(
+    'getIndexes.view',
+    { musicFolderId },
+  );
+  const raw = data.indexes?.index;
+  if (!raw) return [];
+  const indices = Array.isArray(raw) ? raw : [raw];
+  const entries: SubsonicDirectoryEntry[] = [];
+  for (const idx of indices) {
+    const artists = idx.artist ? (Array.isArray(idx.artist) ? idx.artist : [idx.artist]) : [];
+    for (const a of artists) {
+      entries.push({ id: a.id, title: a.name, isDir: true, coverArt: a.coverArt });
+    }
+  }
+  return entries;
+}
+
 export async function getMusicFolders(): Promise<SubsonicMusicFolder[]> {
   const data = await api<{ musicFolders: { musicFolder: SubsonicMusicFolder | SubsonicMusicFolder[] } }>(
     'getMusicFolders.view',

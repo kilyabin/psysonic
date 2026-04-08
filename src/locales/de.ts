@@ -21,6 +21,7 @@ export const deTranslation = {
     playlists: 'Playlists',
     mostPlayed: 'Meistgehört',
     radio: 'Internetradio',
+    folderBrowser: 'Ordner-Browser',
     libraryScope: 'Bibliotheksumfang',
     allLibraries: 'Alle Bibliotheken',
   },
@@ -880,5 +881,9 @@ export const deTranslation = {
     favorite: 'Zu Favoriten hinzufügen',
     unfavorite: 'Aus Favoriten entfernen',
     noFavorites: 'Keine Lieblingssender.',
-  }
+  },
+  folderBrowser: {
+    empty: 'Leerer Ordner',
+    error: 'Laden fehlgeschlagen',
+  },
 };

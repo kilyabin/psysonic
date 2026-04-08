@@ -21,6 +21,7 @@ export const nlTranslation = {
     playlists: 'Playlists',
     mostPlayed: 'Meest gespeeld',
     radio: 'Internetradio',
+    folderBrowser: 'Mappenverkenner',
     libraryScope: 'Bibliotheekbereik',
     allLibraries: 'Alle bibliotheken',
   },
@@ -875,5 +876,9 @@ export const nlTranslation = {
     favorite: 'Toevoegen aan favorieten',
     unfavorite: 'Verwijderen uit favorieten',
     noFavorites: 'Geen favoriete stations.',
-  }
+  },
+  folderBrowser: {
+    empty: 'Lege map',
+    error: 'Laden mislukt',
+  },
 };

@@ -21,6 +21,7 @@ export const zhTranslation = {
     playlists: '播放列表',
     mostPlayed: '最常播放',
     radio: '网络电台',
+    folderBrowser: '文件夹浏览器',
     libraryScope: '资料库范围',
     allLibraries: '所有资料库',
   },
@@ -871,5 +872,9 @@ export const zhTranslation = {
     favorite: '添加到收藏',
     unfavorite: '从收藏移除',
     noFavorites: '没有收藏的电台。',
-  }
+  },
+  folderBrowser: {
+    empty: '空文件夹',
+    error: '加载失败',
+  },
 };

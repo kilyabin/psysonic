@@ -22,6 +22,7 @@ export const enTranslation = {
     playlists: 'Playlists',
     mostPlayed: 'Most Played',
     radio: 'Internet Radio',
+    folderBrowser: 'Folder Browser',
     libraryScope: 'Library scope',
     allLibraries: 'All libraries',
   },
@@ -881,5 +882,9 @@ export const enTranslation = {
     favorite: 'Add to favorites',
     unfavorite: 'Remove from favorites',
     noFavorites: 'No favorite stations.',
-  }
+  },
+  folderBrowser: {
+    empty: 'Empty folder',
+    error: 'Failed to load',
+  },
 };
