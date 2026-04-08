@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.34.6] - 2026-04-08
+
+> I'm sorry this is already the third release today — every time we shipped a critical fix, another critical issue surfaced. Hopefully this one holds. 🤞
+
+### 🚨 Critical Fix
+
+- **ZIP downloads no longer freeze the UI**: All ZIP downloads (Album Detail, Playlist Detail, Albums, New Releases, Random Albums) previously buffered the entire file in the JS heap via `fetch + blob + arrayBuffer`, which caused the app to become completely unresponsive for large downloads (e.g. a 600-song, 7 GB playlist). Downloads now stream directly to disk via the Rust backend (`invoke('download_zip')`), matching the existing single-album download behavior. Progress is shown in the download overlay (bottom right).
+
+- **Offline cache downloads no longer freeze the UI**: Caching a large playlist (600+ songs) triggered up to ~1,200 synchronous `localStorage.setItem` calls as Zustand's `persist` middleware wrote on every state update. Transient download job state has been moved to a new non-persisted store (`offlineJobStore`), reducing localStorage writes for an entire download to **2** regardless of playlist size.
+
+### Added
+
+- **Playlist offline toggle**: When a playlist is already cached offline, clicking the cache button now removes it from the offline cache (shown with a red trash icon) instead of re-downloading it.
+
+### Fixed
+
+- **Home page — "Recently Added" section title** now links to `/new-releases` instead of `/albums`.
+
+---
+
 ## [1.34.5] - 2026-04-08
 
 ### 🚨 Critical Fix
