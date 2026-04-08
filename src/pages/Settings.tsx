@@ -1240,10 +1240,14 @@ export default function Settings() {
                 const themeOptions = THEME_GROUPS.flatMap(g =>
                   g.themes.map(th => ({ value: th.id, label: th.label, group: g.group }))
                 );
-                const hourOptions = Array.from({ length: 24 }, (_, i) => ({
-                  value: String(i).padStart(2, '0'),
-                  label: String(i).padStart(2, '0'),
-                }));
+                const use12h = i18n.language === 'en';
+                const hourOptions = Array.from({ length: 24 }, (_, i) => {
+                  const value = String(i).padStart(2, '0');
+                  const label = use12h
+                    ? `${i % 12 === 0 ? 12 : i % 12} ${i < 12 ? 'AM' : 'PM'}`
+                    : value;
+                  return { value, label };
+                });
                 const minuteOptions = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'].map(m => ({ value: m, label: m }));
                 const dayH = theme.timeDayStart.split(':')[0];
                 const dayM = theme.timeDayStart.split(':')[1];
