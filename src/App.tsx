@@ -61,6 +61,7 @@ import { useOfflineStore } from './store/offlineStore';
 import { initHotCachePrefetch } from './hotCachePrefetch';
 import { usePlayerStore, initAudioListeners } from './store/playerStore';
 import { useThemeStore } from './store/themeStore';
+import { useThemeScheduler } from './hooks/useThemeScheduler';
 import { useFontStore } from './store/fontStore';
 import { useEqStore } from './store/eqStore';
 import { useKeybindingsStore } from './store/keybindingsStore';
@@ -504,17 +505,23 @@ function TauriEventBridge() {
 }
 
 export default function App() {
-  const theme = useThemeStore(s => s.theme);
+  useThemeStore(s => s.theme); // keep subscription so re-render on manual change
+  const effectiveTheme = useThemeScheduler();
   const font = useFontStore(s => s.font);
+  const uiScale = useFontStore(s => s.uiScale);
   const [exportPickerOpen, setExportPickerOpen] = useState(false);
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-  }, [theme]);
+    document.documentElement.setAttribute('data-theme', effectiveTheme);
+  }, [effectiveTheme]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-font', font);
   }, [font]);
+
+  useEffect(() => {
+    document.documentElement.style.zoom = String(uiScale);
+  }, [uiScale]);
 
   useEffect(() => {
     return initAudioListeners();

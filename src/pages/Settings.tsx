@@ -5,7 +5,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Wifi, WifiOff, Globe, Music2, Sliders, LogOut, CheckCircle2, FolderOpen,
   Palette, Server, Plus, Trash2, Eye, EyeOff, Info, ExternalLink, Shuffle, X, Play, Type, Keyboard, ChevronDown,
-  GripVertical, PanelLeft, RotateCcw, LayoutGrid, AppWindow, HardDrive, Upload, Download, Waves, Star
+  GripVertical, PanelLeft, RotateCcw, LayoutGrid, AppWindow, HardDrive, Upload, Download, Waves, Star, Clock, ZoomIn
 } from 'lucide-react';
 import { exportBackup, importBackup } from '../utils/backup';
 import { showToast } from '../utils/toast';
@@ -17,7 +17,7 @@ import { useHotCacheStore } from '../store/hotCacheStore';
 import { lastfmGetToken, lastfmAuthUrl, lastfmGetSession, lastfmGetUserInfo, LastfmUserInfo } from '../api/lastfm';
 import LastfmIcon from '../components/LastfmIcon';
 import CustomSelect from '../components/CustomSelect';
-import ThemePicker from '../components/ThemePicker';
+import ThemePicker, { THEME_GROUPS } from '../components/ThemePicker';
 import { useAuthStore, ServerProfile, MIX_MIN_RATING_FILTER_MAX_STARS, type SeekbarStyle } from '../store/authStore';
 import { SeekbarPreview } from '../components/WaveformSeek';
 import { IS_LINUX } from '../utils/platform';
@@ -1217,6 +1217,117 @@ export default function Settings() {
             </div>
             <div className="settings-card">
               <ThemePicker value={theme.theme} onChange={v => theme.setTheme(v as any)} />
+            </div>
+          </section>
+
+          <section className="settings-section">
+            <div className="settings-section-header">
+              <Clock size={18} />
+              <h2>{t('settings.themeSchedulerTitle')}</h2>
+            </div>
+            <div className="settings-card">
+              <div className="settings-toggle-row">
+                <div>
+                  <div style={{ fontWeight: 500 }}>{t('settings.themeSchedulerEnable')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.themeSchedulerEnableSub')}</div>
+                </div>
+                <label className="toggle-switch" aria-label={t('settings.themeSchedulerEnable')}>
+                  <input type="checkbox" checked={theme.enableThemeScheduler} onChange={e => theme.setEnableThemeScheduler(e.target.checked)} />
+                  <span className="toggle-track" />
+                </label>
+              </div>
+              {theme.enableThemeScheduler && (() => {
+                const themeOptions = THEME_GROUPS.flatMap(g =>
+                  g.themes.map(th => ({ value: th.id, label: th.label, group: g.group }))
+                );
+                const hourOptions = Array.from({ length: 24 }, (_, i) => ({
+                  value: String(i).padStart(2, '0'),
+                  label: String(i).padStart(2, '0'),
+                }));
+                const minuteOptions = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'].map(m => ({ value: m, label: m }));
+                const dayH = theme.timeDayStart.split(':')[0];
+                const dayM = theme.timeDayStart.split(':')[1];
+                const nightH = theme.timeNightStart.split(':')[0];
+                const nightM = theme.timeNightStart.split(':')[1];
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+                    <div className="form-group">
+                      <label className="settings-label" style={{ marginBottom: 6 }}>{t('settings.themeSchedulerDayTheme')}</label>
+                      <CustomSelect value={theme.themeDay} onChange={theme.setThemeDay} options={themeOptions} />
+                    </div>
+                    <div className="form-group">
+                      <label className="settings-label" style={{ marginBottom: 6 }}>{t('settings.themeSchedulerDayStart')}</label>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <CustomSelect value={dayH} onChange={v => theme.setTimeDayStart(`${v}:${dayM}`)} options={hourOptions} />
+                        <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>:</span>
+                        <CustomSelect value={dayM} onChange={v => theme.setTimeDayStart(`${dayH}:${v}`)} options={minuteOptions} />
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label className="settings-label" style={{ marginBottom: 6 }}>{t('settings.themeSchedulerNightTheme')}</label>
+                      <CustomSelect value={theme.themeNight} onChange={theme.setThemeNight} options={themeOptions} />
+                    </div>
+                    <div className="form-group">
+                      <label className="settings-label" style={{ marginBottom: 6 }}>{t('settings.themeSchedulerNightStart')}</label>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <CustomSelect value={nightH} onChange={v => theme.setTimeNightStart(`${v}:${nightM}`)} options={hourOptions} />
+                        <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>:</span>
+                        <CustomSelect value={nightM} onChange={v => theme.setTimeNightStart(`${nightH}:${v}`)} options={minuteOptions} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </section>
+
+          <section className="settings-section">
+            <div className="settings-section-header">
+              <ZoomIn size={18} />
+              <h2>{t('settings.uiScaleTitle')}</h2>
+            </div>
+            <div className="settings-card">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t('settings.uiScaleLabel')}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', minWidth: 40, textAlign: 'right' }}>
+                    {Math.round(fontStore.uiScale * 100)}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0.8}
+                  max={1.5}
+                  step={0.05}
+                  value={fontStore.uiScale}
+                  onChange={e => fontStore.setUiScale(parseFloat(e.target.value))}
+                  className="ui-scale-slider"
+                />
+                <div style={{ position: 'relative', height: 24 }}>
+                  {[80, 90, 100, 110, 125, 150].map(p => {
+                    const pct = ((p / 100) - 0.8) / (1.5 - 0.8) * 100;
+                    const active = Math.round(fontStore.uiScale * 100) === p;
+                    return (
+                      <button
+                        key={p}
+                        className="btn btn-ghost"
+                        style={{
+                          position: 'absolute',
+                          left: `${pct}%`,
+                          transform: 'translateX(-50%)',
+                          fontSize: 11,
+                          padding: '2px 6px',
+                          opacity: active ? 1 : 0.5,
+                          color: active ? 'var(--accent)' : undefined,
+                        }}
+                        onClick={() => fontStore.setUiScale(p / 100)}
+                      >
+                        {p}%
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </section>
 
