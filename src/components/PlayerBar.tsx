@@ -6,10 +6,11 @@ import {
 } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
-import { buildCoverArtUrl, coverArtCacheKey, star, unstar } from '../api/subsonic';
+import { buildCoverArtUrl, coverArtCacheKey, star, unstar, setRating } from '../api/subsonic';
 import CachedImage from './CachedImage';
 import WaveformSeek from './WaveformSeek';
 import Equalizer from './Equalizer';
+import StarRating from './StarRating';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useLyricsStore } from '../store/lyricsStore';
@@ -37,6 +38,7 @@ export default function PlayerBar() {
     lastfmLoved, toggleLastfmLove,
     isQueueVisible, toggleQueue,
     starredOverrides, setStarredOverride,
+    userRatingOverrides, setUserRatingOverride,
   } = usePlayerStore();
   const { lastfmSessionKey } = useAuthStore();
 
@@ -138,6 +140,14 @@ export default function PlayerBar() {
             style={{ cursor: !isRadio && currentTrack?.artistId ? 'pointer' : 'default' }}
             onClick={() => !isRadio && currentTrack?.artistId && navigate(`/artist/${currentTrack.artistId}`)}
           />
+          {currentTrack && !isRadio && (
+            <StarRating
+              value={userRatingOverrides[currentTrack.id] ?? currentTrack.userRating ?? 0}
+              onChange={r => { setUserRatingOverride(currentTrack.id, r); setRating(currentTrack.id, r).catch(() => {}); }}
+              className="player-track-rating"
+              ariaLabel={t('albumDetail.ratingLabel')}
+            />
+          )}
         </div>
         {currentTrack && !isRadio && (
           <button

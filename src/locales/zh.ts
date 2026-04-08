@@ -723,6 +723,10 @@ export const zhTranslation = {
     lfmMinutesAgo: '{{n}} 分钟前',
     lfmHoursAgo: '{{n}} 小时前',
     lfmDaysAgo: '{{n}} 天前',
+    topRatedSongs: '最高评分歌曲',
+    topRatedArtists: '最高评分艺人',
+    noRatedSongs: '暂无已评分歌曲。请在专辑或播放列表中为歌曲评分。',
+    noRatedArtists: '暂无已评分艺人。',
   },
   player: {
     regionLabel: '音乐播放器',

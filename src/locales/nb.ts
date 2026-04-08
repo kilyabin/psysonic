@@ -726,6 +726,10 @@ export const nbTranslation = {
     lfmMinutesAgo: 'For {{n}}m siden',
     lfmHoursAgo: 'For {{n}}t siden',
     lfmDaysAgo: 'For {{n}}d siden',
+    topRatedSongs: 'Høyest vurderte spor',
+    topRatedArtists: 'Høyest vurderte artister',
+    noRatedSongs: 'Ingen vurderte spor ennå. Vurder spor i album- eller spillelistevisning.',
+    noRatedArtists: 'Ingen vurderte artister ennå.',
   },
   player: {
     regionLabel: 'Musikkspiller',

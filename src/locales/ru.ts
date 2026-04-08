@@ -787,6 +787,10 @@ export const ruTranslation = {
     lfmMinutesAgo: '{{n}} мин назад',
     lfmHoursAgo: '{{n}} ч назад',
     lfmDaysAgo: '{{n}} дн. назад',
+    topRatedSongs: 'Лучшие по рейтингу треки',
+    topRatedArtists: 'Лучшие по рейтингу исполнители',
+    noRatedSongs: 'Нет оценённых треков. Ставьте оценки в альбомах или плейлистах.',
+    noRatedArtists: 'Нет оценённых исполнителей.',
   },
   player: {
     regionLabel: 'Плеер',

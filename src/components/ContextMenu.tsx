@@ -1,9 +1,10 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Play, ListPlus, Radio, Heart, Download, ChevronRight, User, Disc3, ListMusic, Plus, Info } from 'lucide-react';
 import LastfmIcon from './LastfmIcon';
+import StarRating from './StarRating';
 import { lastfmLoveTrack, lastfmUnloveTrack } from '../api/lastfm';
 import { usePlayerStore, Track, songToTrack } from '../store/playerStore';
-import { SubsonicAlbum, SubsonicArtist, star, unstar, getSimilarSongs2, getTopSongs, buildDownloadUrl, getAlbum, getPlaylists, getPlaylist, createPlaylist, updatePlaylist, SubsonicPlaylist } from '../api/subsonic';
+import { SubsonicAlbum, SubsonicArtist, star, unstar, getSimilarSongs2, getTopSongs, buildDownloadUrl, getAlbum, getPlaylists, getPlaylist, createPlaylist, updatePlaylist, SubsonicPlaylist, setRating } from '../api/subsonic';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useDownloadModalStore } from '../store/downloadModalStore';
@@ -163,7 +164,7 @@ function AlbumToPlaylistSubmenu({ albumId, onDone }: { albumId: string; onDone: 
 
 export default function ContextMenu() {
   const { t } = useTranslation();
-  const { contextMenu, closeContextMenu, playTrack, enqueue, queue, currentTrack, removeTrack, lastfmLovedCache, setLastfmLovedForSong, starredOverrides, setStarredOverride, openSongInfo } = usePlayerStore();
+  const { contextMenu, closeContextMenu, playTrack, enqueue, queue, currentTrack, removeTrack, lastfmLovedCache, setLastfmLovedForSong, starredOverrides, setStarredOverride, openSongInfo, userRatingOverrides, setUserRatingOverride } = usePlayerStore();
   const auth = useAuthStore();
   const requestDownloadFolder = useDownloadModalStore(s => s.requestFolder);
   const navigate = useNavigate();
@@ -381,6 +382,13 @@ export default function ContextMenu() {
                 );
               })()}
               <div className="context-menu-divider" />
+              <div className="context-menu-rating-row" onClick={e => e.stopPropagation()}>
+                <StarRating
+                  value={userRatingOverrides[song.id] ?? song.userRating ?? 0}
+                  onChange={r => { setUserRatingOverride(song.id, r); setRating(song.id, r).catch(() => {}); }}
+                  ariaLabel={t('albumDetail.ratingLabel')}
+                />
+              </div>
               <div className="context-menu-item" onClick={() => handleAction(() => openSongInfo(song.id))}>
                 <Info size={14} /> {t('contextMenu.songInfo')}
               </div>
@@ -501,6 +509,13 @@ export default function ContextMenu() {
                 <Radio size={14} /> {t('contextMenu.startRadio')}
               </div>
               <div className="context-menu-divider" />
+              <div className="context-menu-rating-row" onClick={e => e.stopPropagation()}>
+                <StarRating
+                  value={userRatingOverrides[song.id] ?? song.userRating ?? 0}
+                  onChange={r => { setUserRatingOverride(song.id, r); setRating(song.id, r).catch(() => {}); }}
+                  ariaLabel={t('albumDetail.ratingLabel')}
+                />
+              </div>
               <div className="context-menu-item" onClick={() => handleAction(() => openSongInfo(song.id))}>
                 <Info size={14} /> {t('contextMenu.songInfo')}
               </div>

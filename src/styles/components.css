@@ -589,6 +589,20 @@
   margin-top: 2px;
 }
 
+.album-card-rating-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.album-card-rating-stars {
+  font-size: 11px;
+  color: var(--accent);
+  letter-spacing: 1px;
+  line-height: 1;
+}
+
 /* ─ Live Search ─ */
 .live-search {
   position: relative;
@@ -3619,6 +3633,15 @@
   height: 1px;
   background: var(--border-subtle);
   margin: var(--space-1) 0;
+}
+
+.context-menu-rating-row {
+  padding: 6px 12px;
+}
+
+.context-menu-rating-row .star-rating {
+  width: auto;
+  justify-content: flex-start;
 }
 
 /* ─ CSS Tooltips ─ */

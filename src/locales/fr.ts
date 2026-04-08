@@ -727,6 +727,10 @@ export const frTranslation = {
     lfmMinutesAgo: 'il y a {{n}} min',
     lfmHoursAgo: 'il y a {{n}}h',
     lfmDaysAgo: 'il y a {{n}}j',
+    topRatedSongs: 'Morceaux les mieux notés',
+    topRatedArtists: 'Artistes les mieux notés',
+    noRatedSongs: 'Aucun morceau noté. Notez des morceaux dans la vue album ou playlist.',
+    noRatedArtists: 'Aucun artiste noté.',
   },
   player: {
     regionLabel: 'Lecteur de musique',

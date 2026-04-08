@@ -727,6 +727,10 @@ export const nlTranslation = {
     lfmMinutesAgo: '{{n}} min geleden',
     lfmHoursAgo: '{{n}} uur geleden',
     lfmDaysAgo: '{{n}} dagen geleden',
+    topRatedSongs: 'Best beoordeelde nummers',
+    topRatedArtists: 'Best beoordeelde artiesten',
+    noRatedSongs: 'Nog geen beoordeelde nummers. Beoordeel nummers in album- of afspeellijstweergave.',
+    noRatedArtists: 'Nog geen beoordeelde artiesten.',
   },
   player: {
     regionLabel: 'Muziekspeler',

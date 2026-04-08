@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.34.4] - 2026-04-08
+
+### Added
+
+- **Entity ratings** *(PR [#130](https://github.com/Psychotoxical/psysonic/pull/130))*: Full star-rating support (1–5 ★) for songs, albums, and artists via the OpenSubsonic `setRating` API. Ratings are shown and editable in the album track list, artist detail page, and the Favorites song list. A new shared `StarRating` component is used consistently across all surfaces. Requires an OpenSubsonic-compatible server (e.g. Navidrome ≥ 0.53).
+
+- **Song ratings — context menu & player bar**: Songs can additionally be rated directly from the **right-click context menu** and from the **player bar** (below the artist name), with optimistic updates reflected immediately across all views.
+
+- **Skip-to-1★** *(PR [#130](https://github.com/Psychotoxical/psysonic/pull/130))*: Automatically assigns a 1-star rating when a song is manually skipped before a configurable playback threshold (default: 20 s). Can be enabled and adjusted in Settings → Ratings.
+
+- **Mix minimum rating filter** *(PR [#130](https://github.com/Psychotoxical/psysonic/pull/130))*: Random Mix and Home Quick Mix can now be filtered by minimum rating per entity type (song / album / artist). Configure thresholds in Settings → Ratings.
+
+- **Statistics — Top Rated Songs & Artists**: New "Top Rated Songs" and "Top Rated Artists" sections on the Statistics page, derived from starred items with a `userRating > 0`. Lists update live as ratings are changed without a page reload.
+
+- **Seekbar styles — 5 new styles**: Added Neon Glow, Pulse Wave, Particle Trail, Liquid Fill, and Retro Tape. Animated styles run a dedicated `requestAnimationFrame` loop. The style picker in Settings shows an animated live preview for each style.
+
+- **Custom title bar (Linux)**: Optional custom title bar with now-playing display (song title + artist, live-updating). Replaces the native GTK decoration when enabled. Automatically hides in native fullscreen (F11). Can be toggled in Settings → Appearance.
+
+- **Album multi-select**: Albums, New Releases, and Random Albums pages now support multi-select mode. Selected albums can be batch-queued or enqueued.
+
+- **Most Played — compilation filter**: New toggle on the Most Played page to hide compilation artists from the Top Artists list.
+
+- **Scroll reset on navigation**: The content area now scrolls back to the top automatically on every route change.
+
+### Fixed
+
+- **Backup**: The `psysonic_home` key is now included in the settings backup export.
+
+### i18n
+
+- New keys for seekbar styles, entity ratings, rating sections (Settings + Statistics), and entity rating support added to all 7 languages (EN, DE, FR, NL, ZH, NB, RU).
+
+---
+
 ## [1.34.3] - 2026-04-07
 
 ### Added

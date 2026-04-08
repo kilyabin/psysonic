@@ -934,6 +934,17 @@
   margin-top: 2px;
 }
 
+.player-track-rating {
+  margin-top: 4px;
+  width: auto;
+  justify-content: flex-start;
+}
+
+.player-track-rating .star {
+  font-size: 11px;
+  padding: 0 1px;
+}
+
 /* ── Marquee (PlayerBar track name / artist) ── */
 .marquee-wrap {
   overflow: hidden;

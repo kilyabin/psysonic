@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { getAlbumList, getArtists, getGenres, getRandomSongs, SubsonicAlbum, SubsonicGenre } from '../api/subsonic';
+import React, { useEffect, useMemo, useState } from 'react';
+import { getAlbumList, getArtists, getGenres, getRandomSongs, getStarred, SubsonicAlbum, SubsonicArtist, SubsonicGenre, SubsonicSong } from '../api/subsonic';
 import AlbumRow from '../components/AlbumRow';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
+import { useNavigate } from 'react-router-dom';
+import { usePlayerStore } from '../store/playerStore';
 import { lastfmIsConfigured, lastfmGetTopArtists, lastfmGetTopAlbums, lastfmGetTopTracks, lastfmGetRecentTracks, LastfmPeriod, LastfmTopArtist, LastfmTopAlbum, LastfmTopTrack, LastfmRecentTrack } from '../api/lastfm';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -32,11 +34,33 @@ const PERIODS: { key: LastfmPeriod; label: string }[] = [
 
 export default function Statistics() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { lastfmSessionKey, lastfmUsername } = useAuthStore();
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const [recent, setRecent] = useState<SubsonicAlbum[]>([]);
   const [frequent, setFrequent] = useState<SubsonicAlbum[]>([]);
   const [highest, setHighest] = useState<SubsonicAlbum[]>([]);
+  const [starredSongs, setStarredSongs] = useState<SubsonicSong[]>([]);
+  const [topArtists, setTopArtists] = useState<SubsonicArtist[]>([]);
+  const userRatingOverrides = usePlayerStore(s => s.userRatingOverrides);
+  const queue = usePlayerStore(s => s.queue);
+  const currentTrack = usePlayerStore(s => s.currentTrack);
+
+  const topSongs = useMemo(() => {
+    const map = new Map(starredSongs.map(s => [s.id, { ...s, userRating: userRatingOverrides[s.id] ?? s.userRating }]));
+    // Songs not yet in starredSongs but rated via override (e.g. from queue or currentTrack)
+    const candidates = currentTrack ? [currentTrack, ...queue] : queue;
+    for (const t of candidates) {
+      const r = userRatingOverrides[t.id];
+      if (r && !map.has(t.id)) {
+        map.set(t.id, { id: t.id, title: t.title, artist: t.artist, album: t.album, albumId: t.albumId, userRating: r } as SubsonicSong);
+      }
+    }
+    return [...map.values()]
+      .filter(s => (s.userRating ?? 0) > 0)
+      .sort((a, b) => (b.userRating ?? 0) - (a.userRating ?? 0))
+      .slice(0, 10);
+  }, [starredSongs, userRatingOverrides, queue, currentTrack]);
   const [artistCount, setArtistCount] = useState<number | null>(null);
   const [totalSongs, setTotalSongs] = useState<number | null>(null);
   const [totalAlbums, setTotalAlbums] = useState<number | null>(null);
@@ -63,7 +87,8 @@ export default function Statistics() {
       getAlbumList('highest', 12).catch(() => []),
       getArtists().catch(() => []),
       getGenres().catch(() => []),
-    ]).then(([rc, fr, hi, a, g]) => {
+      getStarred().catch(() => ({ albums: [], artists: [], songs: [] })),
+    ]).then(([rc, fr, hi, a, g, starred]) => {
       setRecent(rc);
       setFrequent(fr);
       setHighest(hi);
@@ -72,6 +97,13 @@ export default function Statistics() {
       setTotalAlbums(g.reduce((acc: number, genre: SubsonicGenre) => acc + genre.albumCount, 0));
       const sorted = [...g].sort((a, b) => b.songCount - a.songCount);
       setGenres(sorted);
+      setStarredSongs(starred.songs);
+      setTopArtists(
+        [...starred.artists]
+          .filter(a => (a.userRating ?? 0) > 0)
+          .sort((a, b) => (b.userRating ?? 0) - (a.userRating ?? 0))
+          .slice(0, 10),
+      );
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [musicLibraryFilterVersion]);
@@ -282,7 +314,69 @@ export default function Statistics() {
             albums={highest}
             onLoadMore={() => loadMore('highest', highest, setHighest)}
             moreText={t('statistics.loadMore')}
+            showRating
           />
+
+          {/* Top Rated Songs + Artists */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginBottom: '0.5rem' }}>
+            <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '12px', padding: '1.25rem', backdropFilter: 'blur(8px)' }}>
+              <h3 style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--accent)', marginBottom: '1rem' }}>
+                {t('statistics.topRatedSongs')}
+              </h3>
+              {topSongs.length === 0 ? (
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{t('statistics.noRatedSongs')}</p>
+              ) : (
+                <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {topSongs.map((song, i) => (
+                    <li key={song.id} style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', cursor: song.albumId ? 'pointer' : 'default' }}
+                      onClick={() => song.albumId && navigate(`/album/${song.albumId}`)}>
+                      <span style={{ fontSize: '1.1rem', fontWeight: 800, color: i === 0 ? 'var(--accent)' : 'var(--text-muted)', opacity: i === 0 ? 1 : 0.5, lineHeight: 1, flexShrink: 0, width: '1.5rem' }}>
+                        {i + 1}
+                      </span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.875rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{song.title}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{song.artist}</div>
+                      </div>
+                      <span style={{ fontSize: '11px', color: 'var(--accent)', flexShrink: 0, letterSpacing: '1px' }}>
+                        {'★'.repeat(song.userRating!)}{'☆'.repeat(5 - song.userRating!)}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+
+            <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '12px', padding: '1.25rem', backdropFilter: 'blur(8px)' }}>
+              <h3 style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--accent)', marginBottom: '1rem' }}>
+                {t('statistics.topRatedArtists')}
+              </h3>
+              {topArtists.length === 0 ? (
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{t('statistics.noRatedArtists')}</p>
+              ) : (
+                <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {topArtists.map((artist, i) => (
+                    <li key={artist.id} style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', cursor: 'pointer' }}
+                      onClick={() => navigate(`/artist/${artist.id}`)}>
+                      <span style={{ fontSize: '1.1rem', fontWeight: 800, color: i === 0 ? 'var(--accent)' : 'var(--text-muted)', opacity: i === 0 ? 1 : 0.5, lineHeight: 1, flexShrink: 0, width: '1.5rem' }}>
+                        {i + 1}
+                      </span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.875rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{artist.name}</div>
+                        {(artist.albumCount ?? 0) > 0 && (
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            {t('artistDetail.albumCount_other', { count: artist.albumCount })}
+                          </div>
+                        )}
+                      </div>
+                      <span style={{ fontSize: '11px', color: 'var(--accent)', flexShrink: 0, letterSpacing: '1px' }}>
+                        {'★'.repeat(artist.userRating!)}{'☆'.repeat(5 - artist.userRating!)}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          </div>
 
           {/* Last.fm Stats */}
           {lastfmIsConfigured() && (
@@ -363,7 +457,7 @@ export default function Statistics() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
-                  {lfmRecentTracks.map((track, i) => (
+                  {lfmRecentTracks.slice(0, 3).map((track, i) => (
                     <div key={`${track.name}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.5rem 0.75rem', borderRadius: '8px', background: track.nowPlaying ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'transparent', border: track.nowPlaying ? '1px solid color-mix(in srgb, var(--accent) 20%, transparent)' : '1px solid transparent' }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

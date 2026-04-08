@@ -730,6 +730,10 @@ export const enTranslation = {
     lfmMinutesAgo: '{{n}}m ago',
     lfmHoursAgo: '{{n}}h ago',
     lfmDaysAgo: '{{n}}d ago',
+    topRatedSongs: 'Top Rated Songs',
+    topRatedArtists: 'Top Rated Artists',
+    noRatedSongs: 'No rated songs yet. Rate songs in album or playlist view.',
+    noRatedArtists: 'No rated artists yet.',
   },
   player: {
     regionLabel: 'Music Player',

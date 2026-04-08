@@ -729,6 +729,10 @@ export const deTranslation = {
     lfmMinutesAgo: 'vor {{n}} Min.',
     lfmHoursAgo: 'vor {{n}} Std.',
     lfmDaysAgo: 'vor {{n}} Tagen',
+    topRatedSongs: 'Bestbewertete Songs',
+    topRatedArtists: 'Bestbewertete Künstler',
+    noRatedSongs: 'Noch keine bewerteten Songs. Songs in Album- oder Playlist-Ansicht bewerten.',
+    noRatedArtists: 'Noch keine bewerteten Künstler.',
   },
   player: {
     regionLabel: 'Musikplayer',
