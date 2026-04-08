@@ -152,6 +152,18 @@ function drawWaveform(
     ctx.shadowBlur = 0;
   }
   ctx.globalAlpha = 1;
+
+  // Fade both edges to transparent using destination-in gradient mask
+  const fadeW = Math.min(22, w * 0.07);
+  const mask = ctx.createLinearGradient(0, 0, w, 0);
+  mask.addColorStop(0, 'transparent');
+  mask.addColorStop(fadeW / w, 'black');
+  mask.addColorStop(1 - fadeW / w, 'black');
+  mask.addColorStop(1, 'transparent');
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.fillStyle = mask;
+  ctx.fillRect(0, 0, w, h);
+  ctx.globalCompositeOperation = 'source-over';
 }
 
 function drawLineDot(canvas: HTMLCanvasElement, progress: number, buffered: number) {
