@@ -78,6 +78,12 @@ function AppShell() {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
   const [isWindowFullscreen, setIsWindowFullscreen] = useState(false);
+  const [isTilingWm, setIsTilingWm] = useState(false);
+
+  useEffect(() => {
+    if (!IS_LINUX) return;
+    invoke<boolean>('is_tiling_wm_cmd').then(setIsTilingWm).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!IS_LINUX) return;
@@ -108,10 +114,12 @@ function AppShell() {
   const hasOfflineContent = Object.values(offlineAlbums).some(a => a.serverId === serverId);
 
   // Sync custom titlebar preference with native decorations on Linux
+  // On tiling WMs decorations are always off (no native title bar to replace).
   useEffect(() => {
     if (!IS_LINUX) return;
-    invoke('set_window_decorations', { enabled: !useCustomTitlebar }).catch(() => {});
-  }, [useCustomTitlebar]);
+    const enabled = isTilingWm ? false : !useCustomTitlebar;
+    invoke('set_window_decorations', { enabled }).catch(() => {});
+  }, [useCustomTitlebar, isTilingWm]);
 
   useEffect(() => {
     if (!isLoggedIn || !activeServerId) return;
@@ -288,14 +296,14 @@ function AppShell() {
       className="app-shell"
       data-mobile={isMobile || undefined}
       data-mobile-player={isMobilePlayer || undefined}
-      data-titlebar={(IS_LINUX && useCustomTitlebar && !isWindowFullscreen) || undefined}
+      data-titlebar={(IS_LINUX && useCustomTitlebar && !isWindowFullscreen && !isTilingWm) || undefined}
       style={{
         '--sidebar-width': isMobile ? '0px' : (isSidebarCollapsed ? '72px' : 'clamp(200px, 15vw, 220px)'),
         '--queue-width': isMobile ? '0px' : (isQueueVisible ? `${queueWidth}px` : '0px')
       } as React.CSSProperties}
       onContextMenu={e => e.preventDefault()}
     >
-      {IS_LINUX && useCustomTitlebar && !isWindowFullscreen && <TitleBar />}
+      {IS_LINUX && useCustomTitlebar && !isWindowFullscreen && !isTilingWm && <TitleBar />}
       {!isMobile && (
         <Sidebar
           isCollapsed={isSidebarCollapsed}

@@ -202,6 +202,13 @@ export default function Settings() {
   const clearAllOffline = useOfflineStore(s => s.clearAll);
   const clearHotCacheDisk = useHotCacheStore(s => s.clearAllDisk);
   const hotCacheEntries = useHotCacheStore(s => s.entries);
+  const [isTilingWm, setIsTilingWm] = useState(false);
+
+  useEffect(() => {
+    if (!IS_LINUX) return;
+    invoke<boolean>('is_tiling_wm_cmd').then(setIsTilingWm).catch(() => {});
+  }, []);
+
   const hotCacheTrackCount = useMemo(() => {
     if (!serverId) return 0;
     const prefix = `${serverId}:`;
@@ -618,7 +625,7 @@ export default function Settings() {
                   <span className="toggle-track" />
                 </label>
               </div>
-              {IS_LINUX && (
+              {IS_LINUX && !isTilingWm && (
                 <>
                   <div className="settings-section-divider" />
                   <div className="settings-toggle-row">
