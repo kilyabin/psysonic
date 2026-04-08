@@ -507,8 +507,8 @@ export const enTranslation = {
     ratingsSectionTitle: 'Ratings',
     ratingsSkipStarTitle: 'Skip for 1 star',
     ratingsSkipStarDesc:
-      'After N skips in a row, set the track to 1★. Only for tracks not rated before.',
-    ratingsSkipStarThresholdLabel: 'Skips before 1★',
+      'After several skips in a row, set the track to 1★. Only for tracks not yet rated.',
+    ratingsSkipStarThresholdLabel: 'Skips',
     ratingsMixFilterTitle: 'Filter by rating',
     ratingsMixFilterDesc:
       'Filter low-rated items in {{mix}} and {{albums}}. Click the selected star again to turn off the threshold.',

@@ -520,8 +520,8 @@ export const nlTranslation = {
     ratingsSectionTitle: 'Beoordelingen',
     ratingsSkipStarTitle: 'Overslaan voor 1 ster',
     ratingsSkipStarDesc:
-      'Na N overslagen op rij: nummer op 1 ster zetten. Alleen voor nummers die nog niet beoordeeld waren.',
-    ratingsSkipStarThresholdLabel: 'Overslagen voor 1★',
+      'Na meerdere overslagen op rij: nummer op 1 ster zetten. Alleen voor nummers die nog niet beoordeeld waren.',
+    ratingsSkipStarThresholdLabel: 'Overslagen',
     ratingsMixFilterTitle: 'Filter op beoordeling',
     ratingsMixFilterDesc:
       'Content met lage beoordeling filteren in {{mix}} en {{albums}}. Klik opnieuw op de gekozen ster om de drempel uit te zetten.',

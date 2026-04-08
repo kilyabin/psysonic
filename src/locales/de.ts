@@ -520,13 +520,13 @@ export const deTranslation = {
     tabSystem: 'System',
     tabGeneral: 'Allgemein',
     ratingsSectionTitle: 'Bewertungen',
-    ratingsSkipStarTitle: 'Überspringen für 1 Stern',
+    ratingsSkipStarTitle: 'Skip → 1 Stern',
     ratingsSkipStarDesc:
-      'Bei N Überspringen hintereinander: Titel auf 1 Stern setzen. Nur für zuvor unbewertete Titel.',
-    ratingsSkipStarThresholdLabel: 'Überspringer bis 1★',
-    ratingsMixFilterTitle: 'Filter nach Bewertung',
+      'Wird ein Titel mehrmals hintereinander übersprungen, bekommt er automatisch 1★. Nur für noch nicht bewertete Titel.',
+    ratingsSkipStarThresholdLabel: 'Skips',
+    ratingsMixFilterTitle: 'Nach Bewertung filtern',
     ratingsMixFilterDesc:
-      'Inhalte mit niedriger Bewertung in {{mix}} und {{albums}} filtern. Erneut auf den gewählten Stern klicken, um die Schwelle zu deaktivieren.',
+      'Gering bewertete Titel in {{mix}} und {{albums}} ausblenden. Nochmals auf den gewählten Stern klicken, um den Filter zu deaktivieren.',
     ratingsMixMinSong: 'Titel',
     ratingsMixMinAlbum: 'Alben',
     ratingsMixMinArtist: 'Interpreten',

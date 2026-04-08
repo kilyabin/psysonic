@@ -503,8 +503,8 @@ export const nbTranslation = {
     ratingsSectionTitle: 'Vurderinger',
     ratingsSkipStarTitle: 'Hopp for 1 stjerne',
     ratingsSkipStarDesc:
-      'Etter N hopp på rad: sett sporet til 1 stjerne. Bare for spor som ikke var vurdert før.',
-    ratingsSkipStarThresholdLabel: 'Hopp før 1★',
+      'Etter flere hopp på rad: sett sporet til 1 stjerne. Bare for spor som ikke var vurdert før.',
+    ratingsSkipStarThresholdLabel: 'Hopp',
     ratingsMixFilterTitle: 'Filtrering etter vurdering',
     ratingsMixFilterDesc:
       'Filtrer innhold med lav vurdering i {{mix}} og {{albums}}. Klikk på den valgte stjerna igjen for å slå av terskelen.',

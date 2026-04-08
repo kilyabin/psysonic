@@ -520,11 +520,11 @@ export const frTranslation = {
     ratingsSectionTitle: 'Notes',
     ratingsSkipStarTitle: 'Passer pour 1 étoile',
     ratingsSkipStarDesc:
-      'Après N sauts d’affilée : mettre le morceau à 1 étoile. Uniquement s’il n’était pas encore noté.',
-    ratingsSkipStarThresholdLabel: 'Sauts avant 1★',
+      "Après plusieurs sauts d’affilée, le morceau passe à 1 étoile. Uniquement s’il n’était pas encore noté.",
+    ratingsSkipStarThresholdLabel: 'Sauts',
     ratingsMixFilterTitle: 'Filtrage par note',
     ratingsMixFilterDesc:
-      'Filtrer le contenu peu noté dans {{mix}} et {{albums}}. Cliquer de nouveau sur l’étoile choisie désactive le seuil.',
+      "Filtrer le contenu peu noté dans {{mix}} et {{albums}}. Cliquer de nouveau sur l’étoile choisie désactive le seuil.",
     ratingsMixMinSong: 'Morceaux',
     ratingsMixMinAlbum: 'Albums',
     ratingsMixMinArtist: 'Artistes',

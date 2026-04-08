@@ -500,8 +500,8 @@ export const zhTranslation = {
     ratingsSectionTitle: '评分',
     ratingsSkipStarTitle: '跳过以评 1 星',
     ratingsSkipStarDesc:
-      '连续跳过 N 次后将曲目设为 1 星。仅适用于此前未评分的曲目。',
-    ratingsSkipStarThresholdLabel: '跳过次数（至 1★）',
+      '连续多次跳过后将曲目设为 1 星。仅适用于此前未评分的曲目。',
+    ratingsSkipStarThresholdLabel: '跳过次数',
     ratingsMixFilterTitle: '按评分筛选',
     ratingsMixFilterDesc:
       '在{{mix}}与{{albums}}中筛选低评分内容。再次点击所选星标可关闭阈值。',

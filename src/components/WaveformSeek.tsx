@@ -381,22 +381,22 @@ function drawPulseWave(
     ctx.fillRect(0, cy - 1, buffered * w, 2);
   }
 
-  // Played flat line
-  if (progress > 0) {
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = played;
-    ctx.shadowColor = played;
-    ctx.shadowBlur = 3;
-    ctx.fillRect(0, cy - 1, px, 2);
-    ctx.shadowBlur = 0;
-  }
-
   // Animated pulse centered at playhead
   const pulseR = Math.min(38, w * 0.13);
   const amp = Math.min(h * 0.42, 5.5);
   const sigma = pulseR * 0.42;
   const startX = Math.max(0, px - pulseR);
   const endX   = Math.min(w, px + pulseR);
+
+  // Flat played line up to where the wave envelope starts
+  if (progress > 0) {
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = played;
+    ctx.shadowColor = played;
+    ctx.shadowBlur = 3;
+    ctx.fillRect(0, cy - 1, startX, 2);
+    ctx.shadowBlur = 0;
+  }
 
   ctx.globalAlpha = 1;
   ctx.strokeStyle = played;
@@ -604,80 +604,76 @@ function drawLiquidFill(
 function drawRetroTape(
   canvas: HTMLCanvasElement,
   progress: number,
-  _buffered: number,
+  buffered: number,
   animState: AnimState,
 ) {
   const r = setupCanvas(canvas);
   if (!r) return;
   const { ctx, w, h } = r;
-  const { played, unplayed } = getColors();
+  const { played, buffered: buffCol, unplayed } = getColors();
   const cy = h / 2;
 
-  animState.angle += 0.042;
+  animState.angle += 0.055;
 
-  const maxR = Math.floor(h / 2) - 1;
-  const minR = Math.max(2, maxR * 0.28);
-  // supply reel (left): shrinks as progress increases
-  const rL = minR + (maxR - minR) * (1 - progress);
-  // takeup reel (right): grows as progress increases
-  const rR = minR + (maxR - minR) * progress;
-  const lx = maxR + 1;
-  const rx = w - maxR - 1;
+  const reelR = Math.min(h / 2 - 0.5, 9);
+  // Map progress to a center x that keeps the reel fully within the canvas
+  const px = reelR + (w - 2 * reelR) * progress;
 
-  // Tape between reels
-  const tapeLeft  = lx + rL + 0.5;
-  const tapeRight = rx - rR - 0.5;
-  if (tapeRight > tapeLeft) {
-    ctx.globalAlpha = 0.45;
-    ctx.fillStyle = unplayed;
-    ctx.fillRect(tapeLeft, cy - 1.5, tapeRight - tapeLeft, 3);
+  // Background track
+  ctx.globalAlpha = 0.3;
+  ctx.fillStyle = unplayed;
+  ctx.fillRect(0, cy - 1, w, 2);
+
+  if (buffered > 0) {
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = buffCol;
+    ctx.fillRect(0, cy - 1, buffered * w, 2);
   }
 
-  const drawReel = (
-    cx: number,
-    radius: number,
-    angle: number,
-    isRight: boolean,
-  ) => {
-    const color = isRight ? played : unplayed;
-    const alpha = isRight ? (progress > 0 ? 1 : 0.35) : (progress < 1 ? 0.55 : 0.35);
-    const glowing = isRight && progress > 0;
-
-    ctx.globalAlpha = alpha;
-    if (glowing) { ctx.shadowColor = played; ctx.shadowBlur = 6; }
-
-    // Outer ring
-    ctx.strokeStyle = color;
-    ctx.lineWidth   = 1;
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.stroke();
+  // Played portion — up to the left edge of the reel
+  if (progress > 0) {
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = played;
+    ctx.shadowColor = played;
+    ctx.shadowBlur = 4;
+    ctx.fillRect(0, cy - 1, px - reelR, 2);
     ctx.shadowBlur = 0;
+  }
 
-    // Hub
-    const hubR = Math.max(1.5, radius * 0.3);
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(cx, cy, hubR, 0, Math.PI * 2);
-    ctx.fill();
+  // Spinning reel at playhead
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = played;
+  ctx.lineWidth = 1;
+  ctx.shadowColor = played;
+  ctx.shadowBlur = 7;
 
-    // Spokes (only if reel is large enough)
-    if (radius > hubR + 2.5) {
-      ctx.lineWidth   = 0.9;
-      ctx.strokeStyle = color;
-      for (let s = 0; s < 3; s++) {
-        const a = angle + (s * Math.PI * 2) / 3;
-        ctx.beginPath();
-        ctx.moveTo(cx + Math.cos(a) * (hubR + 0.5), cy + Math.sin(a) * (hubR + 0.5));
-        ctx.lineTo(cx + Math.cos(a) * (radius - 0.5), cy + Math.sin(a) * (radius - 0.5));
-        ctx.stroke();
-      }
+  // Outer ring
+  ctx.beginPath();
+  ctx.arc(px, cy, reelR, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Hub
+  const hubR = Math.max(1.5, reelR * 0.28);
+  ctx.fillStyle = played;
+  ctx.beginPath();
+  ctx.arc(px, cy, hubR, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Spokes
+  if (reelR > hubR + 2) {
+    ctx.lineWidth = 0.9;
+    ctx.strokeStyle = played;
+    for (let s = 0; s < 3; s++) {
+      const a = animState.angle + (s * Math.PI * 2) / 3;
+      ctx.beginPath();
+      ctx.moveTo(px + Math.cos(a) * (hubR + 0.5), cy + Math.sin(a) * (hubR + 0.5));
+      ctx.lineTo(px + Math.cos(a) * (reelR - 0.5), cy + Math.sin(a) * (reelR - 0.5));
+      ctx.stroke();
     }
-  };
+  }
 
-  drawReel(lx, rL, -animState.angle, false);
-  drawReel(rx, rR,  animState.angle, true);
-
+  ctx.shadowBlur = 0;
   ctx.globalAlpha = 1;
 }
 
