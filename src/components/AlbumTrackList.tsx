@@ -54,6 +54,8 @@ interface AlbumTrackListProps {
   currentTrack: Track | null;
   isPlaying: boolean;
   ratings: Record<string, number>;
+  /** Merged after local `ratings` (e.g. skip→1★ optimistic updates). */
+  userRatingOverrides: Record<string, number>;
   starredSongs: Set<string>;
   onPlaySong: (song: SubsonicSong) => void;
   onRate: (songId: string, rating: number) => void;
@@ -67,6 +69,7 @@ export default function AlbumTrackList({
   currentTrack,
   isPlaying,
   ratings,
+  userRatingOverrides,
   starredSongs,
   onPlaySong,
   onRate,
@@ -252,7 +255,7 @@ export default function AlbumTrackList({
         return (
           <StarRating
             key="rating"
-            value={ratings[song.id] ?? song.userRating ?? 0}
+            value={ratings[song.id] ?? userRatingOverrides[song.id] ?? song.userRating ?? 0}
             onChange={r => onRate(song.id, r)}
           />
         );

@@ -509,17 +509,15 @@ export const nlTranslation = {
     ratingsSectionTitle: 'Beoordelingen',
     ratingsSkipStarTitle: 'Overslaan voor 1 ster',
     ratingsSkipStarDesc:
-      'Na N handmatige overslagen van hetzelfde nummer: serverbeoordeling 1 ster als nog niet beoordeeld.',
+      'Na N overslagen op rij: nummer op 1 ster zetten. Alleen voor nummers die nog niet beoordeeld waren.',
     ratingsSkipStarThresholdLabel: 'Overslagen voor 1★',
-    ratingsSkipStarThresholdHint:
-      'Alleen als je het nummer verlaat met Volgende / mediatoets «volgende», niet als het vanzelf stopt. Geen wijziging als het nummer al minstens 1 ster heeft.',
     ratingsMixFilterTitle: 'Filter op beoordeling',
     ratingsMixFilterDesc:
-      'Content met lage beoordeling filteren in willekeurige mixen en willekeurige albums. Klik dezelfde ster opnieuw om de drempel uit te zetten.',
-    ratingsMixMinSong: 'Nummers (nummerbeoordeling)',
+      'Content met lage beoordeling filteren in {{mix}} en {{albums}}. Klik opnieuw op de gekozen ster om de drempel uit te zetten.',
+    ratingsMixMinSong: 'Nummers',
     ratingsMixMinAlbum: 'Albums',
     ratingsMixMinArtist: 'Artiesten',
-    ratingsMixMinThresholdAria: 'Minimum sterren ({{label}})',
+    ratingsMixMinThresholdAria: 'Minimum sterren: {{label}}',
     backupTitle: 'Back-up & Herstel',
     backupExport: 'Instellingen exporteren',
     backupExportDesc: 'Slaat alle instellingen, serverprofielen, Last.fm-configuratie, thema, EQ en sneltoetsen op in een .psybkp-bestand. Wachtwoorden worden opgeslagen als leesbare tekst — bewaar het bestand veilig.',

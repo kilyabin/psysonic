@@ -819,18 +819,18 @@ export default function Settings() {
                   </label>
                 </div>
               </div>
-              {auth.skipStarOnManualSkipsEnabled && (
-                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10, lineHeight: 1.45 }}>
-                  {t('settings.ratingsSkipStarThresholdHint')}
-                </p>
-              )}
 
               <div className="settings-section-divider" />
 
               <div className="settings-toggle-row">
                 <div>
                   <div style={{ fontWeight: 500 }}>{t('settings.ratingsMixFilterTitle')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.ratingsMixFilterDesc')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    {t('settings.ratingsMixFilterDesc', {
+                      mix: t('sidebar.randomMix'),
+                      albums: t('sidebar.randomAlbums'),
+                    })}
+                  </div>
                 </div>
                 <label className="toggle-switch" aria-label={t('settings.ratingsMixFilterTitle')}>
                   <input

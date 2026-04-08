@@ -76,6 +76,9 @@ interface PlayerState {
   lastfmLovedCache: Record<string, boolean>;
   starredOverrides: Record<string, boolean>;
   setStarredOverride: (id: string, starred: boolean) => void;
+  /** Optimistic track ratings (e.g. skip→1★ while UI lists still have stale `song.userRating`). */
+  userRatingOverrides: Record<string, number>;
+  setUserRatingOverride: (id: string, rating: number) => void;
 
   playRadio: (station: InternetRadioStation) => void;
   playTrack: (track: Track, queue?: Track[], manual?: boolean) => void;
@@ -161,30 +164,33 @@ let seekTarget: number | null = null;
 // to the Rust backend before it has finished the previous one.
 let togglePlayLock = false;
 
-/** Manual skip counts per track id toward optional “skip → rating 1” (in-memory). */
-const manualSkipStarCounts = new Map<string, number>();
-
+/**
+ * Skip → 1★: counts in `authStore.skipStarManualSkipCountsByKey` (persisted).
+ * Only user-initiated `next()` increments. Natural track end (incl. gapless) clears the count;
+ * threshold reached clears count and sets 1★ if still unrated.
+ */
 function applySkipStarOnManualNext(skippedTrack: Track | null, manual: boolean): void {
   if (!manual || !skippedTrack) return;
-  const { skipStarOnManualSkipsEnabled, skipStarManualSkipThreshold } = useAuthStore.getState();
-  if (!skipStarOnManualSkipsEnabled || skipStarManualSkipThreshold < 1) return;
   const id = skippedTrack.id;
-  const n = (manualSkipStarCounts.get(id) ?? 0) + 1;
-  if (n >= skipStarManualSkipThreshold) {
-    manualSkipStarCounts.delete(id);
-    const cur = skippedTrack.userRating ?? 0;
-    if (cur >= 1) return;
-    setRating(id, 1)
-      .then(() => {
-        usePlayerStore.setState(s => ({
-          queue: s.queue.map(t => (t.id === id ? { ...t, userRating: 1 } : t)),
-          currentTrack: s.currentTrack?.id === id ? { ...s.currentTrack, userRating: 1 } : s.currentTrack,
-        }));
-      })
-      .catch(() => {});
-  } else {
-    manualSkipStarCounts.set(id, n);
-  }
+  const adv = useAuthStore.getState().recordSkipStarManualAdvance(id);
+  if (!adv?.crossedThreshold) return;
+  const live = usePlayerStore.getState();
+  const fromQueue = live.queue.find(t => t.id === id);
+  const cur =
+    live.userRatingOverrides[id] ??
+    fromQueue?.userRating ??
+    skippedTrack.userRating ??
+    0;
+  if (cur >= 1) return;
+  setRating(id, 1)
+    .then(() => {
+      usePlayerStore.setState(s => ({
+        queue: s.queue.map(t => (t.id === id ? { ...t, userRating: 1 } : t)),
+        currentTrack: s.currentTrack?.id === id ? { ...s.currentTrack, userRating: 1 } : s.currentTrack,
+        userRatingOverrides: { ...s.userRatingOverrides, [id]: 1 },
+      }));
+    })
+    .catch(() => {});
 }
 
 // ── HTML5 Radio Player ────────────────────────────────────────────────────────
@@ -361,7 +367,6 @@ function handleAudioEnded() {
   }
 
   const { repeatMode, currentTrack, queue } = usePlayerStore.getState();
-  if (currentTrack?.id) manualSkipStarCounts.delete(currentTrack.id);
   isAudioPaused = false;
   usePlayerStore.setState({ isPlaying: false, progress: 0, currentTime: 0, buffered: 0 });
   setTimeout(() => {
@@ -384,6 +389,9 @@ function handleAudioTrackSwitched(duration: number) {
   isAudioPaused = false;
 
   const store = usePlayerStore.getState();
+  if (store.currentTrack?.id) {
+    useAuthStore.getState().clearSkipStarManualCountForTrack(store.currentTrack.id);
+  }
   const { queue, queueIndex, repeatMode } = store;
   const nextIdx = queueIndex + 1;
   let nextTrack: Track | null = null;
@@ -603,6 +611,19 @@ export const usePlayerStore = create<PlayerState>()(
       lastfmLovedCache: {},
       starredOverrides: {},
       setStarredOverride: (id, starred) => set(s => ({ starredOverrides: { ...s.starredOverrides, [id]: starred } })),
+      userRatingOverrides: {},
+      setUserRatingOverride: (id, rating) =>
+        set(s => {
+          const nextOverrides = { ...s.userRatingOverrides };
+          if (rating === 0) delete nextOverrides[id];
+          else nextOverrides[id] = rating;
+          return {
+            userRatingOverrides: nextOverrides,
+            queue: s.queue.map(t => (t.id === id ? { ...t, userRating: rating } : t)),
+            currentTrack:
+              s.currentTrack?.id === id ? { ...s.currentTrack, userRating: rating } : s.currentTrack,
+          };
+        }),
       isQueueVisible: true,
       isFullscreenOpen: false,
       repeatMode: 'off',

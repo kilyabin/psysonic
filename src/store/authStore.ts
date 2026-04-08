@@ -64,13 +64,23 @@ interface AuthState {
   skipStarOnManualSkipsEnabled: boolean;
   /** Manual skips per track before applying rating 1 (when enabled). */
   skipStarManualSkipThreshold: number;
+  /**
+   * Manual Next-count per track for skip→1★. Key = `${serverId}\\u001f${trackId}`
+   * (empty serverId when none). Persisted; cleared when the track finishes naturally or when threshold is reached.
+   */
+  skipStarManualSkipCountsByKey: Record<string, number>;
+  /** Increment skip count for current server + track; clears stored count when threshold reached. */
+  recordSkipStarManualAdvance: (trackId: string) => { crossedThreshold: boolean } | null;
+  /** Drop persisted skip count for this track on the active server (e.g. natural playback end). */
+  clearSkipStarManualCountForTrack: (trackId: string) => void;
 
-  /** Planned / active filter: random mixes (and later album flows) by min stars per axis. */
+  /** Random mixes, random albums, home hero: drop non‑zero ratings at or below per‑axis thresholds (0 = unrated, kept). */
   mixMinRatingFilterEnabled: boolean;
-  /** 0 = off; 1–3 = require at least that many stars on the song (UI capped at 3). */
+  /** 0 = ignore; 1–3 = cutoff (UI); exclude track rating r when 0 < r ≤ cutoff. */
   mixMinRatingSong: number;
-  /** 0–3; uses `albumUserRating` on song payload when present (OpenSubsonic). */
+  /** 0 = ignore; album entity rating from payload or `getAlbum` when missing. */
   mixMinRatingAlbum: number;
+  /** 0 = ignore; artist rating from payload / nested OpenSubsonic fields or `getArtist`. */
   mixMinRatingArtist: number;
 
   /** Subsonic music folders for the active server (not persisted; refetched on login / server change). */
@@ -170,6 +180,20 @@ function clampSkipStarThreshold(v: number): number {
   return Math.max(1, Math.min(99, Math.round(v)));
 }
 
+function skipStarCountStorageKey(serverId: string | null | undefined, trackId: string): string {
+  return `${serverId ?? ''}\u001f${trackId}`;
+}
+
+function sanitizeSkipStarCounts(raw: unknown): Record<string, number> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const next: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const n = Number(v);
+    if (Number.isFinite(n) && n > 0) next[k] = Math.min(Math.floor(n), 1_000_000);
+  }
+  return next;
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
@@ -211,6 +235,7 @@ export const useAuthStore = create<AuthState>()(
       hotCacheDownloadDir: '',
       skipStarOnManualSkipsEnabled: false,
       skipStarManualSkipThreshold: 3,
+      skipStarManualSkipCountsByKey: {},
       mixMinRatingFilterEnabled: false,
       mixMinRatingSong: 0,
       mixMinRatingAlbum: 0,
@@ -305,8 +330,39 @@ export const useAuthStore = create<AuthState>()(
       setHotCacheDebounceSec: (v) => set({ hotCacheDebounceSec: v }),
       setHotCacheDownloadDir: (v) => set({ hotCacheDownloadDir: v }),
 
-      setSkipStarOnManualSkipsEnabled: (v) => set({ skipStarOnManualSkipsEnabled: v }),
+      setSkipStarOnManualSkipsEnabled: (v) =>
+        set({
+          skipStarOnManualSkipsEnabled: v,
+          ...(v ? {} : { skipStarManualSkipCountsByKey: {} }),
+        }),
       setSkipStarManualSkipThreshold: (v) => set({ skipStarManualSkipThreshold: clampSkipStarThreshold(v) }),
+
+      recordSkipStarManualAdvance: (trackId: string) => {
+        const s = get();
+        if (!s.skipStarOnManualSkipsEnabled || s.skipStarManualSkipThreshold < 1) return null;
+        const key = skipStarCountStorageKey(s.activeServerId, trackId);
+        const prev = s.skipStarManualSkipCountsByKey[key] ?? 0;
+        const threshold = s.skipStarManualSkipThreshold;
+        const next = prev + 1;
+        if (next >= threshold) {
+          const { [key]: _removed, ...rest } = s.skipStarManualSkipCountsByKey;
+          set({ skipStarManualSkipCountsByKey: rest });
+          return { crossedThreshold: true };
+        }
+        set({
+          skipStarManualSkipCountsByKey: { ...s.skipStarManualSkipCountsByKey, [key]: next },
+        });
+        return { crossedThreshold: false };
+      },
+
+      clearSkipStarManualCountForTrack: (trackId: string) => {
+        const s = get();
+        const key = skipStarCountStorageKey(s.activeServerId, trackId);
+        if (s.skipStarManualSkipCountsByKey[key] === undefined) return;
+        const { [key]: _removed, ...rest } = s.skipStarManualSkipCountsByKey;
+        set({ skipStarManualSkipCountsByKey: rest });
+      },
+
       setMixMinRatingFilterEnabled: (v) => set({ mixMinRatingFilterEnabled: v }),
       setMixMinRatingSong: (v) => set({ mixMinRatingSong: clampMixFilterMinStars(v) }),
       setMixMinRatingAlbum: (v) => set({ mixMinRatingAlbum: clampMixFilterMinStars(v) }),
@@ -367,6 +423,9 @@ export const useAuthStore = create<AuthState>()(
           mixMinRatingSong: clampMixFilterMinStars(state.mixMinRatingSong as number),
           mixMinRatingAlbum: clampMixFilterMinStars(state.mixMinRatingAlbum as number),
           mixMinRatingArtist: clampMixFilterMinStars(state.mixMinRatingArtist as number),
+          skipStarManualSkipCountsByKey: sanitizeSkipStarCounts(
+            (state as { skipStarManualSkipCountsByKey?: unknown }).skipStarManualSkipCountsByKey,
+          ),
         });
       },
     }

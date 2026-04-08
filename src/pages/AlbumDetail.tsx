@@ -34,6 +34,7 @@ export default function AlbumDetail() {
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
   const setStarredOverride = usePlayerStore(s => s.setStarredOverride);
+  const userRatingOverrides = usePlayerStore(s => s.userRatingOverrides);
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const isPlaying = usePlayerStore(s => s.isPlaying);
 
@@ -137,6 +138,7 @@ const handleEnqueueAll = () => {
 
   const handleRate = async (songId: string, rating: number) => {
     setRatings(r => ({ ...r, [songId]: rating }));
+    usePlayerStore.getState().setUserRatingOverride(songId, rating);
     await setRating(songId, rating);
   };
 
@@ -331,6 +333,7 @@ const handleEnqueueAll = () => {
         currentTrack={currentTrack}
         isPlaying={isPlaying}
         ratings={ratings}
+        userRatingOverrides={userRatingOverrides}
         starredSongs={new Set([
           ...[...starredSongs].filter(id => starredOverrides[id] !== false),
           ...Object.entries(starredOverrides).filter(([, v]) => v).map(([k]) => k),

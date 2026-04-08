@@ -509,17 +509,15 @@ export const frTranslation = {
     ratingsSectionTitle: 'Notes',
     ratingsSkipStarTitle: 'Passer pour 1 étoile',
     ratingsSkipStarDesc:
-      'Après N sauts manuels du même morceau : note serveur 1 étoile si encore sans note.',
+      'Après N sauts d’affilée : mettre le morceau à 1 étoile. Uniquement s’il n’était pas encore noté.',
     ratingsSkipStarThresholdLabel: 'Sauts avant 1★',
-    ratingsSkipStarThresholdHint:
-      'Uniquement si vous quittez le morceau avec Suivant / touche média « suivant », pas en fin de lecture. Aucun effet si le morceau a déjà au moins 1 étoile.',
     ratingsMixFilterTitle: 'Filtrage par note',
     ratingsMixFilterDesc:
-      'Filtrer le contenu peu noté dans les mix aléatoires et les albums aléatoires. Cliquer de nouveau sur la même étoile désactive le seuil.',
-    ratingsMixMinSong: 'Morceaux (note du titre)',
+      'Filtrer le contenu peu noté dans {{mix}} et {{albums}}. Cliquer de nouveau sur l’étoile choisie désactive le seuil.',
+    ratingsMixMinSong: 'Morceaux',
     ratingsMixMinAlbum: 'Albums',
     ratingsMixMinArtist: 'Artistes',
-    ratingsMixMinThresholdAria: 'Étoiles minimum ({{label}})',
+    ratingsMixMinThresholdAria: 'Étoiles minimum : {{label}}',
     backupTitle: 'Sauvegarde & Restauration',
     backupExport: 'Exporter les paramètres',
     backupExportDesc: 'Enregistre tous les paramètres, profils serveur, configuration Last.fm, thème, EQ et raccourcis dans un fichier .psybkp. Les mots de passe sont stockés en clair — conservez le fichier en sécurité.',

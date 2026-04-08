@@ -460,6 +460,9 @@ export const ruTranslation = {
     showTrayIconDesc: 'Показывать Psysonic в области уведомлений / строке меню.',
     minimizeToTray: 'Сворачивать в трей',
     minimizeToTrayDesc: 'При закрытии окна не выходить из приложения, а оставаться в трее.',
+    useCustomTitlebar: 'Своя строка заголовка',
+    useCustomTitlebarDesc:
+      'Заменить системную строку заголовка встроенной, в стиле темы приложения. Отключите, чтобы использовать родную строку GNOME/GTK.',
     discordRichPresence: 'Статус в Discord',
     discordRichPresenceDesc:
       'Показывать текущий трек в профиле и статусе Discord. Нужен запущенный клиент Discord.',
@@ -514,13 +517,11 @@ export const ruTranslation = {
     ratingsSectionTitle: 'Рейтинги',
     ratingsSkipStarTitle: 'Скипнуть для 1 звезды',
     ratingsSkipStarDesc:
-      'N ручных скипов трека — 1 звезда рейтинга, если трек ещё без оценки.',
+      'При N скипов подряд ставить 1★ треку. Только для не оцененных ранее.',
     ratingsSkipStarThresholdLabel: 'Скипов',
-    ratingsSkipStarThresholdHint:
-      'Считаются только переходы «Далее» / медиаклавиша «следующий», не окончание трека само по себе. Не меняет оценку, если у трека уже не ниже 1★.',
     ratingsMixFilterTitle: 'Фильтрация по рейтингу',
     ratingsMixFilterDesc:
-      'Фильтровать с низким рейтингом в Случайных миксах и Случайных альбомах. Повторный клик по выбранной звезде отключает порог.',
+      'Фильтровать с низким рейтингом в «{{mix}}» и «{{albums}}». Повторный клик по выбранной звезде отключает порог.',
     ratingsMixMinSong: 'Песни',
     ratingsMixMinAlbum: 'Альбомы',
     ratingsMixMinArtist: 'Исполнители',

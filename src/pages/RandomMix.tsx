@@ -1,11 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getRandomSongs, getGenres, SubsonicSong, SubsonicGenre, star, unstar } from '../api/subsonic';
+import { getGenres, SubsonicSong, SubsonicGenre, star, unstar } from '../api/subsonic';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { Play, RefreshCw, ChevronDown, ChevronUp, Heart } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDragDrop } from '../contexts/DragDropContext';
-import { passesMixMinRatings } from '../utils/mixRatingFilter';
+import {
+  fetchRandomMixSongsUntilFull,
+  getMixMinRatingsConfigFromAuth,
+  passesMixMinRatings,
+} from '../utils/mixRatingFilter';
 
 const AUDIOBOOK_GENRES = [
   'hörbuch', 'hoerbuch', 'hörspiel', 'hoerspiel',
@@ -76,19 +80,11 @@ export default function RandomMix() {
   const fetchSongs = () => {
     setLoading(true);
     setSongs([]);
-    getRandomSongs(50)
-      .then(fetched => {
-        const cfg = useAuthStore.getState();
-        const mixCfg = {
-          enabled: cfg.mixMinRatingFilterEnabled,
-          minSong: cfg.mixMinRatingSong,
-          minAlbum: cfg.mixMinRatingAlbum,
-          minArtist: cfg.mixMinRatingArtist,
-        };
-        const filtered = fetched.filter(s => passesMixMinRatings(s, mixCfg));
-        setSongs(filtered);
+    fetchRandomMixSongsUntilFull(getMixMinRatingsConfigFromAuth())
+      .then(list => {
+        setSongs(list);
         const st = new Set<string>();
-        filtered.forEach(s => { if (s.starred) st.add(s.id); });
+        list.forEach(s => { if (s.starred) st.add(s.id); });
         setStarredSongs(st);
         setLoading(false);
       })
@@ -161,15 +157,11 @@ export default function RandomMix() {
     setGenreMixComplete(false);
     setGenreMixSongs([]);
     try {
-      const fetched = await getRandomSongs(50, genre, 45000);
-      const cfg = useAuthStore.getState();
-      const mixCfg = {
-        enabled: cfg.mixMinRatingFilterEnabled,
-        minSong: cfg.mixMinRatingSong,
-        minAlbum: cfg.mixMinRatingAlbum,
-        minArtist: cfg.mixMinRatingArtist,
-      };
-      setGenreMixSongs(fetched.filter(s => passesMixMinRatings(s, mixCfg)));
+      const list = await fetchRandomMixSongsUntilFull(getMixMinRatingsConfigFromAuth(), {
+        genre,
+        timeout: 45000,
+      });
+      setGenreMixSongs(list);
     } catch {}
     setGenreMixLoading(false);
     setGenreMixComplete(true);

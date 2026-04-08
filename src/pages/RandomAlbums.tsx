@@ -5,8 +5,13 @@ import AlbumCard from '../components/AlbumCard';
 import GenreFilterBar from '../components/GenreFilterBar';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
+import { filterAlbumsByMixRatings, getMixMinRatingsConfigFromAuth } from '../utils/mixRatingFilter';
 
 const ALBUM_COUNT = 30;
+/** Extra pool when mix rating filter is on so we can still fill the grid after filtering. */
+const ALBUM_FETCH_OVERSHOOT = 100;
+/** Cap genre-union size before rating prefetch (avoids hundreds of `getArtist` calls). */
+const GENRE_UNION_PREFILTER_CAP = 250;
 
 async function fetchByGenres(genres: string[]): Promise<SubsonicAlbum[]> {
   const results = await Promise.all(genres.map(g => getAlbumsByGenre(g, 500, 0)));
@@ -17,12 +22,17 @@ async function fetchByGenres(genres: string[]): Promise<SubsonicAlbum[]> {
     const j = Math.floor(Math.random() * (i + 1));
     [union[i], union[j]] = [union[j], union[i]];
   }
-  return union.slice(0, ALBUM_COUNT);
+  const pool = union.slice(0, GENRE_UNION_PREFILTER_CAP);
+  const filtered = await filterAlbumsByMixRatings(pool, getMixMinRatingsConfigFromAuth());
+  return filtered.slice(0, ALBUM_COUNT);
 }
 
 export default function RandomAlbums() {
   const { t } = useTranslation();
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
+  const mixMinRatingFilterEnabled = useAuthStore(s => s.mixMinRatingFilterEnabled);
+  const mixMinRatingAlbum = useAuthStore(s => s.mixMinRatingAlbum);
+  const mixMinRatingArtist = useAuthStore(s => s.mixMinRatingArtist);
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
@@ -34,9 +44,13 @@ export default function RandomAlbums() {
     loadingRef.current = true;
     setLoading(true);
     try {
+      const mixCfg = getMixMinRatingsConfigFromAuth();
+      const albumMixActive =
+        mixCfg.enabled && (mixCfg.minAlbum > 0 || mixCfg.minArtist > 0);
+      const randomSize = albumMixActive ? Math.max(ALBUM_COUNT * 3, ALBUM_FETCH_OVERSHOOT) : ALBUM_COUNT;
       const data = genres.length > 0
         ? await fetchByGenres(genres)
-        : await getAlbumList('random', ALBUM_COUNT);
+        : (await filterAlbumsByMixRatings(await getAlbumList('random', randomSize), mixCfg)).slice(0, ALBUM_COUNT);
       setAlbums(data);
     } catch (e) {
       console.error(e);
@@ -44,7 +58,12 @@ export default function RandomAlbums() {
       loadingRef.current = false;
       setLoading(false);
     }
-  }, [musicLibraryFilterVersion]);
+  }, [
+    musicLibraryFilterVersion,
+    mixMinRatingFilterEnabled,
+    mixMinRatingAlbum,
+    mixMinRatingArtist,
+  ]);
 
   useEffect(() => { load(selectedGenres); }, [selectedGenres, load]);
 

@@ -69,7 +69,7 @@ export default function PlaylistDetail() {
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { playTrack, enqueue, openContextMenu, currentTrack, isPlaying, starredOverrides, setStarredOverride } = usePlayerStore(
+  const { playTrack, enqueue, openContextMenu, currentTrack, isPlaying, starredOverrides, setStarredOverride, userRatingOverrides } = usePlayerStore(
     useShallow(s => ({
       playTrack: s.playTrack,
       enqueue: s.enqueue,
@@ -78,6 +78,7 @@ export default function PlaylistDetail() {
       isPlaying: s.isPlaying,
       starredOverrides: s.starredOverrides,
       setStarredOverride: s.setStarredOverride,
+      userRatingOverrides: s.userRatingOverrides,
     }))
   );
   const touchPlaylist = usePlaylistStore((s) => s.touchPlaylist);
@@ -354,6 +355,7 @@ export default function PlaylistDetail() {
   // ── Rating / Star ─────────────────────────────────────────────
   const handleRate = (songId: string, rating: number) => {
     setRatings(prev => ({ ...prev, [songId]: rating }));
+    usePlayerStore.getState().setUserRatingOverride(songId, rating);
     setRating(songId, rating).catch(() => {});
   };
 
@@ -844,7 +846,7 @@ export default function PlaylistDetail() {
                       </button>
                     </div>
                   );
-                  case 'rating': return <StarRating key="rating" value={ratings[song.id] ?? song.userRating ?? 0} onChange={r => handleRate(song.id, r)} />;
+                  case 'rating': return <StarRating key="rating" value={ratings[song.id] ?? userRatingOverrides[song.id] ?? song.userRating ?? 0} onChange={r => handleRate(song.id, r)} />;
                   case 'duration': return <div key="duration" className="track-duration">{formatDuration(song.duration ?? 0)}</div>;
                   case 'format': return (
                     <div key="format" className="track-meta">
