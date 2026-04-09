@@ -88,9 +88,13 @@ function AppShell() {
   }, []);
 
   useEffect(() => {
-    if (!IS_LINUX) return;
     const win = getCurrentWindow();
+    // Check initial state (e.g. app launched maximised / already fullscreen).
+    win.isFullscreen().then(setIsWindowFullscreen).catch(() => {});
     let unlisten: (() => void) | undefined;
+    // onResized fires on every size change, including fullscreen enter/exit on
+    // all platforms.  We re-query isFullscreen() rather than inferring from
+    // the size so the flag is always accurate regardless of platform quirks.
     win.onResized(() => {
       win.isFullscreen().then(setIsWindowFullscreen).catch(() => {});
     }).then(u => { unlisten = u; });
@@ -299,6 +303,7 @@ function AppShell() {
       data-mobile={isMobile || undefined}
       data-mobile-player={isMobilePlayer || undefined}
       data-titlebar={(IS_LINUX && useCustomTitlebar && !isWindowFullscreen && !isTilingWm) || undefined}
+      data-fullscreen={isWindowFullscreen || undefined}
       style={{
         '--sidebar-width': isMobile ? '0px' : (isSidebarCollapsed ? '72px' : 'clamp(200px, 15vw, 220px)'),
         '--queue-width': isMobile ? '0px' : (isQueueVisible ? `${queueWidth}px` : '0px')
