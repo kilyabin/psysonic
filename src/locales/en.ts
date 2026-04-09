@@ -491,7 +491,6 @@ export const enTranslation = {
     aboutLicense: 'License',
     aboutLicenseText: 'GNU GPL v3 — free to use, modify, and distribute under the same license.',
     aboutRepo: 'Source Code on GitHub',
-    aboutPreviewUpdate: 'Preview Update Modal',
     aboutVersion: 'Version',
     aboutBuiltWith: 'Built with Tauri · React · TypeScript · Rust/rodio',
     aboutAiCredit: 'Developed with the support of Claude Code by Anthropic',

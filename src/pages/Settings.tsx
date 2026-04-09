@@ -107,6 +107,7 @@ const CONTRIBUTORS = [
       'Auto-install script for Debian / RHEL (PR #121)',
       'Album cover art in Discord Rich Presence via iTunes API (PR #111)',
       'Tiling WM detection: hide custom TitleBar on Hyprland/Sway/i3/etc. (PR #134)',
+      'Russian translation: lyricsServerFirst settings strings (PR #140)',
     ],
   },
   {
@@ -1870,13 +1871,6 @@ export default function Settings() {
                 >
                   <ExternalLink size={14} />
                   {t('settings.aboutRepo')}
-                </button>
-                <button
-                  className="btn btn-ghost"
-                  style={{ alignSelf: 'flex-start' }}
-                  onClick={() => window.dispatchEvent(new CustomEvent('psysonic:preview-update'))}
-                >
-                  {t('settings.aboutPreviewUpdate')}
                 </button>
               </div>
             </div>
