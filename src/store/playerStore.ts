@@ -353,7 +353,7 @@ function handleAudioProgress(current_time: number, duration: number) {
         const authState = useAuthStore.getState();
         const replayGainDb = authState.replayGainEnabled
           ? (authState.replayGainMode === 'album'
-              ? nextTrack.replayGainAlbumDb
+              ? (nextTrack.replayGainAlbumDb ?? nextTrack.replayGainTrackDb)
               : nextTrack.replayGainTrackDb) ?? null
           : null;
         const replayGainPeak = authState.replayGainEnabled
@@ -814,7 +814,7 @@ export const usePlayerStore = create<PlayerState>()(
         setDeferHotCachePrefetch(true);
         const url = resolvePlaybackUrl(track.id, authState.activeServerId ?? '');
         const replayGainDb = authState.replayGainEnabled
-          ? (authState.replayGainMode === 'album' ? track.replayGainAlbumDb : track.replayGainTrackDb) ?? null
+          ? (authState.replayGainMode === 'album' ? (track.replayGainAlbumDb ?? track.replayGainTrackDb) : track.replayGainTrackDb) ?? null
           : null;
         const replayGainPeak = authState.replayGainEnabled ? (track.replayGainPeak ?? null) : null;
         invoke('audio_play', {
@@ -896,7 +896,7 @@ export const usePlayerStore = create<PlayerState>()(
             if (freshSong) set({ currentTrack: trackToPlay });
             const authStateCold = useAuthStore.getState();
             const replayGainDbCold = authStateCold.replayGainEnabled
-              ? (authStateCold.replayGainMode === 'album' ? trackToPlay.replayGainAlbumDb : trackToPlay.replayGainTrackDb) ?? null
+              ? (authStateCold.replayGainMode === 'album' ? (trackToPlay.replayGainAlbumDb ?? trackToPlay.replayGainTrackDb) : trackToPlay.replayGainTrackDb) ?? null
               : null;
             const replayGainPeakCold = authStateCold.replayGainEnabled ? (trackToPlay.replayGainPeak ?? null) : null;
             const coldServerId = useAuthStore.getState().activeServerId ?? '';
@@ -1271,8 +1271,8 @@ export const usePlayerStore = create<PlayerState>()(
          if (!currentTrack || !currentTrack.id) return;
          const authState = useAuthStore.getState();
          const replayGainDb = authState.replayGainEnabled
-           ? (authState.replayGainMode === 'album' 
-               ? currentTrack.replayGainAlbumDb 
+           ? (authState.replayGainMode === 'album'
+               ? (currentTrack.replayGainAlbumDb ?? currentTrack.replayGainTrackDb)
                : currentTrack.replayGainTrackDb) ?? null
            : null;
          const replayGainPeak = authState.replayGainEnabled 
