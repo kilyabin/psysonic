@@ -856,7 +856,10 @@ export interface SubsonicLyricLine {
 }
 
 export interface SubsonicStructuredLyrics {
-  issynced: boolean;
+  /** OpenSubsonic spec field name (Navidrome ≥ 0.50.0 / any OpenSubsonic server). */
+  synced?: boolean;
+  /** Legacy / alternate casing used by some older Subsonic-compatible servers. */
+  issynced?: boolean;
   lang?: string;
   offset?: number;
   displayArtist?: string;
@@ -878,7 +881,7 @@ export async function getLyricsBySongId(id: string): Promise<SubsonicStructuredL
     );
     const list = data.lyricsList?.structuredLyrics;
     if (!list || list.length === 0) return null;
-    return list.find(l => l.issynced) ?? list[0];
+    return list.find(l => l.synced || l.issynced) ?? list[0];
   } catch {
     // Server doesn't support the endpoint or track has no embedded lyrics
     return null;

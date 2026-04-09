@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { fetchLyrics, parseLrc, LrcLine } from '../api/lrclib';
 import { getLyricsBySongId, SubsonicStructuredLyrics } from '../api/subsonic';
 import { useAuthStore } from '../store/authStore';
+import { useOfflineStore } from '../store/offlineStore';
+import { useHotCacheStore } from '../store/hotCacheStore';
 import type { Track } from '../store/playerStore';
 
-export type LyricsSource = 'server' | 'lrclib';
+export type LyricsSource = 'server' | 'lrclib' | 'embedded';
 
 export interface CachedLyrics {
   syncedLines: LrcLine[] | null;
@@ -20,7 +23,9 @@ export const lyricsCache = new Map<string, CachedLyrics>();
 export function parseStructuredLyrics(
   lyrics: SubsonicStructuredLyrics,
 ): Pick<CachedLyrics, 'syncedLines' | 'plainLyrics'> {
-  if (lyrics.issynced && lyrics.line.length > 0) {
+  // Accept both `synced` (OpenSubsonic spec) and `issynced` (legacy servers).
+  const isSynced = !!(lyrics.synced ?? lyrics.issynced);
+  if (isSynced && lyrics.line.length > 0) {
     const lines: LrcLine[] = lyrics.line
       .filter(l => l.start !== undefined)
       .map(l => ({ time: l.start! / 1000, text: l.value.trim() }))
@@ -79,6 +84,37 @@ export function useLyrics(currentTrack: Track | null): UseLyricsResult {
       setLoading(false);
     };
 
+    // For offline / hot-cached tracks we have the file locally — read SYLT /
+    // SYNCEDLYRICS directly via Rust instead of relying on Navidrome's parsing.
+    // Fast path: both store lookups are synchronous; returns false immediately
+    // for streaming tracks so it has zero impact on the normal fetch sequence.
+    const fetchEmbedded = async (): Promise<boolean> => {
+      const serverId = useAuthStore.getState().activeServerId ?? '';
+      const localUrl =
+        useOfflineStore.getState().getLocalUrl(currentTrack.id, serverId) ??
+        useHotCacheStore.getState().getLocalUrl(currentTrack.id, serverId);
+      if (!localUrl) return false;
+
+      const prefix = 'psysonic-local://';
+      const filePath = localUrl.startsWith(prefix) ? localUrl.slice(prefix.length) : null;
+      if (!filePath) return false;
+
+      try {
+        const lrcString = await invoke<string | null>('get_embedded_lyrics', { path: filePath });
+        if (!lrcString) return false;
+
+        const lines = parseLrc(lrcString);
+        const synced = lines.length > 0 ? lines : null;
+        const plain  = synced ? null : (lrcString.trim() || null);
+        if (!synced && !plain) return false;
+
+        store({ syncedLines: synced, plainLyrics: plain, source: 'embedded', notFound: false });
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
     const fetchServer = async (): Promise<boolean> => {
       const structured = await getLyricsBySongId(currentTrack.id);
       if (!structured) return false;
@@ -107,6 +143,10 @@ export function useLyrics(currentTrack: Track | null): UseLyricsResult {
     };
 
     (async () => {
+      // Embedded lyrics from local file always win (most accurate SYLT data).
+      if (cancelled) return;
+      if (await fetchEmbedded()) return;
+
       const [first, second] = lyricsServerFirst
         ? [fetchServer, fetchLrclibFn]
         : [fetchLrclibFn, fetchServer];

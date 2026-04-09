@@ -44,6 +44,8 @@ souvlaki = { version = "0.8", default-features = false, features = ["use_zbus"] 
 discord-rich-presence = "0.2"
 url = "2"
 thread-priority = "1"
+lofty = "0.22"
+id3 = "1.16.4"
 
 [patch.crates-io]
 # Local patch for Symphonia's isomp4 demuxer:

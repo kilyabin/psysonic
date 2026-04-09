@@ -200,13 +200,10 @@ export default function AppUpdater() {
   };
 
   const handleShowFolder = async () => {
-    try {
-      const dir = await dirname(dlPath);
-      await open(dir);
-    } catch {
-      // fallback: try opening the file path directly
-      await open(dlPath).catch(() => {});
-    }
+    // tauri-plugin-shell's open() only allows https:// per capability scope —
+    // local paths are blocked and fail silently. Delegate to Rust instead.
+    const dir = await dirname(dlPath);
+    await invoke('open_folder', { path: dir });
   };
 
   const pct = dlProgress.total > 0

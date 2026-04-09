@@ -713,6 +713,139 @@ async fn download_update(url: String, filename: String, app: tauri::AppHandle) -
     }
 }
 
+/// Reads embedded synced / unsynced lyrics from a local audio file.
+///
+/// Priority order:
+///   MP3  → ID3v2 SYLT (synchronized, ms timestamps) → ID3v2 USLT (plain)
+///   FLAC → Vorbis SYNCEDLYRICS (LRC string)          → Vorbis LYRICS (plain)
+///
+/// Returns a standard LRC string (`[mm:ss.cc]line\n…`) for synced lyrics,
+/// or plain text for unsynced lyrics.  Returns `None` when no lyrics are found.
+/// Errors are silenced and mapped to `None` so the frontend falls through to the
+/// next lyrics source without crashing.
+#[tauri::command]
+fn get_embedded_lyrics(path: String) -> Option<String> {
+    use lofty::file::FileType;
+    use lofty::prelude::*;
+    use lofty::probe::Probe;
+
+    let fpath = std::path::Path::new(&path);
+    if !fpath.exists() {
+        return None;
+    }
+
+    // Detect file type from magic bytes only — no full tag read yet.
+    // guess_file_type() consumes self and returns Self, so reassign.
+    let probe = Probe::open(fpath).ok()?;
+    let probe = probe.guess_file_type().ok()?;
+    let file_type = probe.file_type();
+
+    // ── MP3 / MPEG: use the `id3` crate for SYLT / USLT ─────────────────────
+    // lofty's MpegFile::id3v2_tag field is pub(crate) — not accessible here.
+    // The `id3` crate exposes a clean public API for typed ID3v2 frames.
+    if matches!(file_type, Some(FileType::Mpeg)) {
+        use id3::{Content, Tag as Id3Tag};
+
+        if let Ok(tag) = Id3Tag::read_from_path(fpath) {
+            // 1. SYLT — millisecond-timestamped synced lyrics.
+            for frame in tag.frames() {
+                if frame.id() != "SYLT" {
+                    continue;
+                }
+                if let Content::SynchronisedLyrics(sylt) = frame.content() {
+                    // Only accept millisecond timestamps — MPEG-frame-based
+                    // timestamps can't be converted to wall-clock seconds.
+                    if sylt.timestamp_format != id3::frame::TimestampFormat::Ms {
+                        continue;
+                    }
+                    let lrc: String = sylt
+                        .content
+                        .iter()
+                        .filter_map(|(ms, text)| {
+                            let t = text.trim();
+                            if t.is_empty() {
+                                return None;
+                            }
+                            let mins = ms / 60_000;
+                            let secs = (ms % 60_000) / 1_000;
+                            let cs   = (ms % 1_000) / 10;
+                            // [mm:ss.cc] matches parseLrc's /\d+(?:\.\d*)?/ regex
+                            Some(format!("[{:02}:{:02}.{:02}]{}\n", mins, secs, cs, t))
+                        })
+                        .collect();
+                    if !lrc.is_empty() {
+                        return Some(lrc.trim_end().to_owned());
+                    }
+                }
+            }
+
+            // 2. USLT — unsynchronized lyrics, plain-text fallback.
+            for frame in tag.frames() {
+                if frame.id() != "USLT" {
+                    continue;
+                }
+                if let Content::Lyrics(uslt) = frame.content() {
+                    let text = uslt.text.trim();
+                    if !text.is_empty() {
+                        return Some(text.to_owned());
+                    }
+                }
+            }
+        }
+        return None; // MPEG file but no usable lyrics found
+    }
+
+    // ── FLAC / Vorbis / Opus / M4A: generic lofty tag API ────────────────────
+    // Vorbis SYNCEDLYRICS stores a complete LRC string in a plain comment field.
+    // It is not a known lofty ItemKey, so access it via ItemKey::Unknown.
+    let tagged = probe.read().ok()?;
+    for tag in tagged.tags() {
+        if let Some(lrc) = tag.get_string(&ItemKey::Unknown("SYNCEDLYRICS".to_owned())) {
+            let lrc = lrc.trim();
+            if !lrc.is_empty() {
+                return Some(lrc.to_owned());
+            }
+        }
+        if let Some(plain) = tag.get_string(&ItemKey::Lyrics) {
+            let plain = plain.trim();
+            if !plain.is_empty() {
+                return Some(plain.to_owned());
+            }
+        }
+    }
+
+    None
+}
+
+/// Opens a directory in the OS file manager (Explorer / Finder / Nautilus).
+/// Uses platform-specific process spawning — tauri-plugin-shell's open() only
+/// allows https:// URLs per the capability scope and fails silently for paths.
+#[tauri::command]
+fn open_folder(path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer.exe")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 /// Progress payload emitted to the frontend during a ZIP download.
 /// `total` is `None` when the server doesn't send a `Content-Length` header
 /// (Navidrome on-the-fly ZIPs).
@@ -1310,6 +1443,8 @@ pub fn run() {
             download_zip,
             check_arch_linux,
             download_update,
+            open_folder,
+            get_embedded_lyrics,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Psysonic");
