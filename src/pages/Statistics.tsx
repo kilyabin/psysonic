@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getAlbumList, getArtists, getGenres, getRandomSongs, SubsonicAlbum, SubsonicGenre } from '../api/subsonic';
+import { getAlbumList, getArtists, getRandomSongs, SubsonicAlbum, SubsonicGenre } from '../api/subsonic';
 import AlbumRow from '../components/AlbumRow';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
@@ -64,30 +64,29 @@ export default function Statistics() {
       getAlbumList('frequent', 12).catch(() => []),
       getAlbumList('highest', 12).catch(() => []),
       getArtists().catch(() => []),
-      getGenres().catch(() => []),
-    ]).then(([rc, fr, hi, a, g]) => {
+    ]).then(([rc, fr, hi, a]) => {
       setRecent(rc);
       setFrequent(fr);
       setHighest(hi);
       setArtistCount(a.length);
-      // Album/song totals come from paginated getAlbumList (see playtime effect) — getGenres is not musicFolder-scoped.
-      const sorted = [...g].sort((a, b) => b.songCount - a.songCount);
-      setGenres(sorted);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [musicLibraryFilterVersion]);
 
-  // Background: playtime + album/song counts (same paginated list as library filter; caps at 5000 albums)
+  // Background: playtime, album/song counts, genre insights (paginated getAlbumList — respects library filter; caps at 5000 albums)
   useEffect(() => {
     let cancelled = false;
     setTotalPlaytime(null);
     setTotalAlbums(null);
     setTotalSongs(null);
     setPlaytimeCapped(false);
+    setGenres([]);
+    const unknownGenre = t('statistics.decadeUnknown');
     (async () => {
       let playtimeSec = 0;
       let albumsCounted = 0;
       let songsCounted = 0;
+      const genreAgg = new Map<string, { songCount: number; albumCount: number }>();
       let offset = 0;
       const pageSize = 500;
       const maxPages = 10;
@@ -99,7 +98,13 @@ export default function Statistics() {
           for (const a of albums) {
             playtimeSec += a.duration ?? 0;
             albumsCounted += 1;
-            songsCounted += a.songCount ?? 0;
+            const sc = a.songCount ?? 0;
+            songsCounted += sc;
+            const label = (a.genre?.trim()) ? a.genre.trim() : unknownGenre;
+            const cur = genreAgg.get(label) ?? { songCount: 0, albumCount: 0 };
+            cur.songCount += sc;
+            cur.albumCount += 1;
+            genreAgg.set(label, cur);
           }
           if (albums.length < pageSize) break;
           if (page === maxPages - 1) capped = true;
@@ -113,10 +118,14 @@ export default function Statistics() {
         setTotalAlbums(albumsCounted);
         setTotalSongs(songsCounted);
         setPlaytimeCapped(capped);
+        const sorted: SubsonicGenre[] = [...genreAgg.entries()]
+          .map(([value, c]) => ({ value, songCount: c.songCount, albumCount: c.albumCount }))
+          .sort((a, b) => b.songCount - a.songCount);
+        setGenres(sorted);
       }
     })();
     return () => { cancelled = true; };
-  }, [musicLibraryFilterVersion]);
+  }, [musicLibraryFilterVersion, t]);
 
   // Background fetch: format distribution (sample of 500 random songs)
   useEffect(() => {
