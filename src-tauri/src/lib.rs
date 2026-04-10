@@ -286,12 +286,70 @@ struct IcyMetadata {
     icy_description: Option<String>,
 }
 
+/// Extract the first `File1=` stream URL from a PLS playlist file.
+fn parse_pls_stream_url(content: &str) -> Option<String> {
+    content.lines()
+        .map(str::trim)
+        .find(|l| l.to_lowercase().starts_with("file1="))
+        .and_then(|l| {
+            let url = l[6..].trim();
+            (url.starts_with("http://") || url.starts_with("https://"))
+                .then(|| url.to_string())
+        })
+}
+
+/// Extract the first non-comment HTTP URL from an M3U/M3U8 playlist file.
+fn parse_m3u_stream_url(content: &str) -> Option<String> {
+    content.lines()
+        .map(str::trim)
+        .find(|l| !l.is_empty() && !l.starts_with('#')
+            && (l.starts_with("http://") || l.starts_with("https://")))
+        .map(str::to_string)
+}
+
+/// If `url` points to a PLS or M3U playlist, fetch it and return the first
+/// stream URL it contains.  Returns `None` for direct stream URLs.
+async fn resolve_playlist_url(client: &reqwest::Client, url: &str) -> Option<String> {
+    let path = url.split('?').next().unwrap_or(url).to_lowercase();
+    let is_pls = path.ends_with(".pls");
+    let is_m3u = path.ends_with(".m3u") || path.ends_with(".m3u8");
+    if !is_pls && !is_m3u {
+        return None;
+    }
+
+    let resp = client
+        .get(url)
+        .header("User-Agent", "psysonic/1.0")
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .ok()?;
+
+    let ct = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_lowercase();
+
+    let text = resp.text().await.ok()?;
+
+    if is_pls || ct.contains("scpls") || ct.contains("pls+xml") {
+        parse_pls_stream_url(&text)
+    } else {
+        parse_m3u_stream_url(&text)
+    }
+}
+
 /// Fetch ICY in-stream metadata from a radio stream URL.
 ///
 /// Sends a GET request with `Icy-MetaData: 1` and reads just enough bytes
 /// (up to `icy-metaint` audio bytes plus the following metadata block) to
 /// extract the `StreamTitle`.  The connection is dropped as soon as the
 /// first metadata chunk has been parsed, so bandwidth usage is minimal.
+///
+/// If `url` is a PLS or M3U playlist file it is resolved to the first direct
+/// stream URL before the ICY request is made.
 #[tauri::command]
 async fn fetch_icy_metadata(url: String) -> Result<IcyMetadata, String> {
     use futures_util::StreamExt;
@@ -300,6 +358,9 @@ async fn fetch_icy_metadata(url: String) -> Result<IcyMetadata, String> {
         .timeout(std::time::Duration::from_secs(15))
         .build()
         .map_err(|e| e.to_string())?;
+
+    // Resolve PLS/M3U playlist files to their first direct stream URL.
+    let url = resolve_playlist_url(&client, &url).await.unwrap_or(url);
 
     let resp = client
         .get(&url)
@@ -388,6 +449,20 @@ async fn fetch_icy_metadata(url: String) -> Result<IcyMetadata, String> {
         });
 
     Ok(IcyMetadata { stream_title, icy_name, icy_genre, icy_url, icy_description })
+}
+
+/// Resolve a PLS or M3U playlist URL to its first direct stream URL.
+/// Returns the original URL unchanged if it is not a recognised playlist format
+/// or if the playlist cannot be fetched/parsed.
+#[tauri::command]
+async fn resolve_stream_url(url: String) -> String {
+    let Ok(client) = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+    else {
+        return url;
+    };
+    resolve_playlist_url(&client, &url).await.unwrap_or(url)
 }
 
 /// Proxy Last.fm API calls through Rust/reqwest to avoid WebView networking restrictions.
@@ -1640,6 +1715,7 @@ pub fn run() {
             fetch_url_bytes,
             fetch_json_url,
             fetch_icy_metadata,
+            resolve_stream_url,
             download_track_offline,
             delete_offline_track,
             get_offline_cache_size,

@@ -86,6 +86,7 @@ export default function PlayerBar() {
   // Radio metadata (ICY or AzuraCast) — only active while a radio station is playing.
   const radioMeta = useRadioMetadata(currentRadio ?? null);
 
+
   const isStarred = currentTrack
     ? (currentTrack.id in starredOverrides ? starredOverrides[currentTrack.id] : !!currentTrack.starred)
     : false;

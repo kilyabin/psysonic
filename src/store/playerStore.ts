@@ -764,7 +764,7 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       // ── playRadio ────────────────────────────────────────────────────────────
-      playRadio: (station) => {
+      playRadio: async (station) => {
         const { volume } = get();
         ++playGeneration;
         isAudioPaused = false;
@@ -774,8 +774,12 @@ export const usePlayerStore = create<PlayerState>()(
         if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; } seekTarget = null;
         // Stop Rust engine in case a regular track was playing.
         invoke('audio_stop').catch(() => {});
+        // Resolve PLS/M3U playlist URLs to the actual stream URL before handing
+        // to HTML5 <audio> — the browser cannot play playlist files directly.
+        const streamUrl = await invoke<string>('resolve_stream_url', { url: station.streamUrl })
+          .catch(() => station.streamUrl);
         // Play via HTML5 audio — browser handles reconnects, codec negotiation, buffering.
-        radioAudio.src = station.streamUrl;
+        radioAudio.src = streamUrl;
         radioAudio.volume = volume;
         radioAudio.play().catch((err: unknown) => {
           console.error('[psysonic] radio HTML5 play failed:', err);
