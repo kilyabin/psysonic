@@ -2,7 +2,7 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { createPortal } from 'react-dom';
 import {
   Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Music,
-  Square, Repeat, Repeat1, Maximize2, SlidersVertical, X, Heart, MicVocal, Cast
+  Square, Repeat, Repeat1, Maximize2, SlidersVertical, X, Heart, Cast
 } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -297,16 +297,6 @@ export default function PlayerBar() {
           </>
         )}
       </div>
-
-      {/* Lyrics Button */}
-      <button
-        className={`player-btn player-btn-sm ${activeTab === 'lyrics' && isQueueVisible ? 'active' : ''}`}
-        onClick={() => { if (!isQueueVisible) toggleQueue(); showLyrics(); }}
-        aria-label={t('player.lyrics')}
-        data-tooltip={t('player.lyrics')}
-      >
-        <MicVocal size={15} />
-      </button>
 
       {/* EQ Button */}
       <button
