@@ -392,6 +392,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: var(--space-4);
+  align-items: start;
 }
 
 .album-grid-wrap .album-card {
