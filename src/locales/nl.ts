@@ -95,6 +95,7 @@ export const nlTranslation = {
     enqueueAlbum: 'Album in wachtrij',
     startRadio: 'Radio starten',
     instantMix: 'Instant Mix',
+    instantMixFailed: 'Instant Mix mislukt — server- of pluginfout.',
     lfmLove: 'Liken op Last.fm',
     lfmUnlove: 'Niet meer liken op Last.fm',
     favorite: 'Favoriet',
@@ -399,7 +400,9 @@ export const nlTranslation = {
     serverCompatible: 'Compatibel met: Navidrome · Gonic · Airsonic · Subsonic',
     audiomuseTitle: 'AudioMuse-AI (Navidrome)',
     audiomuseDesc:
-      'Zet aan als deze server de AudioMuse-AI Navidrome-plugin gebruikt. Schakelt Instant Mix per nummer in en toont vergelijkbare artiesten van de server i.p.v. Last.fm op artiestpagina’s.',
+      'Zet aan als deze server de <pluginLink>AudioMuse-AI Navidrome-plugin</pluginLink> gebruikt. Schakelt Instant Mix per nummer in en toont vergelijkbare artiesten van de server i.p.v. Last.fm op artiestpagina’s.',
+    audiomuseIssueHint:
+      'Instant Mix is onlangs mislukt — controleer de Navidrome-plugin en AudioMuse API. Zonder serverresultaten worden vergelijkbare artiesten via Last.fm geladen.',
     connected: 'Verbonden',
     failed: 'Mislukt',
     eqTitle: 'Equalizer',

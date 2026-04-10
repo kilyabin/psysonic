@@ -95,6 +95,7 @@ export const frTranslation = {
     enqueueAlbum: 'Mettre l\'album en file',
     startRadio: 'Démarrer la radio',
     instantMix: 'Mix instantané',
+    instantMixFailed: 'Impossible de créer le mix instantané — erreur serveur ou plugin.',
     lfmLove: 'Aimer sur Last.fm',
     lfmUnlove: 'Ne plus aimer sur Last.fm',
     favorite: 'Favori',
@@ -399,7 +400,9 @@ export const frTranslation = {
     serverCompatible: 'Compatible avec : Navidrome · Gonic · Airsonic · Subsonic',
     audiomuseTitle: 'AudioMuse-AI (Navidrome)',
     audiomuseDesc:
-      'Activez si ce serveur utilise le plugin Navidrome AudioMuse-AI. Active le mix instantané depuis un morceau et affiche les artistes similaires côté serveur au lieu de Last.fm sur les pages artiste.',
+      'Activez si ce serveur utilise le <pluginLink>plugin Navidrome AudioMuse-AI</pluginLink>. Active le mix instantané depuis un morceau et affiche les artistes similaires côté serveur au lieu de Last.fm sur les pages artiste.',
+    audiomuseIssueHint:
+      'Le mix instantané a échoué récemment — vérifiez le plugin Navidrome et l’API AudioMuse. Les artistes similaires utilisent Last.fm si le serveur ne renvoie rien.',
     connected: 'Connecté',
     failed: 'Échec',
     eqTitle: 'Égaliseur',

@@ -14,6 +14,7 @@ import { join } from '@tauri-apps/api/path';
 import { invoke } from '@tauri-apps/api/core';
 import { useZipDownloadStore } from '../store/zipDownloadStore';
 import { useTranslation } from 'react-i18next';
+import { showToast } from '../utils/toast';
 
 function sanitizeFilename(name: string): string {
   return name
@@ -317,8 +318,10 @@ export default function ContextMenu() {
     } else {
       playTrack(song, [song]);
     }
+    const serverId = useAuthStore.getState().activeServerId;
     try {
       const similar = await getSimilarSongs(song.id, 50);
+      if (serverId) useAuthStore.getState().setAudiomuseNavidromeIssue(serverId, false);
       const shuffled = shuffleArray(
         similar
           .filter(s => s.id !== song.id)
@@ -330,6 +333,8 @@ export default function ContextMenu() {
       }
     } catch (e) {
       console.error('Instant mix failed', e);
+      if (serverId) useAuthStore.getState().setAudiomuseNavidromeIssue(serverId, true);
+      showToast(t('contextMenu.instantMixFailed'), 5000, 'error');
     }
   };
 

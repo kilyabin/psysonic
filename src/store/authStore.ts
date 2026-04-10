@@ -2,6 +2,11 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
 import type { EntityRatingSupportLevel } from '../api/subsonic';
+import {
+  isNavidromeAudiomuseSoftwareEligible,
+  type InstantMixProbeResult,
+  type SubsonicServerIdentity,
+} from '../utils/subsonicServerIdentity';
 import { usePlayerStore } from './playerStore';
 
 export interface ServerProfile {
@@ -110,6 +115,20 @@ interface AuthState {
    */
   audiomuseNavidromeByServer: Record<string, boolean>;
   setAudiomuseNavidromeEnabled: (serverId: string, enabled: boolean) => void;
+
+  /** From `ping` — used to show the AudioMuse toggle only on Navidrome ≥ 0.60. */
+  subsonicServerIdentityByServer: Record<string, SubsonicServerIdentity>;
+  setSubsonicServerIdentity: (serverId: string, identity: SubsonicServerIdentity) => void;
+
+  /** Instant Mix / similar path failed while this server had AudioMuse enabled (cleared on success or toggle off). */
+  audiomuseNavidromeIssueByServer: Record<string, boolean>;
+  setAudiomuseNavidromeIssue: (serverId: string, hasIssue: boolean) => void;
+
+  /**
+   * `getSimilarSongs` probe per server (after ping). `empty` hides the AudioMuse row; re-run by testing connection.
+   */
+  instantMixProbeByServer: Record<string, InstantMixProbeResult>;
+  setInstantMixProbe: (serverId: string, result: InstantMixProbeResult) => void;
 
   // Status
   isLoggedIn: boolean;
@@ -258,6 +277,9 @@ export const useAuthStore = create<AuthState>()(
       musicLibraryFilterVersion: 0,
       entityRatingSupportByServer: {},
       audiomuseNavidromeByServer: {},
+      subsonicServerIdentityByServer: {},
+      audiomuseNavidromeIssueByServer: {},
+      instantMixProbeByServer: {},
       isLoggedIn: false,
       isConnecting: false,
       connectionError: null,
@@ -281,12 +303,18 @@ export const useAuthStore = create<AuthState>()(
           const switchedAway = s.activeServerId === id;
           const { [id]: _r, ...entityRatingRest } = s.entityRatingSupportByServer;
           const { [id]: _a, ...audiomuseRest } = s.audiomuseNavidromeByServer;
+          const { [id]: _idn, ...identityRest } = s.subsonicServerIdentityByServer;
+          const { [id]: _iss, ...issueRest } = s.audiomuseNavidromeIssueByServer;
+          const { [id]: _pr, ...probeRest } = s.instantMixProbeByServer;
           return {
             servers: newServers,
             activeServerId: switchedAway ? (newServers[0]?.id ?? null) : s.activeServerId,
             isLoggedIn: switchedAway ? false : s.isLoggedIn,
             entityRatingSupportByServer: entityRatingRest,
             audiomuseNavidromeByServer: audiomuseRest,
+            subsonicServerIdentityByServer: identityRest,
+            audiomuseNavidromeIssueByServer: issueRest,
+            instantMixProbeByServer: probeRest,
           };
         });
       },
@@ -414,14 +442,58 @@ export const useAuthStore = create<AuthState>()(
         })),
 
       setAudiomuseNavidromeEnabled: (serverId, enabled) =>
-        set(s => ({
-          audiomuseNavidromeByServer: enabled
+        set(s => {
+          const audiomuseNavidromeByServer = enabled
             ? { ...s.audiomuseNavidromeByServer, [serverId]: true }
             : (() => {
                 const { [serverId]: _removed, ...rest } = s.audiomuseNavidromeByServer;
                 return rest;
+              })();
+          const { [serverId]: _issueRm, ...issueRest } = s.audiomuseNavidromeIssueByServer;
+          return { audiomuseNavidromeByServer, audiomuseNavidromeIssueByServer: issueRest };
+        }),
+
+      setSubsonicServerIdentity: (serverId, identity) =>
+        set(s => {
+          const subsonicServerIdentityByServer = { ...s.subsonicServerIdentityByServer, [serverId]: { ...identity } };
+          if (!isNavidromeAudiomuseSoftwareEligible(identity)) {
+            const { [serverId]: _a, ...audiomuseRest } = s.audiomuseNavidromeByServer;
+            const { [serverId]: _i, ...issueRest } = s.audiomuseNavidromeIssueByServer;
+            const { [serverId]: _p, ...probeRest } = s.instantMixProbeByServer;
+            return {
+              subsonicServerIdentityByServer,
+              audiomuseNavidromeByServer: audiomuseRest,
+              audiomuseNavidromeIssueByServer: issueRest,
+              instantMixProbeByServer: probeRest,
+            };
+          }
+          return { subsonicServerIdentityByServer };
+        }),
+
+      setInstantMixProbe: (serverId, result) =>
+        set(s => {
+          const instantMixProbeByServer = { ...s.instantMixProbeByServer, [serverId]: result };
+          if (result === 'empty') {
+            const { [serverId]: _a, ...audiomuseRest } = s.audiomuseNavidromeByServer;
+            const { [serverId]: _i, ...issueRest } = s.audiomuseNavidromeIssueByServer;
+            return {
+              instantMixProbeByServer,
+              audiomuseNavidromeByServer: audiomuseRest,
+              audiomuseNavidromeIssueByServer: issueRest,
+            };
+          }
+          return { instantMixProbeByServer };
+        }),
+
+      setAudiomuseNavidromeIssue: (serverId, hasIssue) =>
+        set(s =>
+          hasIssue
+            ? { audiomuseNavidromeIssueByServer: { ...s.audiomuseNavidromeIssueByServer, [serverId]: true } }
+            : (() => {
+                const { [serverId]: _rm, ...rest } = s.audiomuseNavidromeIssueByServer;
+                return { audiomuseNavidromeIssueByServer: rest };
               })(),
-        })),
+        ),
 
       logout: () => set({ isLoggedIn: false, musicFolders: [] }),
 

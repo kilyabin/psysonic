@@ -57,6 +57,7 @@ export default function ArtistDetail() {
   const [openedLink, setOpenedLink] = useState<string | null>(null);
   const [similarArtists, setSimilarArtists] = useState<SubsonicArtist[]>([]);
   const [similarLoading, setSimilarLoading] = useState(false);
+  const [artistInfoLoading, setArtistInfoLoading] = useState(false);
   const [featuredLoading, setFeaturedLoading] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [bioExpanded, setBioExpanded] = useState(false);
@@ -110,9 +111,17 @@ export default function ArtistDetail() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    getArtistInfo(id, { similarArtistCount: audiomuseNavidromeEnabled ? 24 : undefined }).then(artistInfo => {
-      if (!cancelled) setInfo(artistInfo ?? null);
-    }).catch(() => {});
+    setArtistInfoLoading(true);
+    getArtistInfo(id, { similarArtistCount: audiomuseNavidromeEnabled ? 24 : undefined })
+      .then(artistInfo => {
+        if (!cancelled) setInfo(artistInfo ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setInfo(null);
+      })
+      .finally(() => {
+        if (!cancelled) setArtistInfoLoading(false);
+      });
     return () => { cancelled = true; };
   }, [id, audiomuseNavidromeEnabled]);
 
@@ -204,6 +213,51 @@ export default function ArtistDetail() {
       setSimilarLoading(false);
     }).catch(() => setSimilarLoading(false));
   }, [artist?.id, musicLibraryFilterVersion, audiomuseNavidromeEnabled]);
+
+  /** When AudioMuse is on but the server returns no similar artists, fall back to Last.fm (if configured). */
+  useEffect(() => {
+    if (!artist || !audiomuseNavidromeEnabled || !lastfmIsConfigured()) return;
+    if (artistInfoLoading) return;
+    if ((info?.similarArtist?.length ?? 0) > 0) return;
+
+    setSimilarArtists([]);
+    setSimilarLoading(true);
+    lastfmGetSimilarArtists(artist.name).then(async names => {
+      if (names.length === 0) { setSimilarLoading(false); return; }
+      const results = await Promise.all(
+        names.slice(0, 30).map(name =>
+          search(name, { artistCount: 3, albumCount: 0, songCount: 0 }).catch(() => ({ artists: [], albums: [], songs: [] }))
+        )
+      );
+      const seen = new Set<string>([artist.id]);
+      const found: SubsonicArtist[] = [];
+      for (let i = 0; i < results.length; i++) {
+        const targetName = names[i].toLowerCase();
+        const match = results[i].artists.find(a => a.name.toLowerCase() === targetName);
+        if (match && !seen.has(match.id)) {
+          seen.add(match.id);
+          found.push(match);
+        }
+      }
+      setSimilarArtists(found);
+      setSimilarLoading(false);
+    }).catch(() => setSimilarLoading(false));
+  }, [
+    artist?.id,
+    artist?.name,
+    musicLibraryFilterVersion,
+    audiomuseNavidromeEnabled,
+    artistInfoLoading,
+    info?.similarArtist?.length,
+  ]);
+
+  useEffect(() => {
+    if (!audiomuseNavidromeEnabled) return;
+    if ((info?.similarArtist?.length ?? 0) > 0) {
+      setSimilarArtists([]);
+      setSimilarLoading(false);
+    }
+  }, [id, audiomuseNavidromeEnabled, info?.similarArtist?.length]);
 
   const openLink = (url: string, key: string) => {
     open(url);
@@ -343,7 +397,10 @@ export default function ArtistDetail() {
     albumCount: sa.albumCount,
   }));
   const showAudiomuseSimilar = audiomuseNavidromeEnabled && serverSimilarArtists.length > 0;
-  const showLastfmSimilar = !audiomuseNavidromeEnabled && lastfmIsConfigured() && (similarLoading || similarArtists.length > 0);
+  const showLastfmSimilar =
+    lastfmIsConfigured() &&
+    (!audiomuseNavidromeEnabled || serverSimilarArtists.length === 0) &&
+    (similarLoading || similarArtists.length > 0);
   const showSimilarSection = showAudiomuseSimilar || showLastfmSimilar;
 
   return (
@@ -606,7 +663,7 @@ export default function ArtistDetail() {
       )}
 
       {/* Albums */}
-      <h2 className="section-title" style={{ marginTop: (info?.biography || topSongs.length > 0 || showSimilarSection || (lastfmIsConfigured() && !audiomuseNavidromeEnabled)) ? '2rem' : '0', marginBottom: '1rem' }}>
+      <h2 className="section-title" style={{ marginTop: (info?.biography || topSongs.length > 0 || showSimilarSection) ? '2rem' : '0', marginBottom: '1rem' }}>
         {t('artistDetail.albumsBy', { name: artist.name })}
       </h2>
 

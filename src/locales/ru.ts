@@ -96,6 +96,7 @@ export const ruTranslation = {
     enqueueAlbum: 'Альбом в очередь',
     startRadio: 'Радио по похожим',
     instantMix: 'Instant Mix',
+    instantMixFailed: 'Не удалось собрать Instant Mix — ошибка сервера или плагина.',
     lfmLove: 'Любимое на Last.fm',
     lfmUnlove: 'Убрать с Last.fm',
     favorite: 'В избранное',
@@ -414,7 +415,9 @@ export const ruTranslation = {
     serverCompatible: 'Совместимость: Navidrome · Gonic · Airsonic · Subsonic',
     audiomuseTitle: 'AudioMuse-AI (Navidrome)',
     audiomuseDesc:
-      'Включите, если на этом сервере настроен плагин AudioMuse-AI для Navidrome. Появится Instant Mix для треков, а на странице исполнителя похожие будут браться с сервера вместо Last.fm.',
+      'Включите, если на этом сервере настроен <pluginLink>плагин AudioMuse-AI для Navidrome</pluginLink>. Появится Instant Mix для треков, а на странице исполнителя похожие будут браться с сервера вместо Last.fm.',
+    audiomuseIssueHint:
+      'Недавно не удалось собрать Instant Mix — проверьте плагин Navidrome и API AudioMuse. Похожие исполнители подтянутся с Last.fm, если сервер ничего не вернёт.',
     connected: 'Подключено',
     failed: 'Ошибка',
     eqTitle: 'Эквалайзер',
