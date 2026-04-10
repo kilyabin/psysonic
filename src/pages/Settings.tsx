@@ -600,12 +600,7 @@ export default function Settings() {
               {/* Hot Cache */}
               <div className="settings-toggle-row">
                 <div>
-                  <div style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {t('settings.hotCacheTitle')}
-                    <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', padding: '2px 6px', borderRadius: 4, background: 'color-mix(in srgb, var(--color-warning, #f59e0b) 22%, transparent)', color: 'var(--text-primary)' }}>
-                      {t('settings.hotCacheAlphaBadge')}
-                    </span>
-                  </div>
+                  <div style={{ fontWeight: 500 }}>{t('settings.hotCacheTitle')}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.hotCacheDisclaimer')}</div>
                 </div>
                 <label className="toggle-switch" aria-label={t('settings.hotCacheEnabled')}>
@@ -722,17 +717,7 @@ export default function Settings() {
           <section className="settings-section">
             <div className="settings-section-header">
               <Waves size={18} />
-              <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {t('settings.hiResTitle')}
-                <span style={{
-                  fontSize: 10, fontWeight: 600, textTransform: 'uppercase',
-                  letterSpacing: '0.04em', padding: '2px 6px', borderRadius: 4,
-                  background: 'color-mix(in srgb, var(--color-warning, #f59e0b) 22%, transparent)',
-                  color: 'var(--text-primary)',
-                }}>
-                  {t('settings.hotCacheAlphaBadge')}
-                </span>
-              </h2>
+              <h2>{t('settings.hiResTitle')}</h2>
             </div>
             <div className="settings-card">
               <div className="settings-toggle-row">
