@@ -1310,7 +1310,11 @@ export default function Settings() {
               <h2>{t('settings.uiScaleTitle')}</h2>
             </div>
             <div className="settings-card">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {/* TODO: UI scaling is being reworked — disabled until fixed */}
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
+                Interface scaling is currently being reworked and will be available in a future update.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', opacity: 0.4, pointerEvents: 'none', marginTop: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t('settings.uiScaleLabel')}</span>
                   <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', minWidth: 40, textAlign: 'right' }}>
