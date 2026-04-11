@@ -254,15 +254,36 @@ export default function Settings() {
   }, [auth.lastfmSessionKey, auth.lastfmUsername]);
 
   useEffect(() => {
-    if (activeTab === 'audio') {
-      invoke<number>('get_hot_cache_size', { customDir: auth.hotCacheDownloadDir || null }).then(setHotCacheBytes).catch(() => setHotCacheBytes(0));
-      return;
-    }
     if (activeTab !== 'storage') return;
     getImageCacheSize().then(setImageCacheBytes);
     invoke<number>('get_offline_cache_size', { customDir: auth.offlineDownloadDir || null }).then(setOfflineCacheBytes).catch(() => setOfflineCacheBytes(0));
     invoke<number>('get_hot_cache_size', { customDir: auth.hotCacheDownloadDir || null }).then(setHotCacheBytes).catch(() => setHotCacheBytes(0));
   }, [activeTab, auth.offlineDownloadDir, auth.hotCacheDownloadDir]);
+
+  /** Live disk usage for hot cache while Audio settings are open (interval + refresh when index changes). */
+  useEffect(() => {
+    if (activeTab !== 'audio') return;
+    const customDir = auth.hotCacheDownloadDir || null;
+    const refresh = () => {
+      invoke<number>('get_hot_cache_size', { customDir })
+        .then(setHotCacheBytes)
+        .catch(() => setHotCacheBytes(0));
+    };
+    refresh();
+    if (!auth.hotCacheEnabled) return;
+    const interval = window.setInterval(refresh, 2000);
+    return () => window.clearInterval(interval);
+  }, [activeTab, auth.hotCacheEnabled, auth.hotCacheDownloadDir]);
+
+  useEffect(() => {
+    if (activeTab !== 'audio' || !auth.hotCacheEnabled) return;
+    const t = window.setTimeout(() => {
+      invoke<number>('get_hot_cache_size', { customDir: auth.hotCacheDownloadDir || null })
+        .then(setHotCacheBytes)
+        .catch(() => setHotCacheBytes(0));
+    }, 400);
+    return () => window.clearTimeout(t);
+  }, [hotCacheEntries, activeTab, auth.hotCacheEnabled, auth.hotCacheDownloadDir]);
 
   const handleClearCache = useCallback(async () => {
     setClearing(true);

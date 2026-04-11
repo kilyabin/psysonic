@@ -32,6 +32,8 @@ export interface Track {
   genre?: string;
   samplingRate?: number;
   bitDepth?: number;
+  /** Subsonic `size` in bytes when provided by the server (helps hot-cache budgeting). */
+  size?: number;
   autoAdded?: boolean;
   radioAdded?: boolean;
 }
@@ -58,6 +60,7 @@ export function songToTrack(song: SubsonicSong): Track {
     genre: song.genre,
     samplingRate: song.samplingRate,
     bitDepth: song.bitDepth,
+    size: song.size,
   };
 }
 
