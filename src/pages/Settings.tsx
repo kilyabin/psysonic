@@ -105,6 +105,7 @@ const CONTRIBUTORS = [
       'AudioMuse-AI discovery integration for Navidrome (PR #147)',
       'Hot playback cache — eviction budgeting, grace period, and live Audio settings readout (PR #153)',
       'Folder Browser: keyboard navigation, context menus, now-playing path emphasis, and adaptive column layout (PR #158)',
+      'Infinite queue: artist-driven candidates via Top Songs + Similar Songs with random fallback (PR #163)',
     ],
   },
   {
