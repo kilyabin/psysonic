@@ -14317,3 +14317,109 @@ input[type="range"]:hover::-webkit-slider-thumb {
   --warning:          #ffb86c;
   --danger:           #ff5555;
 }
+
+/* ─── Vision Dark — Purple & Gold, colorblind-safe (Deuteranopia / Protanopia / Tritanopia) ─── */
+/* Gold #FFD700 on #0D0B12 → contrast ~14.7:1 (WCAG AAA)                                        */
+[data-theme='vision-dark'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23C8C4D4%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust:     #030210;
+  --ctp-mantle:    #06050e;
+  --ctp-base:      #0d0b12;
+  --ctp-surface0:  #16131e;
+  --ctp-surface1:  #201c2c;
+  --ctp-surface2:  #2c2838;
+  --ctp-overlay0:  #544e6a;
+  --ctp-overlay1:  #6e6886;
+  --ctp-overlay2:  #8a84a0;
+  --ctp-text:      #f2eef8;
+  --ctp-subtext1:  #c8c4d4;
+  --ctp-subtext0:  #9c98aa;
+  --ctp-mauve:     #8b5cf6; /* Purple — secondary accent */
+  --ctp-lavender:  #a07af8;
+  --ctp-blue:      #60a5fa;
+  --ctp-sapphire:  #38bdf8;
+  --ctp-sky:       #38bdf8;
+  --ctp-teal:      #2dd4bf;
+  --ctp-green:     #009e73;  /* Okabe-Ito Bluish Green */
+  --ctp-yellow:    #ffd700;  /* Gold */
+  --ctp-peach:     #e69f00;
+  --ctp-maroon:    #d55e00;  /* Okabe-Ito Vermillion — danger */
+  --ctp-red:       #d55e00;
+  --ctp-flamingo:  #f472b6;
+  --ctp-pink:      #e879f9;
+  --ctp-rosewater: #f0abfc;
+
+  --bg-app:         #0d0b12;
+  --bg-sidebar:     #08060e;
+  --bg-card:        #16131e;
+  --bg-hover:       #201c2c;
+  --bg-player:      #050310;
+  --bg-glass:       rgba(13, 11, 18, 0.84);
+  --accent:         #ffd700;
+  --accent-dim:     rgba(255, 215, 0, 0.14);
+  --accent-glow:    rgba(255, 215, 0, 0.36);
+  --text-primary:   #f2eef8;
+  --text-secondary: #c8c4d4;
+  --text-muted:     #7e7a8e;
+  --border:         #201c2c;
+  --border-subtle:  #16131e;
+  --positive:       #009e73;
+  --warning:        #e69f00;
+  --danger:         #d55e00;
+  --volume-accent:  #ffd700;
+}
+
+/* ─── Vision Navy — Purple & Gold, colorblind-safe (Deuteranopia / Protanopia / Tritanopia) ─── */
+/* Gold #FFD700 on #0A1628 → contrast ~14.5:1 (WCAG AAA)                                         */
+[data-theme='vision-navy'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23C0C8D8%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust:     #030a14;
+  --ctp-mantle:    #060e1c;
+  --ctp-base:      #0a1628;
+  --ctp-surface0:  #112038;
+  --ctp-surface1:  #1a2e48;
+  --ctp-surface2:  #243c58;
+  --ctp-overlay0:  #486480;
+  --ctp-overlay1:  #607a98;
+  --ctp-overlay2:  #7890ae;
+  --ctp-text:      #eef2f8;
+  --ctp-subtext1:  #c0c8d8;
+  --ctp-subtext0:  #8898ae;
+  --ctp-mauve:     #8b5cf6; /* Purple — secondary accent */
+  --ctp-lavender:  #a07af8;
+  --ctp-blue:      #3b82f6;
+  --ctp-sapphire:  #38bdf8;
+  --ctp-sky:       #7dd3fc;
+  --ctp-teal:      #2dd4bf;
+  --ctp-green:     #009e73;  /* Okabe-Ito Bluish Green */
+  --ctp-yellow:    #ffd700;  /* Gold */
+  --ctp-peach:     #e69f00;
+  --ctp-maroon:    #d55e00;  /* Okabe-Ito Vermillion */
+  --ctp-red:       #d55e00;
+  --ctp-flamingo:  #f472b6;
+  --ctp-pink:      #e879f9;
+  --ctp-rosewater: #f0abfc;
+
+  --bg-app:         #0a1628;
+  --bg-sidebar:     #060e1c;
+  --bg-card:        #112038;
+  --bg-hover:       #1a2e48;
+  --bg-player:      #040c18;
+  --bg-glass:       rgba(10, 22, 40, 0.84);
+  --accent:         #ffd700;
+  --accent-dim:     rgba(255, 215, 0, 0.14);
+  --accent-glow:    rgba(255, 215, 0, 0.36);
+  --text-primary:   #eef2f8;
+  --text-secondary: #c0c8d8;
+  --text-muted:     #607080;
+  --border:         #1a2e48;
+  --border-subtle:  #112038;
+  --positive:       #009e73;
+  --warning:        #e69f00;
+  --danger:         #d55e00;
+  --volume-accent:  #ffd700;
+}

@@ -518,7 +518,7 @@ export const frTranslation = {
     logout: 'Se déconnecter',
     aboutTitle: 'À propos de Psysonic',
     aboutDesc: 'Un lecteur de musique de bureau moderne pour les serveurs compatibles Subsonic (Navidrome, Gonic, et autres). Construit sur Tauri v2 avec un moteur audio Rust natif — léger et rapide, mais riche en fonctionnalités : barre waveform, paroles synchronisées, intégration Last.fm, égaliseur 10 bandes, crossfade, lecture sans blanc, Replay Gain, navigation par genre et une grande bibliothèque de thèmes.',
-    aboutFeatures: 'Multi-serveur · Scrobbling & love Last.fm · Ambient Stage plein écran · Waveform seek · Paroles synchro · EQ 10 bandes · Crossfade & Gapless · Replay Gain · Genres · 63 thèmes · 5 langues',
+    aboutFeatures: 'Multi-serveur · Scrobbling & love Last.fm · Ambient Stage plein écran · Waveform seek · Paroles synchro · EQ 10 bandes · Crossfade & Gapless · Replay Gain · Genres · 8 langues',
     aboutLicense: 'Licence',
     aboutLicenseText: 'GNU GPL v3 — libre d\'utilisation, de modification et de distribution sous la même licence.',
     aboutRepo: 'Code source sur GitHub',

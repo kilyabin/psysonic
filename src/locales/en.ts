@@ -522,7 +522,7 @@ export const enTranslation = {
     logout: 'Logout',
     aboutTitle: 'About Psysonic',
     aboutDesc: 'A modern desktop music player for Subsonic-compatible servers (Navidrome, Gonic, and others). Built on Tauri v2 with a native Rust audio engine — lightweight and fast, yet packed with features: waveform seekbar, synchronized lyrics, Last.fm integration, 10-band EQ, crossfade, gapless playback, Replay Gain, genre browsing, and a large library of themes.',
-    aboutFeatures: 'Multi-server · Last.fm scrobbling & love · Fullscreen Ambient Stage · Waveform seek · Synced lyrics · 10-band EQ · Crossfade & Gapless · Replay Gain · Genres · 63 themes · 8 languages',
+    aboutFeatures: 'Multi-server · Last.fm scrobbling & love · Fullscreen Ambient Stage · Waveform seek · Synced lyrics · 10-band EQ · Crossfade & Gapless · Replay Gain · Genres · 8 languages',
     aboutLicense: 'License',
     aboutLicenseText: 'GNU GPL v3 — free to use, modify, and distribute under the same license.',
     aboutRepo: 'Source Code on GitHub',

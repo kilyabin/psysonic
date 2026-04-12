@@ -124,6 +124,13 @@ export const THEME_GROUPS: { group: string; themes: ThemeDef[] }[] = [
     ],
   },
   {
+    group: 'Accessibility',
+    themes: [
+      { id: 'vision-dark',  label: 'Vision Dark',  bg: '#0d0b12', card: '#16131e', accent: '#ffd700' },
+      { id: 'vision-navy',  label: 'Vision Navy',  bg: '#0a1628', card: '#112038', accent: '#ffd700' },
+    ],
+  },
+  {
     group: 'Social Media',
     themes: [
       { id: 'insta',    label: 'Insta',    bg: '#121212', card: '#000000', accent: '#E1306C' },

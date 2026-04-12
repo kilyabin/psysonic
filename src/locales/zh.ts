@@ -514,7 +514,7 @@ export const zhTranslation = {
     logout: '退出登录',
     aboutTitle: '关于 Psysonic',
     aboutDesc: '适用于 Subsonic 兼容服务器（Navidrome、Gonic 等）的现代桌面音乐播放器。基于 Tauri v2 和原生 Rust 音频引擎构建——轻量快速，功能丰富：波形进度条、同步歌词、Last.fm 集成、10 段均衡器、交叉淡入淡出、无缝播放、响度增益、流派浏览以及大量精美主题。',
-    aboutFeatures: '多服务器 · Last.fm 记录 & 喜爱 · 全屏环境舞台 · 波形跳转 · 同步歌词 · 10 段 EQ · 交叉淡入淡出 & 无缝播放 · 响度增益 · 流派 · 63 个主题 · 5 种语言',
+    aboutFeatures: '多服务器 · Last.fm 记录 & 喜爱 · 全屏环境舞台 · 波形跳转 · 同步歌词 · 10 段 EQ · 交叉淡入淡出 & 无缝播放 · 响度增益 · 流派 · 8 种语言',
     aboutLicense: '许可证',
     aboutLicenseText: 'GNU GPL v3 — 在相同许可证下可自由使用、修改和分发。',
     aboutRepo: 'GitHub 上的源代码',

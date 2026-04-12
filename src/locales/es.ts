@@ -514,7 +514,7 @@ export const esTranslation = {
     logout: 'Cerrar Sesión',
     aboutTitle: 'Acerca de Psysonic',
     aboutDesc: 'Un reproductor de música moderno para escritorio compatible con servidores Subsonic (Navidrome, Gonic y otros). Construido en Tauri v2 con motor de audio nativo en Rust — ligero y rápido, pero lleno de características: barra de progreso tipo onda, letras sincronizadas, integración Last.fm, ecualizador de 10 bandas, crossfade, reproducción gapless, Replay Gain, navegación por géneros, y una gran biblioteca de temas.',
-    aboutFeatures: 'Multi-servidor · Scrobbling Last.fm y favoritos · Escenario Ambiente Pantalla Completa · Barra de progreso onda · Letras sincronizadas · Ecualizador 10 bandas · Crossfade y Gapless · Replay Gain · Géneros · 63 temas · 8 idiomas',
+    aboutFeatures: 'Multi-servidor · Scrobbling Last.fm y favoritos · Escenario Ambiente Pantalla Completa · Barra de progreso onda · Letras sincronizadas · Ecualizador 10 bandas · Crossfade y Gapless · Replay Gain · Géneros · 8 idiomas',
     aboutLicense: 'Licencia',
     aboutLicenseText: 'GNU GPL v3 — libre para usar, modificar y distribuir bajo la misma licencia.',
     aboutRepo: 'Código Fuente en GitHub',

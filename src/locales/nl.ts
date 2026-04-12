@@ -518,7 +518,7 @@ export const nlTranslation = {
     logout: 'Uitloggen',
     aboutTitle: 'Over Psysonic',
     aboutDesc: 'Een moderne desktopmuziekspeeler voor Subsonic-compatibele servers (Navidrome, Gonic en anderen). Gebouwd op Tauri v2 met een native Rust audio-engine — licht en snel, maar boordevol functies: golfvorm-zoekbalk, gesynchroniseerde songteksten, Last.fm-integratie, 10-bands equalizer, crossfade, naadloos afspelen, Replay Gain, genres en een uitgebreide themabibliotheek.',
-    aboutFeatures: 'Multi-server · Last.fm scrobbling & love · Fullscreen Ambient Stage · Waveform seek · Syncteksten · 10-bands EQ · Crossfade & Gapless · Replay Gain · Genres · 63 thema\'s · 5 talen',
+    aboutFeatures: 'Multi-server · Last.fm scrobbling & love · Fullscreen Ambient Stage · Waveform seek · Syncteksten · 10-bands EQ · Crossfade & Gapless · Replay Gain · Genres · 8 talen',
     aboutLicense: 'Licentie',
     aboutLicenseText: 'GNU GPL v3 — vrij te gebruiken, wijzigen en verspreiden onder dezelfde licentie.',
     aboutRepo: 'Broncode op GitHub',

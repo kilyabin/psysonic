@@ -517,7 +517,7 @@ export const nbTranslation = {
     logout: 'Logg ut',
     aboutTitle: 'Om Psysonic',
     aboutDesc: 'En moderne musikkspiller for Subsonic-kompatible tjenere (Navidrome, Gonic og andre). Bygget på Tauri v2 med en innebygd Rust-lydmotor - lett og rask, men fullpakket med funksjoner: bølgeform-søkelinje, synkroniserte sangtekster, Last.fm-integrasjon, 10-bånds jevnstiller, crossfade, gapless-avspilling, Replay Gain, sjangerlesing og et stort bibliotek med temaer.',
-    aboutFeatures: 'Multi-tjener · Last.fm scrobbling og liker · Fullskjerm Ambient Stage · Bølgeformsøk · Synkroniserte tekster · 10-bånds jevnstiller · Crossfade og gapless · Replay Gain · Sjangre · 63 temaer · 6 språk',
+    aboutFeatures: 'Multi-tjener · Last.fm scrobbling og liker · Fullskjerm Ambient Stage · Bølgeformsøk · Synkroniserte tekster · 10-bånds jevnstiller · Crossfade og gapless · Replay Gain · Sjangre · 8 språk',
     aboutLicense: 'Lisens',
     aboutLicenseText: 'GNU GPL v3 - gratis å bruke, endre og distribuere under samme lisens.',
     aboutRepo: 'Kildekode på GitHub',
