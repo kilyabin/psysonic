@@ -1,5 +1,5 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Play, ListPlus, Radio, Heart, Download, ChevronRight, User, Disc3, ListMusic, Plus, Info, Sparkles } from 'lucide-react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Play, ListPlus, Radio, Heart, Download, ChevronRight, User, Disc3, ListMusic, Plus, Info, Sparkles, Star } from 'lucide-react';
 import LastfmIcon from './LastfmIcon';
 import StarRating from './StarRating';
 import { lastfmLoveTrack, lastfmUnloveTrack } from '../api/lastfm';
@@ -36,7 +36,7 @@ function shuffleArray<T>(arr: T[]): T[] {
 }
 
 // ── Add-to-Playlist submenu ───────────────────────────────────────
-export function AddToPlaylistSubmenu({ songIds, onDone, dropDown }: { songIds: string[]; onDone: () => void; dropDown?: boolean }) {
+export function AddToPlaylistSubmenu({ songIds, onDone, dropDown, triggerId }: { songIds: string[]; onDone: () => void; dropDown?: boolean; triggerId?: string }) {
   const { t } = useTranslation();
   const subRef = useRef<HTMLDivElement>(null);
   const newNameRef = useRef<HTMLInputElement>(null);
@@ -106,7 +106,7 @@ export function AddToPlaylistSubmenu({ songIds, onDone, dropDown }: { songIds: s
       : { left: 'calc(100% + 4px)', right: 'auto' };
 
   return (
-    <div className="context-submenu" ref={subRef} style={subStyle}>
+    <div className="context-submenu" data-parent-trigger-id={triggerId ?? ''} ref={subRef} style={subStyle}>
       {/* New Playlist row */}
       {!creating ? (
         <div
@@ -155,7 +155,7 @@ export function AddToPlaylistSubmenu({ songIds, onDone, dropDown }: { songIds: s
 }
 
 // Same as AddToPlaylistSubmenu but resolves album songs first
-function AlbumToPlaylistSubmenu({ albumId, onDone }: { albumId: string; onDone: () => void }) {
+function AlbumToPlaylistSubmenu({ albumId, onDone, triggerId }: { albumId: string; onDone: () => void; triggerId?: string }) {
   const [resolvedIds, setResolvedIds] = useState<string[] | null>(null);
 
   useEffect(() => {
@@ -172,7 +172,7 @@ function AlbumToPlaylistSubmenu({ albumId, onDone }: { albumId: string; onDone: 
     );
   }
   if (resolvedIds.length === 0) return null;
-  return <AddToPlaylistSubmenu songIds={resolvedIds} onDone={onDone} />;
+  return <AddToPlaylistSubmenu songIds={resolvedIds} onDone={onDone} triggerId={triggerId} />;
 }
 
 export default function ContextMenu() {
@@ -196,21 +196,29 @@ export default function ContextMenu() {
     }))
   );
   const auth = useAuthStore();
+  const setEntityRatingSupport = useAuthStore(s => s.setEntityRatingSupport);
+  const entityRatingSupport =
+    auth.activeServerId ? auth.entityRatingSupportByServer[auth.activeServerId] ?? 'unknown' : 'unknown';
   const audiomuseNavidromeEnabled = !!(auth.activeServerId && auth.audiomuseNavidromeByServer[auth.activeServerId]);
   const requestDownloadFolder = useDownloadModalStore(s => s.requestFolder);
   const navigate = useNavigate();
   const menuRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   // Adjusted coordinates to keep menu on screen
   const [coords, setCoords] = useState({ x: 0, y: 0 });
   const [playlistSubmenuOpen, setPlaylistSubmenuOpen] = useState(false);
   const [playlistSongIds, setPlaylistSongIds] = useState<string[]>([]);
+  const [keyboardRating, setKeyboardRating] = useState<{ kind: 'song' | 'album' | 'artist'; id: string; value: number } | null>(null);
+  const [pendingSubmenuKeyboardFocus, setPendingSubmenuKeyboardFocus] = useState(false);
 
   useEffect(() => {
     if (contextMenu.isOpen) {
       setCoords({ x: contextMenu.x, y: contextMenu.y });
       setPlaylistSubmenuOpen(false);
       setPlaylistSongIds([]);
+      setKeyboardRating(null);
+      setPendingSubmenuKeyboardFocus(false);
     }
   }, [contextMenu.isOpen, contextMenu.x, contextMenu.y]);
 
@@ -227,12 +235,243 @@ export default function ContextMenu() {
     }
   }, [contextMenu.isOpen, contextMenu.x, contextMenu.y]);
 
-  if (!contextMenu.isOpen || !contextMenu.item) return null;
+  useEffect(() => {
+    if (contextMenu.isOpen) {
+      previousFocusRef.current = document.activeElement as HTMLElement | null;
+      return;
+    }
+    const prev = previousFocusRef.current;
+    previousFocusRef.current = null;
+    if (prev?.isConnected) {
+      requestAnimationFrame(() => {
+        prev.focus({ preventScroll: true });
+      });
+    }
+  }, [contextMenu.isOpen, closeContextMenu]);
+
+  const getMenuNavItems = useCallback(
+    (scope: 'main' | 'submenu' = 'main') => {
+      if (!menuRef.current) return [];
+      if (scope === 'submenu') {
+        const sub = menuRef.current.querySelector<HTMLElement>('.context-submenu');
+        if (!sub || sub.offsetParent === null) return [];
+        return Array.from(
+          sub.querySelectorAll<HTMLElement>('.context-menu-item, .context-submenu-create-btn'),
+        ).filter(el => el.offsetParent !== null);
+      }
+      return Array.from(menuRef.current.children)
+        .filter((el): el is HTMLElement =>
+          el instanceof HTMLElement &&
+          (el.classList.contains('context-menu-item') || el.classList.contains('context-menu-rating-row')) &&
+          el.offsetParent !== null,
+        );
+    },
+    [],
+  );
+
+  const focusMenuItemAt = useCallback((scope: 'main' | 'submenu', index: number) => {
+    const items = getMenuNavItems(scope);
+    if (items.length === 0) return;
+    menuRef.current
+      ?.querySelectorAll<HTMLElement>('.context-menu-keyboard-active')
+      .forEach(el => el.classList.remove('context-menu-keyboard-active'));
+    const safeIdx = ((index % items.length) + items.length) % items.length;
+    const target = items[safeIdx];
+    target.classList.add('context-menu-keyboard-active');
+    target.tabIndex = -1;
+    target.focus({ preventScroll: true });
+    target.scrollIntoView({ block: 'nearest' });
+  }, [getMenuNavItems]);
+
+  useEffect(() => {
+    if (!contextMenu.isOpen) return;
+    requestAnimationFrame(() => {
+      menuRef.current?.focus({ preventScroll: true });
+      // Do not pre-highlight any menu row; keyboard outline appears only
+      // after explicit arrow navigation.
+    });
+  }, [contextMenu.isOpen]);
+
+  useEffect(() => {
+    if (!pendingSubmenuKeyboardFocus || !playlistSubmenuOpen) return;
+    let cancelled = false;
+    const tryFocus = (attemptsLeft: number) => {
+      if (cancelled) return;
+      const items = getMenuNavItems('submenu');
+      if (items.length > 0) {
+        focusMenuItemAt('submenu', 0);
+        setPendingSubmenuKeyboardFocus(false);
+        return;
+      }
+      if (attemptsLeft <= 0) {
+        setPendingSubmenuKeyboardFocus(false);
+        return;
+      }
+      requestAnimationFrame(() => tryFocus(attemptsLeft - 1));
+    };
+    requestAnimationFrame(() => tryFocus(8));
+    return () => {
+      cancelled = true;
+    };
+  }, [pendingSubmenuKeyboardFocus, playlistSubmenuOpen, getMenuNavItems, focusMenuItemAt]);
 
   const { type, item, queueIndex } = contextMenu;
 
   const isStarred = (id: string, itemStarred?: string) =>
     id in starredOverrides ? starredOverrides[id] : !!itemStarred;
+
+  const applySongRating = useCallback((songId: string, rating: number) => {
+    setUserRatingOverride(songId, rating);
+    setRating(songId, rating).catch(() => {});
+  }, [setUserRatingOverride]);
+
+  const applyAlbumRating = useCallback((album: SubsonicAlbum, rating: number) => {
+    setUserRatingOverride(album.id, rating);
+    if (entityRatingSupport !== 'full') return;
+    setRating(album.id, rating).catch(err => {
+      if (auth.activeServerId) setEntityRatingSupport(auth.activeServerId, 'track_only');
+      showToast(
+        typeof err === 'string' ? err : err instanceof Error ? err.message : t('entityRating.saveFailed'),
+        4500,
+        'error',
+      );
+    });
+  }, [setUserRatingOverride, entityRatingSupport, auth.activeServerId, setEntityRatingSupport, t]);
+
+  const applyArtistRating = useCallback((artist: SubsonicArtist, rating: number) => {
+    setUserRatingOverride(artist.id, rating);
+    if (entityRatingSupport !== 'full') return;
+    setRating(artist.id, rating).catch(err => {
+      if (auth.activeServerId) setEntityRatingSupport(auth.activeServerId, 'track_only');
+      showToast(
+        typeof err === 'string' ? err : err instanceof Error ? err.message : t('entityRating.saveFailed'),
+        4500,
+        'error',
+      );
+    });
+  }, [setUserRatingOverride, entityRatingSupport, auth.activeServerId, setEntityRatingSupport, t]);
+
+  const getRatingValueByKind = useCallback((kind: 'song' | 'album' | 'artist', id: string): number => {
+    if (kind === 'song' && (type === 'song' || type === 'album-song' || type === 'queue-item')) {
+      const song = item as Track;
+      if (song.id === id) return userRatingOverrides[id] ?? song.userRating ?? 0;
+    }
+    if (kind === 'album' && type === 'album') {
+      const album = item as SubsonicAlbum;
+      if (album.id === id) return userRatingOverrides[id] ?? album.userRating ?? 0;
+    }
+    if (kind === 'artist' && type === 'artist') {
+      const artist = item as SubsonicArtist;
+      if (artist.id === id) return userRatingOverrides[id] ?? artist.userRating ?? 0;
+    }
+    return userRatingOverrides[id] ?? 0;
+  }, [type, item, userRatingOverrides]);
+
+  const commitRatingByKind = useCallback((kind: 'song' | 'album' | 'artist', id: string, rating: number) => {
+    if (kind === 'song') {
+      applySongRating(id, rating);
+      return;
+    }
+    if (kind === 'album' && type === 'album') {
+      applyAlbumRating(item as SubsonicAlbum, rating);
+      return;
+    }
+    if (kind === 'artist' && type === 'artist') {
+      applyArtistRating(item as SubsonicArtist, rating);
+    }
+  }, [applySongRating, applyAlbumRating, applyArtistRating, type, item]);
+
+  const onMenuKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    const active = document.activeElement as HTMLElement | null;
+    const ratingRow = active?.closest('.context-menu-rating-row') as HTMLElement | null;
+
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      closeContextMenu();
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (ratingRow) {
+        const kind = ratingRow.dataset.ratingKind as ('song' | 'album' | 'artist' | undefined);
+        const id = ratingRow.dataset.ratingId;
+        if (!kind || !id) return;
+        if (ratingRow.dataset.ratingDisabled === 'true') return;
+        const value = keyboardRating && keyboardRating.kind === kind && keyboardRating.id === id
+          ? keyboardRating.value
+          : getRatingValueByKind(kind, id);
+        commitRatingByKind(kind, id, value);
+        setKeyboardRating({ kind, id, value });
+        return;
+      }
+      active?.click();
+      return;
+    }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      if (ratingRow) {
+        const kind = ratingRow.dataset.ratingKind as ('song' | 'album' | 'artist' | undefined);
+        const id = ratingRow.dataset.ratingId;
+        if (!kind || !id) return;
+        if (ratingRow.dataset.ratingDisabled === 'true') return;
+        e.preventDefault();
+        e.stopPropagation();
+        const currentValue = keyboardRating && keyboardRating.kind === kind && keyboardRating.id === id
+          ? keyboardRating.value
+          : getRatingValueByKind(kind, id);
+        const delta = e.key === 'ArrowRight' ? 1 : -1;
+        const nextValue = Math.max(0, Math.min(5, currentValue + delta));
+        setKeyboardRating({ kind, id, value: nextValue });
+        return;
+      }
+    }
+    if (e.key === 'ArrowRight') {
+      const trigger = active?.closest('.context-menu-item--submenu') as HTMLElement | null;
+      const triggerId = trigger?.dataset.playlistTriggerId;
+      if (!trigger || !triggerId) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setPlaylistSongIds([triggerId]);
+      setPlaylistSubmenuOpen(true);
+      setPendingSubmenuKeyboardFocus(true);
+      return;
+    }
+    if (e.key === 'ArrowLeft') {
+      const sub = active?.closest('.context-submenu') as HTMLElement | null;
+      if (!sub) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const triggerId = sub.dataset.parentTriggerId;
+      setPlaylistSubmenuOpen(false);
+      requestAnimationFrame(() => {
+        const trigger = triggerId
+          ? Array.from(menuRef.current?.querySelectorAll<HTMLElement>('.context-menu-item--submenu') ?? [])
+              .find(el => el.dataset.playlistTriggerId === triggerId) ?? null
+          : null;
+        if (trigger) {
+          menuRef.current
+            ?.querySelectorAll<HTMLElement>('.context-menu-keyboard-active')
+            .forEach(el => el.classList.remove('context-menu-keyboard-active'));
+          trigger.classList.add('context-menu-keyboard-active');
+          trigger.focus({ preventScroll: true });
+        }
+      });
+      return;
+    }
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    e.stopPropagation();
+    const scope: 'main' | 'submenu' = active?.closest('.context-submenu') ? 'submenu' : 'main';
+    const items = getMenuNavItems(scope);
+    if (items.length === 0) return;
+    const activeIdx = items.findIndex(el => el === document.activeElement);
+    const nextIdx =
+      activeIdx >= 0
+        ? (e.key === 'ArrowDown' ? activeIdx + 1 : activeIdx - 1)
+        : (e.key === 'ArrowDown' ? 0 : items.length - 1);
+    focusMenuItemAt(scope, nextIdx);
+  }, [closeContextMenu, keyboardRating, getRatingValueByKind, commitRatingByKind, getMenuNavItems, focusMenuItemAt]);
 
   const handleAction = async (action: () => void | Promise<void>) => {
     closeContextMenu();
@@ -376,6 +615,8 @@ export default function ContextMenu() {
     }
   };
 
+  if (!contextMenu.isOpen || !contextMenu.item) return null;
+
   return (
     <>
       {/* Transparent backdrop — catches all outside clicks cleanly, preventing freeze */}
@@ -387,6 +628,8 @@ export default function ContextMenu() {
         ref={menuRef}
         className="context-menu animate-fade-in"
         style={{ left: coords.x, top: coords.y, zIndex: 999 }}
+        tabIndex={-1}
+        onKeyDown={onMenuKeyDown}
       >
         {(type === 'song' || type === 'album-song') && (() => {
           const song = item as Track;
@@ -412,13 +655,14 @@ export default function ContextMenu() {
               </div>
               <div
                 className={`context-menu-item context-menu-item--submenu ${playlistSubmenuOpen && playlistSongIds[0] === song.id ? 'active' : ''}`}
+                data-playlist-trigger-id={song.id}
                 onMouseEnter={() => { setPlaylistSongIds([song.id]); setPlaylistSubmenuOpen(true); }}
                 onMouseLeave={() => setPlaylistSubmenuOpen(false)}
               >
                 <ListMusic size={14} /> {t('contextMenu.addToPlaylist')}
                 <ChevronRight size={13} style={{ marginLeft: 'auto' }} />
                 {playlistSubmenuOpen && playlistSongIds[0] === song.id && (
-                  <AddToPlaylistSubmenu songIds={[song.id]} onDone={() => { setPlaylistSubmenuOpen(false); closeContextMenu(); }} />
+                  <AddToPlaylistSubmenu songIds={[song.id]} triggerId={song.id} onDone={() => { setPlaylistSubmenuOpen(false); closeContextMenu(); }} />
                 )}
               </div>
              {type === 'album-song' && (
@@ -467,14 +711,23 @@ export default function ContextMenu() {
                   </div>
                 );
               })()}
-              <div className="context-menu-divider" />
-              <div className="context-menu-rating-row" onClick={e => e.stopPropagation()}>
+              <div
+                className="context-menu-rating-row"
+                data-rating-kind="song"
+                data-rating-id={song.id}
+                data-rating-disabled="false"
+                onClick={e => e.stopPropagation()}
+              >
+                <Star size={14} className="context-menu-rating-icon" aria-hidden />
                 <StarRating
-                  value={userRatingOverrides[song.id] ?? song.userRating ?? 0}
-                  onChange={r => { setUserRatingOverride(song.id, r); setRating(song.id, r).catch(() => {}); }}
+                  value={keyboardRating?.kind === 'song' && keyboardRating.id === song.id
+                    ? keyboardRating.value
+                    : userRatingOverrides[song.id] ?? song.userRating ?? 0}
+                  onChange={r => { setKeyboardRating({ kind: 'song', id: song.id, value: r }); applySongRating(song.id, r); }}
                   ariaLabel={t('albumDetail.ratingLabel')}
                 />
               </div>
+              <div className="context-menu-divider" />
               <div className="context-menu-item" onClick={() => handleAction(() => openSongInfo(song.id))}>
                 <Info size={14} /> {t('contextMenu.songInfo')}
               </div>
@@ -484,6 +737,7 @@ export default function ContextMenu() {
 
         {type === 'album' && (() => {
           const album = item as SubsonicAlbum;
+          const albumRatingDisabled = entityRatingSupport === 'track_only';
           return (
             <>
               <div className="context-menu-item" onClick={() => handleAction(() => navigate(`/album/${album.id}`))}>
@@ -501,18 +755,37 @@ export default function ContextMenu() {
                 <Heart size={14} fill={isStarred(album.id, album.starred) ? 'currentColor' : 'none'} />
                 {isStarred(album.id, album.starred) ? t('contextMenu.unfavoriteAlbum') : t('contextMenu.favoriteAlbum')}
               </div>
+              <div
+                className="context-menu-rating-row"
+                data-rating-kind="album"
+                data-rating-id={album.id}
+                data-rating-disabled={albumRatingDisabled ? 'true' : 'false'}
+                onClick={e => e.stopPropagation()}
+              >
+                <Star size={14} className="context-menu-rating-icon" aria-hidden />
+                <StarRating
+                  value={keyboardRating?.kind === 'album' && keyboardRating.id === album.id
+                    ? keyboardRating.value
+                    : userRatingOverrides[album.id] ?? album.userRating ?? 0}
+                  disabled={albumRatingDisabled}
+                  labelKey="entityRating.albumAriaLabel"
+                  onChange={r => { setKeyboardRating({ kind: 'album', id: album.id, value: r }); applyAlbumRating(album, r); }}
+                />
+              </div>
+              <div className="context-menu-divider" />
               <div className="context-menu-item" onClick={() => handleAction(() => downloadAlbum(album.name, album.id))}>
                 <Download size={14} /> {t('contextMenu.download')}
               </div>
               <div
                 className={`context-menu-item context-menu-item--submenu ${playlistSubmenuOpen && playlistSongIds[0] === `album:${album.id}` ? 'active' : ''}`}
+                data-playlist-trigger-id={`album:${album.id}`}
                 onMouseEnter={() => { setPlaylistSongIds([`album:${album.id}`]); setPlaylistSubmenuOpen(true); }}
                 onMouseLeave={() => setPlaylistSubmenuOpen(false)}
               >
                 <ListMusic size={14} /> {t('contextMenu.addToPlaylist')}
                 <ChevronRight size={13} style={{ marginLeft: 'auto' }} />
                 {playlistSubmenuOpen && playlistSongIds[0] === `album:${album.id}` && (
-                  <AlbumToPlaylistSubmenu albumId={album.id} onDone={() => { setPlaylistSubmenuOpen(false); closeContextMenu(); }} />
+                  <AlbumToPlaylistSubmenu albumId={album.id} triggerId={`album:${album.id}`} onDone={() => { setPlaylistSubmenuOpen(false); closeContextMenu(); }} />
                 )}
               </div>
             </>
@@ -521,6 +794,7 @@ export default function ContextMenu() {
 
         {type === 'artist' && (() => {
           const artist = item as SubsonicArtist;
+          const artistRatingDisabled = entityRatingSupport === 'track_only';
           return (
             <>
               <div className="context-menu-item" onClick={() => handleAction(() => startRadio(artist.id, artist.name))}>
@@ -534,6 +808,23 @@ export default function ContextMenu() {
               })}>
                 <Heart size={14} fill={isStarred(artist.id, artist.starred) ? 'currentColor' : 'none'} />
                 {isStarred(artist.id, artist.starred) ? t('contextMenu.unfavoriteArtist') : t('contextMenu.favoriteArtist')}
+              </div>
+              <div
+                className="context-menu-rating-row"
+                data-rating-kind="artist"
+                data-rating-id={artist.id}
+                data-rating-disabled={artistRatingDisabled ? 'true' : 'false'}
+                onClick={e => e.stopPropagation()}
+              >
+                <Star size={14} className="context-menu-rating-icon" aria-hidden />
+                <StarRating
+                  value={keyboardRating?.kind === 'artist' && keyboardRating.id === artist.id
+                    ? keyboardRating.value
+                    : userRatingOverrides[artist.id] ?? artist.userRating ?? 0}
+                  disabled={artistRatingDisabled}
+                  labelKey="entityRating.artistAriaLabel"
+                  onChange={r => { setKeyboardRating({ kind: 'artist', id: artist.id, value: r }); applyArtistRating(artist, r); }}
+                />
               </div>
             </>
           );
@@ -553,19 +844,28 @@ export default function ContextMenu() {
               </div>
               <div
                 className={`context-menu-item context-menu-item--submenu ${playlistSubmenuOpen && playlistSongIds[0] === song.id ? 'active' : ''}`}
+                data-playlist-trigger-id={song.id}
                 onMouseEnter={() => { setPlaylistSongIds([song.id]); setPlaylistSubmenuOpen(true); }}
                 onMouseLeave={() => setPlaylistSubmenuOpen(false)}
               >
                 <ListMusic size={14} /> {t('contextMenu.addToPlaylist')}
                 <ChevronRight size={13} style={{ marginLeft: 'auto' }} />
                 {playlistSubmenuOpen && playlistSongIds[0] === song.id && (
-                  <AddToPlaylistSubmenu songIds={[song.id]} onDone={() => { setPlaylistSubmenuOpen(false); closeContextMenu(); }} />
+                  <AddToPlaylistSubmenu songIds={[song.id]} triggerId={song.id} onDone={() => { setPlaylistSubmenuOpen(false); closeContextMenu(); }} />
                 )}
               </div>
               <div className="context-menu-divider" />
               {song.albumId && (
                 <div className="context-menu-item" onClick={() => handleAction(() => navigate(`/album/${song.albumId}`))}>
                   <Disc3 size={14} /> {t('contextMenu.openAlbum')}
+                </div>
+              )}
+              <div className="context-menu-item" onClick={() => handleAction(() => startRadio(song.artistId ?? song.artist, song.artist, song))}>
+                <Radio size={14} /> {t('contextMenu.startRadio')}
+              </div>
+              {audiomuseNavidromeEnabled && (
+                <div className="context-menu-item" onClick={() => handleAction(() => startInstantMix(song))}>
+                  <Sparkles size={14} /> {t('contextMenu.instantMix')}
                 </div>
               )}
               <div className="context-menu-item" onClick={() => handleAction(() => {
@@ -591,22 +891,23 @@ export default function ContextMenu() {
                   </div>
                 );
               })()}
-              <div className="context-menu-item" onClick={() => handleAction(() => startRadio(song.artistId ?? song.artist, song.artist, song))}>
-                <Radio size={14} /> {t('contextMenu.startRadio')}
-              </div>
-              {audiomuseNavidromeEnabled && (
-                <div className="context-menu-item" onClick={() => handleAction(() => startInstantMix(song))}>
-                  <Sparkles size={14} /> {t('contextMenu.instantMix')}
-                </div>
-              )}
-              <div className="context-menu-divider" />
-              <div className="context-menu-rating-row" onClick={e => e.stopPropagation()}>
+              <div
+                className="context-menu-rating-row"
+                data-rating-kind="song"
+                data-rating-id={song.id}
+                data-rating-disabled="false"
+                onClick={e => e.stopPropagation()}
+              >
+                <Star size={14} className="context-menu-rating-icon" aria-hidden />
                 <StarRating
-                  value={userRatingOverrides[song.id] ?? song.userRating ?? 0}
-                  onChange={r => { setUserRatingOverride(song.id, r); setRating(song.id, r).catch(() => {}); }}
+                  value={keyboardRating?.kind === 'song' && keyboardRating.id === song.id
+                    ? keyboardRating.value
+                    : userRatingOverrides[song.id] ?? song.userRating ?? 0}
+                  onChange={r => { setKeyboardRating({ kind: 'song', id: song.id, value: r }); applySongRating(song.id, r); }}
                   ariaLabel={t('albumDetail.ratingLabel')}
                 />
               </div>
+              <div className="context-menu-divider" />
               <div className="context-menu-item" onClick={() => handleAction(() => openSongInfo(song.id))}>
                 <Info size={14} /> {t('contextMenu.songInfo')}
               </div>

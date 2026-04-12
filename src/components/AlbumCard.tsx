@@ -43,7 +43,6 @@ function AlbumCard({ album, selected, selectionMode, onToggleSelect, showRating 
       aria-label={`${album.name} von ${album.artist}`}
       onKeyDown={e => e.key === 'Enter' && handleClick()}
       onContextMenu={(e) => {
-        if (selectionMode) { e.preventDefault(); return; }
         e.preventDefault();
         openContextMenu(e.clientX, e.clientY, album, 'album');
       }}

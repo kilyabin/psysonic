@@ -587,6 +587,7 @@ export const enTranslation = {
     shortcutSeekForward: 'Seek forward 10s',
     shortcutSeekBackward: 'Seek backward 10s',
     shortcutToggleQueue: 'Toggle queue',
+    shortcutOpenFolderBrowser: 'Open {{folderBrowser}}',
     shortcutFullscreenPlayer: 'Fullscreen player',
     shortcutNativeFullscreen: 'Native fullscreen',
     playbackTitle: 'Playback',

@@ -582,6 +582,7 @@ export const nbTranslation = {
     shortcutSeekForward: 'Søk fremover 10 sekunder',
     shortcutSeekBackward: 'Søk bakover 10 sekunder',
     shortcutToggleQueue: 'Veksle kø',
+    shortcutOpenFolderBrowser: 'Åpne {{folderBrowser}}',
     shortcutFullscreenPlayer: 'Fullskjermsspiller',
     shortcutNativeFullscreen: 'Naturlig fullskjerm',
     playbackTitle: 'Avspilling',

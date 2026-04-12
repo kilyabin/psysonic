@@ -409,6 +409,7 @@ function AppShell() {
 
 // Media key + tray event handler
 function TauriEventBridge() {
+  const navigate = useNavigate();
   const togglePlay = usePlayerStore(s => s.togglePlay);
   const next = usePlayerStore(s => s.next);
   const previous = usePlayerStore(s => s.previous);
@@ -486,6 +487,9 @@ function TauriEventBridge() {
           break;
         }
         case 'toggle-queue':      toggleQueue(); break;
+        case 'open-folder-browser':
+          navigate('/folders', { state: { folderBrowserRevealTs: Date.now() } });
+          break;
         case 'fullscreen-player': toggleFullscreen(); break;
         case 'native-fullscreen': {
           const win = getCurrentWindow();
