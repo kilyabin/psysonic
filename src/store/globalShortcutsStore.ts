@@ -1,18 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
-import { formatKeyCode } from './keybindingsStore';
+import { MODIFIER_KEY_CODES, formatBinding } from './keybindingsStore';
 
 export type GlobalAction = 'play-pause' | 'next' | 'prev' | 'volume-up' | 'volume-down';
 
-const MODIFIER_CODES = [
-  'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight',
-  'ShiftLeft', 'ShiftRight', 'MetaLeft', 'MetaRight', 'OSLeft', 'OSRight',
-];
-
 /** Build a Tauri-compatible shortcut string from a KeyboardEvent, or null if invalid. */
 export function buildGlobalShortcut(e: KeyboardEvent): string | null {
-  if (MODIFIER_CODES.includes(e.code)) return null;
+  if ((MODIFIER_KEY_CODES as readonly string[]).includes(e.code)) return null;
   // Require at least Ctrl, Alt, or Meta — Shift alone is too invasive
   if (!e.ctrlKey && !e.altKey && !e.metaKey) return null;
 
@@ -27,13 +22,7 @@ export function buildGlobalShortcut(e: KeyboardEvent): string | null {
 
 /** Human-readable label for a stored shortcut string, e.g. "ctrl+alt+ArrowRight" → "Ctrl+Alt+→". */
 export function formatGlobalShortcut(shortcut: string): string {
-  return shortcut.split('+').map(part => {
-    if (part === 'ctrl')  return 'Ctrl';
-    if (part === 'alt')   return 'Alt';
-    if (part === 'shift') return 'Shift';
-    if (part === 'super' || part === 'meta') return 'Super';
-    return formatKeyCode(part);
-  }).join('+');
+  return formatBinding(shortcut);
 }
 
 // Module-level guard — prevents double-registration from React StrictMode's

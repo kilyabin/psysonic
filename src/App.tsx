@@ -66,7 +66,7 @@ import { useThemeStore } from './store/themeStore';
 import { useThemeScheduler } from './hooks/useThemeScheduler';
 import { useFontStore } from './store/fontStore';
 import { useEqStore } from './store/eqStore';
-import { useKeybindingsStore } from './store/keybindingsStore';
+import { useKeybindingsStore, matchInAppBinding, buildInAppBinding } from './store/keybindingsStore';
 import { useGlobalShortcutsStore } from './store/globalShortcutsStore';
 import { useZipDownloadStore } from './store/zipDownloadStore';
 import ZipDownloadOverlay from './components/ZipDownloadOverlay';
@@ -457,15 +457,18 @@ function TauriEventBridge() {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      // Global shortcuts use modifier combos — skip in-app bindings for those
-      // (X11 GrabModeAsync delivers the key to both the grabber and the focused WebView)
-      if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+      const chord = buildInAppBinding(e);
+      if (chord) {
+        const registered = Object.values(useGlobalShortcutsStore.getState().shortcuts);
+        if (registered.includes(chord)) return;
+      }
 
       const { bindings } = useKeybindingsStore.getState();
       const { togglePlay, next, previous, setVolume, seek, toggleQueue, toggleFullscreen } = usePlayerStore.getState();
 
       const action = (Object.entries(bindings) as [string, string | null][])
-        .find(([, code]) => code === e.code)?.[0];
+        .find(([, b]) => matchInAppBinding(e, b))?.[0];
 
       if (!action) return;
       e.preventDefault();
@@ -478,12 +481,16 @@ function TauriEventBridge() {
         case 'volume-down':       setVolume(Math.max(0, usePlayerStore.getState().volume - 0.05)); break;
         case 'seek-forward': {
           const s = usePlayerStore.getState();
-          seek(Math.min(s.currentTrack?.duration ?? 0, s.currentTime + 10));
+          const dur = s.currentTrack?.duration ?? 0;
+          if (!dur) break;
+          seek(Math.min(1, (s.currentTime + 10) / dur));
           break;
         }
         case 'seek-backward': {
           const s = usePlayerStore.getState();
-          seek(Math.max(0, s.currentTime - 10));
+          const dur = s.currentTrack?.duration ?? 0;
+          if (!dur) break;
+          seek(Math.max(0, (s.currentTime - 10) / dur));
           break;
         }
         case 'toggle-queue':      toggleQueue(); break;

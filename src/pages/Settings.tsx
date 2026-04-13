@@ -25,7 +25,7 @@ import { SeekbarPreview } from '../components/WaveformSeek';
 import { IS_LINUX } from '../utils/platform';
 import { useThemeStore } from '../store/themeStore';
 import { useFontStore, FontId } from '../store/fontStore';
-import { useKeybindingsStore, KeyAction, formatKeyCode, DEFAULT_BINDINGS } from '../store/keybindingsStore';
+import { useKeybindingsStore, KeyAction, formatBinding, buildInAppBinding } from '../store/keybindingsStore';
 import { useGlobalShortcutsStore, GlobalAction, buildGlobalShortcut, formatGlobalShortcut } from '../store/globalShortcutsStore';
 import { useSidebarStore, DEFAULT_SIDEBAR_ITEMS, SidebarItemConfig } from '../store/sidebarStore';
 import { useHomeStore, HomeSectionId } from '../store/homeStore';
@@ -1577,13 +1577,17 @@ export default function Settings() {
                           const handler = (e: KeyboardEvent) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            if (e.code !== 'Escape') {
-                              // unbind any existing action with this key first
-                              const existing = (Object.entries(kb.bindings) as [KeyAction, string | null][])
-                                .find(([, c]) => c === e.code)?.[0];
-                              if (existing && existing !== action) kb.setBinding(existing, null);
-                              kb.setBinding(action, e.code);
+                            if (e.code === 'Escape') {
+                              setListeningFor(null);
+                              window.removeEventListener('keydown', handler, true);
+                              return;
                             }
+                            const chord = buildInAppBinding(e);
+                            if (!chord) return;
+                            const existing = (Object.entries(kb.bindings) as [KeyAction, string | null][])
+                              .find(([, c]) => c === chord)?.[0];
+                            if (existing && existing !== action) kb.setBinding(existing, null);
+                            kb.setBinding(action, chord);
                             setListeningFor(null);
                             window.removeEventListener('keydown', handler, true);
                           };
@@ -1599,7 +1603,7 @@ export default function Settings() {
                           cursor: 'pointer',
                         }}
                       >
-                        {isListening ? t('settings.shortcutListening') : bound ? formatKeyCode(bound) : t('settings.shortcutUnbound')}
+                        {isListening ? t('settings.shortcutListening') : bound ? formatBinding(bound) : t('settings.shortcutUnbound')}
                       </button>
                       {bound && !isListening && (
                         <button
