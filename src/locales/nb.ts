@@ -26,6 +26,8 @@ export const nbTranslation = {
     folderBrowser: 'Mappeleser',
     libraryScope: 'Biblioteksomfang',
     allLibraries: 'Alle biblioteker',
+    expandPlaylists: 'Utvid spillelister',
+    collapsePlaylists: 'Skjul spillelister',
   },
   home: {
     hero: 'Utvalgt',

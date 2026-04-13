@@ -26,6 +26,8 @@ export const zhTranslation = {
     folderBrowser: '文件夹浏览器',
     libraryScope: '资料库范围',
     allLibraries: '所有资料库',
+    expandPlaylists: '展开播放列表',
+    collapsePlaylists: '收起播放列表',
   },
   home: {
     hero: '精选',

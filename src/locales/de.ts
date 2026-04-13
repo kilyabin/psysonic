@@ -26,6 +26,8 @@ export const deTranslation = {
     folderBrowser: 'Ordner-Browser',
     libraryScope: 'Bibliotheksumfang',
     allLibraries: 'Alle Bibliotheken',
+    expandPlaylists: 'Playlists ausklappen',
+    collapsePlaylists: 'Playlists einklappen',
   },
   home: {
     hero: 'Featured',

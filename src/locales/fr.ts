@@ -26,6 +26,8 @@ export const frTranslation = {
     folderBrowser: 'Explorateur de dossiers',
     libraryScope: 'Portée de la bibliothèque',
     allLibraries: 'Toutes les bibliothèques',
+    expandPlaylists: 'Développer les playlists',
+    collapsePlaylists: 'Réduire les playlists',
   },
   home: {
     hero: 'En vedette',

@@ -27,6 +27,8 @@ export const ruTranslation = {
     folderBrowser: 'Браузер папок',
     libraryScope: 'Область медиатеки',
     allLibraries: 'Все библиотеки',
+    expandPlaylists: 'Развернуть плейлисты',
+    collapsePlaylists: 'Свернуть плейлисты',
   },
   home: {
     hero: 'Подборка',

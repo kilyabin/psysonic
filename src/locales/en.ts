@@ -27,6 +27,8 @@ export const enTranslation = {
     folderBrowser: 'Folder Browser',
     libraryScope: 'Library scope',
     allLibraries: 'All libraries',
+    expandPlaylists: 'Expand playlists',
+    collapsePlaylists: 'Collapse playlists',
   },
   home: {
     hero: 'Featured',

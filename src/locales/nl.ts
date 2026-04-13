@@ -26,6 +26,8 @@ export const nlTranslation = {
     folderBrowser: 'Mappenverkenner',
     libraryScope: 'Bibliotheekbereik',
     allLibraries: 'Alle bibliotheken',
+    expandPlaylists: 'Afspeellijsten uitklappen',
+    collapsePlaylists: 'Afspeellijsten inklappen',
   },
   home: {
     hero: 'Uitgelicht',

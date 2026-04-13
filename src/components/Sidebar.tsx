@@ -250,8 +250,8 @@ export default function Sidebar({
                     className={`sidebar-playlists-toggle ${playlistsExpanded ? 'expanded' : ''}`}
                     onClick={() => setPlaylistsExpanded(!playlistsExpanded)}
                     aria-expanded={playlistsExpanded}
-                    aria-label={playlistsExpanded ? 'Colapsar listas' : 'Expandir listas'}
-                    title={playlistsExpanded ? 'Colapsar listas' : 'Expandir listas'}
+                    aria-label={playlistsExpanded ? t('sidebar.collapsePlaylists') : t('sidebar.expandPlaylists')}
+                    data-tooltip={playlistsExpanded ? t('sidebar.collapsePlaylists') : t('sidebar.expandPlaylists')}
                   >
                     <ChevronRight size={14} />
                   </button>

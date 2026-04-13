@@ -27,6 +27,8 @@ export const esTranslation = {
     folderBrowser: 'Explorar Carpetas',
     libraryScope: 'Ámbito de biblioteca',
     allLibraries: 'Todas las bibliotecas',
+    expandPlaylists: 'Expandir listas',
+    collapsePlaylists: 'Colapsar listas',
   },
   home: {
     hero: 'Destacado',

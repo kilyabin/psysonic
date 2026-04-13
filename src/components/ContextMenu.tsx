@@ -49,6 +49,13 @@ export function AddToPlaylistSubmenu({ songIds, onDone, dropDown, triggerId }: {
   const recentIds = usePlaylistStore((s) => s.recentIds);
   const createPlaylist = usePlaylistStore((s) => s.createPlaylist);
   const touchPlaylist = usePlaylistStore((s) => s.touchPlaylist);
+  const fetchPlaylists = usePlaylistStore((s) => s.fetchPlaylists);
+
+  // Fetch playlists on first open if the store hasn't been populated yet
+  useEffect(() => {
+    if (storePlaylists.length === 0) fetchPlaylists();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Sort playlists by recent usage
   const playlists = useMemo(() => {
