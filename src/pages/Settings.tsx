@@ -221,6 +221,25 @@ function snapHotCacheMb(v: number): number {
   return Math.round((x - 32) / 32) * 32 + 32;
 }
 
+/** Makes raw ALSA device names more readable on Linux.
+ *  Values are kept as-is (rodio needs the ALSA name); only the displayed label is cleaned.
+ *  e.g. "sysdefault:CARD=U192k" → "U192k"
+ *       "hw:CARD=U192k,DEV=0"   → "U192k (hw)"
+ *       "iec958:CARD=PCH,DEV=0" → "PCH (S/PDIF)"
+ *  Names without ALSA prefix (pipewire, pulse, default…) are returned unchanged. */
+function formatAudioDeviceLabel(name: string): string {
+  const cardMatch = name.match(/CARD=([^,]+)/);
+  if (!cardMatch) return name;
+  const card = cardMatch[1];
+  if (name.startsWith('iec958:'))    return `${card} (S/PDIF)`;
+  if (name.startsWith('sysdefault:')) return card;
+  if (name.startsWith('plughw:'))   return card;
+  if (name.startsWith('hw:'))       return `${card} (hw)`;
+  if (name.startsWith('front:'))    return `${card} (Front)`;
+  if (name.startsWith('surround'))  return `${card} (${name.split(':')[0]})`;
+  return card;
+}
+
 export default function Settings() {
   const auth = useAuthStore();
   const theme = useThemeStore();
@@ -533,7 +552,7 @@ export default function Settings() {
                   }}
                   options={[
                     { value: '', label: t('settings.audioOutputDeviceDefault') },
-                    ...audioDevices.map(d => ({ value: d, label: d })),
+                    ...audioDevices.map(d => ({ value: d, label: formatAudioDeviceLabel(d) })),
                   ]}
                 />
                 <button
