@@ -3526,10 +3526,11 @@ html.no-compositing .fs-close {
   background: rgba(0, 0, 0, 0.45);
 }
 
-/* Portrait: remove CSS filter (drop-shadow) and will-change */
+/* Portrait: remove CSS filter (drop-shadow), will-change and drift animation */
 html.no-compositing .fs-portrait {
   filter: none;
   will-change: auto;
+  animation: none;
 }
 
 /* Portrait wrap: replace mask-image fade with a pseudo-element overlay gradient.
@@ -3561,6 +3562,20 @@ html.no-compositing .fs-lyrics-overlay {
 /* Lyrics rail: remove will-change */
 html.no-compositing .fs-lyrics-rail {
   will-change: auto;
+}
+
+/* Mesh blobs: stop animations — in software mode each frame composites surfaces
+   larger than the screen (blob-a is 130 × 130 % of the viewport); on high-DPI
+   displays this saturates the CPU and drops the player to ~10 FPS.
+   Static gradients are preserved; only the slow pan animation is removed. */
+html.no-compositing .fs-mesh-blob {
+  animation: none;
+}
+
+/* Seekbar played bar: remove box-shadow — its width changes on every playback
+   tick; in software rendering each change triggers a box-shadow repaint. */
+html.no-compositing .fs-seekbar-played {
+  box-shadow: none;
 }
 
 /* Chat */
