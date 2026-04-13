@@ -559,7 +559,7 @@ export default function Settings() {
                   className="icon-btn"
                   onClick={refreshAudioDevices}
                   disabled={devicesLoading || deviceSwitching}
-                  data-tooltip={t('common.refresh')}
+                  data-tooltip={t('settings.audioOutputDeviceRefresh')}
                 >
                   <RotateCcw size={15} className={devicesLoading ? 'spin' : ''} />
                 </button>

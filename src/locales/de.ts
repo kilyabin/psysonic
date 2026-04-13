@@ -502,6 +502,7 @@ export const deTranslation = {
     audioOutputDevice: 'Audio-Ausgabegerät',
     audioOutputDeviceDesc: 'Wähle das Audiogerät, über das Psysonic spielt. Änderungen werden sofort übernommen und starten den aktuellen Track neu.',
     audioOutputDeviceDefault: 'Systemstandard',
+    audioOutputDeviceRefresh: 'Geräteliste aktualisieren',
     hiResTitle: 'Native Hi-Res-Wiedergabe',
     hiResEnabled: 'Native Hi-Res-Wiedergabe aktivieren',
     hiResDesc: "Standardmäßig wird auf 44,1 kHz begrenzt (maximale Stabilität). Nur aktivieren, wenn Hardware und Netzwerk zuverlässig hohe Abtastraten (88,2 kHz+) unterstützen.",

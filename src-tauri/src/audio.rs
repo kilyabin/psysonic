@@ -1530,6 +1530,20 @@ impl AudioCurrent {
 fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32) -> (rodio::OutputStream, rodio::OutputStreamHandle, u32) {
     use rodio::cpal::traits::{DeviceTrait, HostTrait};
 
+    // Suppress ALSA stderr noise while enumerating devices on Unix.
+    #[cfg(unix)]
+    let _guard = unsafe {
+        struct StderrGuard(i32);
+        impl Drop for StderrGuard {
+            fn drop(&mut self) { unsafe { libc::dup2(self.0, 2); libc::close(self.0); } }
+        }
+        let saved = libc::dup(2);
+        let devnull = libc::open(b"/dev/null\0".as_ptr() as *const libc::c_char, libc::O_WRONLY);
+        libc::dup2(devnull, 2);
+        libc::close(devnull);
+        StderrGuard(saved)
+    };
+
     let host = rodio::cpal::default_host();
 
     // Resolve the target device: named device first, fall back to system default.
@@ -2993,6 +3007,12 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
                 .and_then(|d| d.name().ok())
         }).await.unwrap_or(None);
 
+        // How many consecutive checks the pinned device has been absent.
+        // ALSA can temporarily fail to enumerate a device that is busy (e.g. actively
+        // streaming), so we require 3 consecutive misses (~9 s) before treating it
+        // as truly unplugged.
+        let mut pinned_miss_count: u32 = 0;
+
         loop {
             tokio::time::sleep(Duration::from_secs(3)).await;
 
@@ -3026,7 +3046,14 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
             if let Some(ref dev_name) = pinned {
                 // ── Case 2: pinned device disappeared ────────────────────────
                 if !available.iter().any(|d| d == dev_name) {
+                    pinned_miss_count += 1;
+                    // Only act after 3 consecutive misses (~9 s) to avoid false
+                    // positives when ALSA temporarily hides a busy device.
+                    if pinned_miss_count < 3 {
+                        continue;
+                    }
                     eprintln!("[psysonic] device-watcher: pinned device '{dev_name}' disconnected, falling back to system default");
+                    pinned_miss_count = 0;
                     *selected_device.lock().unwrap() = None;
 
                     // Debounce so the OS finishes reconfiguring.
@@ -3053,8 +3080,11 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
                     }
 
                     last_default = current_default;
+                } else {
+                    // Device is present — reset miss counter.
+                    pinned_miss_count = 0;
                 }
-                // Pinned device still present — nothing to do.
+                // Pinned device still present (or not yet confirmed gone) — nothing to do.
                 continue;
             }
 

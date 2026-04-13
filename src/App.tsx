@@ -421,13 +421,10 @@ function TauriEventBridge() {
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     listen('audio:device-changed', () => {
-      const { currentTrack, currentTime, isPlaying, playTrack, resetAudioPause } = usePlayerStore.getState();
+      const { currentTrack, isPlaying, playTrack, resetAudioPause } = usePlayerStore.getState();
       if (!currentTrack) return;
       if (isPlaying) {
-        const pos = currentTime;
-        const dur = currentTrack.duration || 1;
         playTrack(currentTrack);
-        setTimeout(() => usePlayerStore.getState().seek(pos / dur), 600);
       } else {
         // Paused: clear warm-pause flag so the next resume uses the cold path
         // (audio_play + seek) which creates a new Sink on the new device.
@@ -446,10 +443,7 @@ function TauriEventBridge() {
       const { currentTrack, currentTime, isPlaying, playTrack, resetAudioPause } = usePlayerStore.getState();
       if (!currentTrack) return;
       if (isPlaying) {
-        const pos = currentTime;
-        const dur = currentTrack.duration || 1;
         playTrack(currentTrack);
-        setTimeout(() => usePlayerStore.getState().seek(pos / dur), 600);
       } else {
         resetAudioPause();
       }
