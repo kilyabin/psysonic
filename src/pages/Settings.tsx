@@ -113,6 +113,7 @@ const CONTRIBUTORS = [
       'Statistics: genre insights scoped to music library, cached Subsonic fetches, localized duration formatting (PR #144)',
       'Audio output device picker: clearer ALSA labels, duplicate disambiguation, system-default mark, live refresh (PR #173)',
       'Folder Browser: arrow navigation blocked when modifier keys are held (PR #174)',
+      'Linux audio output device picker: stable watcher (disable false enumeration-miss resets), canonicalize ALSA name drift, ghost entry for unlisted device (PR #176)',
     ],
   },
   {
