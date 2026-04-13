@@ -125,7 +125,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
-            libasound2-dev
+            libasound2-dev squashfs-tools
 
       - name: setup node
         uses: actions/setup-node@v5
@@ -148,7 +148,8 @@ jobs:
         env:
           VITE_LASTFM_API_KEY: ${{ secrets.VITE_LASTFM_API_KEY }}
           VITE_LASTFM_API_SECRET: ${{ secrets.VITE_LASTFM_API_SECRET }}
-        run: npm run tauri:build -- --bundles deb,rpm
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: npm run tauri:build -- --bundles deb,rpm,appimage
 
       - name: upload Linux artifacts
         env:
@@ -156,5 +157,5 @@ jobs:
         run: |
           VERSION=${{ needs.create-release.outputs.package_version }}
           find src-tauri/target/release/bundle \
-            \( -name "*.deb" -o -name "*.rpm" \) \
+            \( -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" \) \
             | xargs gh release upload "app-v${VERSION}" --clobber
