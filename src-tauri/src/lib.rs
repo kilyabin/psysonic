@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod audio;
+pub mod cli;
 mod discord;
 #[cfg(target_os = "windows")]
 mod taskbar_win;
@@ -43,6 +44,18 @@ fn greet(name: &str) -> String {
 #[tauri::command]
 fn exit_app(app_handle: tauri::AppHandle) {
     app_handle.exit(0);
+}
+
+/// Writes `psysonic-cli-snapshot.json` for `psysonic --info` (debounced from the frontend).
+#[tauri::command]
+fn cli_publish_player_snapshot(snapshot: serde_json::Value) -> Result<(), String> {
+    crate::cli::write_cli_snapshot(&snapshot)
+}
+
+/// Writes `psysonic-cli-library.json` for `psysonic --player library list`.
+#[tauri::command]
+fn cli_publish_library_list(payload: serde_json::Value) -> Result<(), String> {
+    crate::cli::write_library_cli_response(&payload)
 }
 
 /// Toggle native window decorations at runtime (Linux custom title bar opt-out).
@@ -2199,6 +2212,23 @@ fn is_tiling_wm_cmd() -> bool {
 }
 
 pub fn run() {
+    let argv: Vec<String> = std::env::args().collect();
+
+    // Linux: second `psysonic --player …` forwards over D-Bus before heavy startup.
+    #[cfg(target_os = "linux")]
+    {
+        if crate::cli::parse_cli_command(&argv).is_some() {
+            match crate::cli::linux_try_forward_player_cli_secondary(&argv) {
+                Ok(crate::cli::LinuxPlayerForwardResult::Forwarded) => std::process::exit(0),
+                Ok(crate::cli::LinuxPlayerForwardResult::ContinueStartup) => {}
+                Err(msg) => {
+                    eprintln!("NOT OK: {msg}");
+                    std::process::exit(1);
+                }
+            }
+        }
+    }
+
     let (audio_engine, _audio_thread) = audio::create_engine();
 
     tauri::Builder::default()
@@ -2214,11 +2244,13 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            let window = app.get_webview_window("main").expect("no main window");
-            let _ = window.show();
-            let _ = window.unminimize();
-            let _ = window.set_focus();
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            if !crate::cli::handle_cli_on_primary_instance(app, &argv) {
+                let window = app.get_webview_window("main").expect("no main window");
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
         }))
 
         .setup(|app| {
@@ -2350,6 +2382,9 @@ pub fn run() {
                 audio::start_device_watcher(&engine, app.handle().clone());
             }
 
+            // Cold start with `--player …`: defer emit so the webview can register listeners.
+            crate::cli::spawn_deferred_cli_argv_handler(app.handle());
+
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -2378,6 +2413,8 @@ pub fn run() {
             greet,
             calculate_sync_payload,
             exit_app,
+            cli_publish_player_snapshot,
+            cli_publish_library_list,
             set_window_decorations,
             no_compositing_mode,
             is_tiling_wm_cmd,

@@ -1344,12 +1344,7 @@ export default function ContextMenu() {
   };
 
   const startInstantMix = async (song: Track) => {
-    const state = usePlayerStore.getState();
-    if (state.currentTrack?.id === song.id) {
-      if (!state.isPlaying) state.resume();
-    } else {
-      playTrack(song, [song]);
-    }
+    usePlayerStore.getState().reseedQueueForInstantMix(song);
     const serverId = useAuthStore.getState().activeServerId;
     try {
       const similar = await getSimilarSongs(song.id, 50);

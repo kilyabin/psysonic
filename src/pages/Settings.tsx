@@ -33,6 +33,7 @@ import { useHomeStore, HomeSectionId } from '../store/homeStore';
 import { useDragDrop, useDragSource } from '../contexts/DragDropContext';
 import { ALL_NAV_ITEMS } from '../components/Sidebar';
 import { pingWithCredentials, scheduleInstantMixProbeForServer } from '../api/subsonic';
+import { switchActiveServer } from '../utils/switchActiveServer';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { Trans, useTranslation } from 'react-i18next';
 import Equalizer from '../components/Equalizer';
@@ -572,23 +573,11 @@ export default function Settings() {
 
   const switchToServer = async (server: ServerProfile) => {
     setConnStatus(s => ({ ...s, [server.id]: 'testing' }));
-    try {
-      const ping = await pingWithCredentials(server.url, server.username, server.password);
-      if (ping.ok) {
-        const identity = {
-          type: ping.type,
-          serverVersion: ping.serverVersion,
-          openSubsonic: ping.openSubsonic,
-        };
-        auth.setSubsonicServerIdentity(server.id, identity);
-        scheduleInstantMixProbeForServer(server.id, server.url, server.username, server.password, identity);
-        auth.setActiveServer(server.id);
-        auth.setLoggedIn(true);
-        navigate('/');
-      } else {
-        setConnStatus(s => ({ ...s, [server.id]: 'error' }));
-      }
-    } catch {
+    const ok = await switchActiveServer(server);
+    if (ok) {
+      setConnStatus(s => ({ ...s, [server.id]: 'ok' }));
+      navigate('/');
+    } else {
       setConnStatus(s => ({ ...s, [server.id]: 'error' }));
     }
   };

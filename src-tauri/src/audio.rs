@@ -3026,6 +3026,17 @@ pub fn audio_canonicalize_selected_device(state: State<'_, AudioEngine>) -> Opti
     Some(canon)
 }
 
+/// Same device list as [`audio_list_devices`] without the Tauri `State` wrapper (CLI / single-instance).
+pub fn audio_list_devices_for_engine(engine: &AudioEngine) -> Vec<String> {
+    let mut list = enumerate_output_device_names();
+    if let Some(ref name) = *engine.selected_device.lock().unwrap() {
+        if !name.is_empty() && !output_enumeration_includes_pinned(&list, name) {
+            list.push(name.clone());
+        }
+    }
+    list
+}
+
 /// Returns the names of all available audio output devices on the current host.
 /// On Linux, ALSA probes unavailable backends (JACK, OSS, dmix) and prints errors to
 /// stderr. We suppress fd 2 for the duration of enumeration to keep the terminal clean.
@@ -3034,13 +3045,7 @@ pub fn audio_canonicalize_selected_device(state: State<'_, AudioEngine>) -> Opti
 /// streaming) so the Settings dropdown still matches `audioOutputDevice`.
 #[tauri::command]
 pub fn audio_list_devices(state: State<'_, AudioEngine>) -> Vec<String> {
-    let mut list = enumerate_output_device_names();
-    if let Some(ref name) = *state.selected_device.lock().unwrap() {
-        if !name.is_empty() && !output_enumeration_includes_pinned(&list, name) {
-            list.push(name.clone());
-        }
-    }
-    list
+    audio_list_devices_for_engine(&state)
 }
 
 /// Device id string for the host default output (matches an entry from `audio_list_devices` when present).

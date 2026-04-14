@@ -4090,6 +4090,24 @@ html.no-compositing .fs-seekbar-played {
 }
 
 /* ─ Connection Indicator ─ */
+.connection-indicator-host {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.connection-indicator-dropdown-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 220px;
+  max-width: min(320px, 85vw);
+}
+
+.connection-indicator-chevron--open {
+  transform: rotate(180deg);
+  transition: transform var(--transition-fast, 0.15s ease);
+}
+
 .connection-indicator {
   display: flex;
   align-items: center;
