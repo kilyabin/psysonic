@@ -382,6 +382,7 @@ export const zhTranslation = {
     filterSearchGenres: '搜索流派…',
     filterNoGenres: '未找到匹配流派',
     filterClear: '清除',
+    play: '播放',
     bulkSelected: '已选 {{count}} 首',
     clearSelection: '清除选择',
     bulkAddToPlaylist: '添加到播放列表',

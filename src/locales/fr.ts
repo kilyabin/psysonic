@@ -387,6 +387,7 @@ export const frTranslation = {
     filterSearchGenres: 'Rechercher des genres…',
     filterNoGenres: 'Aucun genre trouvé',
     filterClear: 'Effacer',
+    play: 'Lire',
     bulkSelected: '{{count}} sélectionné(s)',
     clearSelection: 'Effacer la sélection',
     bulkAddToPlaylist: 'Ajouter à la playlist',

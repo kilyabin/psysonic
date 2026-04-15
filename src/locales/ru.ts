@@ -401,6 +401,7 @@ export const ruTranslation = {
     filterSearchGenres: 'Поиск жанров…',
     filterNoGenres: 'Нет совпадений',
     filterClear: 'Сбросить',
+    play: 'Воспроизвести',
     bulkSelected: 'Выбрано: {{count}}',
     clearSelection: 'Сбросить выбор',
     bulkAddToPlaylist: 'В плейлист',

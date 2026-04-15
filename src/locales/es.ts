@@ -389,6 +389,7 @@ export const esTranslation = {
     filterSearchGenres: 'Buscar géneros…',
     filterNoGenres: 'Ningún género coincide',
     filterClear: 'Limpiar',
+    play: 'Reproducir',
     bulkSelected: '{{count}} seleccionados',
     clearSelection: 'Limpiar selección',
     bulkAddToPlaylist: 'Agregar a Lista',

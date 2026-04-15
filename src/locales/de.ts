@@ -387,6 +387,7 @@ export const deTranslation = {
     filterSearchGenres: 'Genres suchen…',
     filterNoGenres: 'Keine Genres gefunden',
     filterClear: 'Zurücksetzen',
+    play: 'Abspielen',
     bulkSelected: '{{count}} ausgewählt',
     clearSelection: 'Auswahl aufheben',
     bulkAddToPlaylist: 'Zur Playlist hinzufügen',

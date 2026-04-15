@@ -387,6 +387,7 @@ export const nbTranslation = {
     filterSearchGenres: 'Søk i sjangre…',
     filterNoGenres: 'Ingen sjangre samsvarer',
     filterClear: 'Tøm',
+    play: 'Spill',
     bulkSelected: '{{count}} valgt',
     clearSelection: 'Fjern utvalg',
     bulkAddToPlaylist: 'Legg til i spilleliste',

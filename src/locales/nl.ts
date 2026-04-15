@@ -386,6 +386,7 @@ export const nlTranslation = {
     filterSearchGenres: 'Genres zoeken…',
     filterNoGenres: 'Geen genres gevonden',
     filterClear: 'Wissen',
+    play: 'Afspelen',
     bulkSelected: '{{count}} geselecteerd',
     clearSelection: 'Selectie wissen',
     bulkAddToPlaylist: 'Toevoegen aan afspeellijst',

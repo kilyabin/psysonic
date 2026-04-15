@@ -388,6 +388,7 @@ export const enTranslation = {
     filterSearchGenres: 'Search genres…',
     filterNoGenres: 'No genres match',
     filterClear: 'Clear',
+    play: 'Play',
     bulkSelected: '{{count}} selected',
     clearSelection: 'Clear selection',
     bulkAddToPlaylist: 'Add to Playlist',
