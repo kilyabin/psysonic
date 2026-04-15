@@ -517,6 +517,7 @@ fn print_search_human(v: &Value) {
     }
 }
 
+#[cfg(target_os = "linux")]
 fn tauri_identifier() -> &'static str {
     static ID: OnceLock<String> = OnceLock::new();
     ID.get_or_init(|| {
@@ -531,10 +532,12 @@ fn tauri_identifier() -> &'static str {
     .as_str()
 }
 
+#[cfg(target_os = "linux")]
 fn single_instance_bus_name() -> String {
     format!("{}.SingleInstance", tauri_identifier())
 }
 
+#[cfg(target_os = "linux")]
 fn single_instance_object_path(dbus_name: &str) -> String {
     let mut dbus_path = dbus_name.replace('.', "/").replace('-', "_");
     if !dbus_path.starts_with('/') {

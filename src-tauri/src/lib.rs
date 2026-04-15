@@ -2253,11 +2253,10 @@ fn is_tiling_wm_cmd() -> bool {
 }
 
 pub fn run() {
-    let argv: Vec<String> = std::env::args().collect();
-
     // Linux: second `psysonic --player …` forwards over D-Bus before heavy startup.
     #[cfg(target_os = "linux")]
     {
+        let argv: Vec<String> = std::env::args().collect();
         if crate::cli::parse_cli_command(&argv).is_some() {
             match crate::cli::linux_try_forward_player_cli_secondary(&argv) {
                 Ok(crate::cli::LinuxPlayerForwardResult::Forwarded) => std::process::exit(0),
