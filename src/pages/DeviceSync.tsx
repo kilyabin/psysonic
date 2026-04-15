@@ -162,6 +162,30 @@ export default function DeviceSync() {
   // Scan device on mount and when targetDir changes
   useEffect(() => { scanDevice(); }, [scanDevice]);
 
+  // Auto-import manifest when page loads and drive is already connected
+  const manifestImportedRef = useRef(false);
+  useEffect(() => {
+    if (!targetDir || !driveDetected || manifestImportedRef.current) return;
+    manifestImportedRef.current = true;
+    invoke<{ version: number; sources: DeviceSyncSource[] } | null>(
+      'read_device_manifest', { destDir: targetDir }
+    ).then(manifest => {
+      if (manifest?.sources?.length) {
+        useDeviceSyncStore.getState().clearSources();
+        manifest.sources.forEach(s => useDeviceSyncStore.getState().addSource(s));
+        showToast(t('deviceSync.manifestImported', { count: manifest.sources.length }), 4000, 'info');
+      }
+    }).catch(() => {});
+  }, [targetDir, driveDetected, t]);
+
+  // Clear device file list and reset import flag when stick is unplugged
+  useEffect(() => {
+    if (!driveDetected) {
+      setDeviceFilePaths([]);
+      manifestImportedRef.current = false;
+    }
+  }, [driveDetected]);
+
   // Compute expected paths for each source (for status comparison)
   useEffect(() => {
     if (!targetDir || sources.length === 0) {
@@ -353,19 +377,18 @@ export default function DeviceSync() {
     if (sel) {
       const dir = sel as string;
       setTargetDir(dir);
-      // If the device has a psysonic-sync.json and localStorage has no sources yet,
-      // auto-import so the list is populated when switching machines.
-      if (useDeviceSyncStore.getState().sources.length === 0) {
-        try {
-          const manifest = await invoke<{ version: number; sources: DeviceSyncSource[] } | null>(
-            'read_device_manifest', { destDir: dir }
-          );
-          if (manifest?.sources?.length) {
-            manifest.sources.forEach(s => useDeviceSyncStore.getState().addSource(s));
-            showToast(t('deviceSync.manifestImported', { count: manifest.sources.length }), 4000, 'info');
-          }
-        } catch { /* no manifest, that's fine */ }
-      }
+      // If the device has a psysonic-sync.json, always import it — replacing any
+      // sources from a previous device so switching sticks works correctly.
+      try {
+        const manifest = await invoke<{ version: number; sources: DeviceSyncSource[] } | null>(
+          'read_device_manifest', { destDir: dir }
+        );
+        if (manifest?.sources?.length) {
+          useDeviceSyncStore.getState().clearSources();
+          manifest.sources.forEach(s => useDeviceSyncStore.getState().addSource(s));
+          showToast(t('deviceSync.manifestImported', { count: manifest.sources.length }), 4000, 'info');
+        }
+      } catch { /* no manifest, that's fine */ }
       // Trigger a device scan after folder change
       setTimeout(() => scanDevice(), 100);
     }
@@ -733,7 +756,7 @@ export default function DeviceSync() {
           </div>
 
           {/* Status summary badges */}
-          {sources.length > 0 && (
+          {sources.length > 0 && driveDetected && (
             <div className="device-sync-status-summary">
               {syncedCount > 0 && (
                 <span className="device-sync-badge synced">
@@ -753,7 +776,7 @@ export default function DeviceSync() {
             </div>
           )}
 
-          {sources.length === 0 ? (
+          {sources.length === 0 || !driveDetected ? (
             <p className="device-sync-empty">{t('deviceSync.noSourcesSelected')}</p>
           ) : (
             <>

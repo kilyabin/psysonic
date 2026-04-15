@@ -1896,7 +1896,7 @@ async fn calculate_sync_payload(
 /// Signals a running `sync_batch_to_device` job to stop after its current tracks finish.
 #[tauri::command]
 fn cancel_device_sync(job_id: String, app: tauri::AppHandle) {
-    if let Ok(mut flags) = sync_cancel_flags().lock() {
+    if let Ok(flags) = sync_cancel_flags().lock() {
         if let Some(flag) = flags.get(&job_id) {
             flag.store(true, Ordering::Relaxed);
         }
