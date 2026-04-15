@@ -597,15 +597,17 @@ export function initAudioListeners(): () => void {
   // Whenever the current track or playback state changes, push updates to the
   // Rust souvlaki MediaControls so the OS media overlay stays accurate.
   let prevTrackId: string | null = null;
+  let prevRadioId: string | null = null;
   let prevIsPlaying: boolean | null = null;
   let lastMprisPositionUpdate = 0;
 
   const unsubMpris = usePlayerStore.subscribe((state) => {
-    const { currentTrack, isPlaying, currentTime } = state;
+    const { currentTrack, currentRadio, isPlaying, currentTime } = state;
 
     // Update metadata when track changes
     if (currentTrack && currentTrack.id !== prevTrackId) {
       prevTrackId = currentTrack.id;
+      prevRadioId = null;
       const coverUrl = currentTrack.coverArt
         ? buildCoverArtUrl(currentTrack.coverArt, 512)
         : undefined;
@@ -615,6 +617,20 @@ export function initAudioListeners(): () => void {
         album: currentTrack.album,
         coverUrl,
         durationSecs: currentTrack.duration,
+      }).catch(() => {});
+    }
+
+    // Update metadata when a radio station starts (initial push — station name as title).
+    // ICY StreamTitle updates are forwarded by the radio:metadata listener below.
+    if (currentRadio && currentRadio.id !== prevRadioId) {
+      prevRadioId = currentRadio.id;
+      prevTrackId = null;
+      invoke('mpris_set_metadata', {
+        title: currentRadio.name,
+        artist: null,
+        album: null,
+        coverUrl: null,
+        durationSecs: null,
       }).catch(() => {});
     }
 
@@ -633,13 +649,38 @@ export function initAudioListeners(): () => void {
 
     // Keep position in sync while playing — update every ~500 ms so Plasma
     // always shows the correct time without interpolation gaps.
-    if (isPlaying && Date.now() - lastMprisPositionUpdate >= 500) {
+    // Radio streams have no meaningful position, so skip for radio.
+    if (!currentRadio && isPlaying && Date.now() - lastMprisPositionUpdate >= 500) {
       lastMprisPositionUpdate = Date.now();
       invoke('mpris_set_playback', {
         playing: true,
         positionSecs: currentTime,
       }).catch(() => {});
     }
+  });
+
+  // ── Radio ICY StreamTitle → MPRIS ─────────────────────────────────────────
+  // The Rust download task emits "radio:metadata" with { title, is_ad } every
+  // time an ICY metadata block changes (typically every 8–32 KB of audio).
+  // Forward each update to mpris_set_metadata so the OS now-playing overlay
+  // stays in sync while the stream is live.
+  const radioMetaUnlisten = listen<{ title: string; is_ad: boolean }>('radio:metadata', ({ payload }) => {
+    const { currentRadio } = usePlayerStore.getState();
+    if (!currentRadio) return; // guard: only forward during active radio session
+    if (payload.is_ad) return; // skip CDN-injected ad metadata
+
+    // Parse "Artist - Title" convention used by most ICY streams.
+    const sep = payload.title.indexOf(' - ');
+    const artist = sep !== -1 ? payload.title.slice(0, sep).trim() : null;
+    const title  = sep !== -1 ? payload.title.slice(sep + 3).trim() : payload.title;
+
+    invoke('mpris_set_metadata', {
+      title: title || currentRadio.name,
+      artist: artist || currentRadio.name,
+      album: null,
+      coverUrl: null,
+      durationSecs: null,
+    }).catch(() => {});
   });
 
   // ── Discord Rich Presence sync ────────────────────────────────────────────
@@ -696,6 +737,7 @@ export function initAudioListeners(): () => void {
     unsubDiscordPlayer();
     unsubDiscordAuth();
     pending.forEach(p => p.then(unlisten => unlisten()));
+    radioMetaUnlisten.then(unlisten => unlisten());
   };
 }
 
