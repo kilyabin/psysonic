@@ -58,10 +58,22 @@ import { IS_LINUX } from './utils/platform';
 import { version } from '../package.json';
 import { useConnectionStatus } from './hooks/useConnectionStatus';
 import { useAuthStore } from './store/authStore';
-import { getMusicFolders, probeEntityRatingSupport } from './api/subsonic';
+import {
+  getMusicFolders,
+  getSimilarSongs,
+  getSong,
+  probeEntityRatingSupport,
+  search as subsonicSearch,
+  setRating,
+  star,
+  unstar,
+} from './api/subsonic';
 import { useOfflineStore } from './store/offlineStore';
 import { initHotCachePrefetch } from './hotCachePrefetch';
-import { usePlayerStore, initAudioListeners } from './store/playerStore';
+import i18n from './i18n';
+import { playByOpaqueId } from './utils/playByOpaqueId';
+import { switchActiveServer } from './utils/switchActiveServer';
+import { usePlayerStore, initAudioListeners, songToTrack, shuffleArray } from './store/playerStore';
 import { useThemeStore } from './store/themeStore';
 import { useThemeScheduler } from './hooks/useThemeScheduler';
 import { useFontStore } from './store/fontStore';
@@ -70,6 +82,9 @@ import { useKeybindingsStore, matchInAppBinding, buildInAppBinding } from './sto
 import { useGlobalShortcutsStore } from './store/globalShortcutsStore';
 import { useZipDownloadStore } from './store/zipDownloadStore';
 import ZipDownloadOverlay from './components/ZipDownloadOverlay';
+
+/** Volume before last `psysonic --player mute` (CLI only; in-memory). */
+let cliPremuteVolume: number | null = null;
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isLoggedIn, servers, activeServerId } = useAuthStore();
@@ -453,6 +468,261 @@ function TauriEventBridge() {
     return () => { unlisten?.(); };
   }, []);
 
+  // CLI: `--player audio-device set …` (forwarded on Linux via single-instance).
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen<string>('cli:audio-device-set', async e => {
+      const raw = typeof e.payload === 'string' ? e.payload : '';
+      const deviceName = raw.length > 0 ? raw : null;
+      try {
+        await invoke('audio_set_device', { deviceName });
+        useAuthStore.getState().setAudioOutputDevice(deviceName);
+      } catch {
+        /* device open failed — do not persist (same as Settings) */
+      }
+    }).then(u => { unlisten = u; });
+    return () => { unlisten?.(); };
+  }, []);
+
+  // CLI: `--player mix append|new` from the currently playing track.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen<string>('cli:instant-mix', async e => {
+      const mode = e.payload === 'append' ? 'append' : 'new';
+      const state = usePlayerStore.getState();
+      const song = state.currentTrack;
+      if (!song) {
+        showToast(i18n.t('contextMenu.cliMixNeedsTrack'), 5000, 'error');
+        return;
+      }
+      const serverId = useAuthStore.getState().activeServerId;
+      try {
+        const similar = await getSimilarSongs(song.id, 50);
+        if (serverId) useAuthStore.getState().setAudiomuseNavidromeIssue(serverId, false);
+        const base = similar.filter(s => s.id !== song.id).map(s => songToTrack(s));
+        if (mode === 'append') {
+          const toAdd = shuffleArray(base.map(t => ({ ...t, autoAdded: true as const })));
+          if (toAdd.length > 0) usePlayerStore.getState().enqueue(toAdd);
+        } else {
+          // New queue from seed: collapse to [song] first, then radio tail (not append onto old queue).
+          usePlayerStore.getState().reseedQueueForInstantMix(song);
+          const shuffled = shuffleArray(
+            base.map(t => ({ ...t, radioAdded: true as const })),
+          );
+          if (shuffled.length > 0) {
+            const aid = song.artistId?.trim() || undefined;
+            usePlayerStore.getState().enqueueRadio(shuffled, aid);
+          }
+        }
+      } catch (err) {
+        console.error('CLI instant mix failed', err);
+        if (serverId) useAuthStore.getState().setAudiomuseNavidromeIssue(serverId, true);
+        showToast(i18n.t('contextMenu.instantMixFailed'), 5000, 'error');
+      }
+    }).then(u => { unlisten = u; });
+    return () => { unlisten?.(); };
+  }, []);
+
+  // CLI: `--player library list` (Rust polls the JSON file) / `library set`.
+  useEffect(() => {
+    let u1: (() => void) | undefined;
+    let u2: (() => void) | undefined;
+    listen('cli:library-list', async () => {
+      try {
+        const folders = await getMusicFolders();
+        const auth = useAuthStore.getState();
+        const sid = auth.activeServerId;
+        const selected = sid ? (auth.musicLibraryFilterByServer[sid] ?? 'all') : 'all';
+        await invoke('cli_publish_library_list', {
+          payload: {
+            folders: folders.map(f => ({ id: f.id, name: f.name })),
+            selected,
+            active_server_id: sid,
+          },
+        });
+      } catch (e) {
+        console.error('CLI library list failed', e);
+        await invoke('cli_publish_library_list', {
+          payload: { folders: [], selected: 'all', active_server_id: null },
+        }).catch(() => {});
+      }
+    }).then(u => { u1 = u; });
+    listen<string>('cli:library-set', e => {
+      const raw = typeof e.payload === 'string' ? e.payload : '';
+      if (raw === 'all') useAuthStore.getState().setMusicLibraryFilter('all');
+      else if (raw.length > 0) useAuthStore.getState().setMusicLibraryFilter(raw);
+    }).then(u => { u2 = u; });
+    return () => {
+      u1?.();
+      u2?.();
+    };
+  }, []);
+
+  // CLI: servers, search, transport extras, mute, star, rating, play-by-id, reload.
+  useEffect(() => {
+    const unsubs: Array<() => void> = [];
+    listen('cli:server-list', async () => {
+      const auth = useAuthStore.getState();
+      await invoke('cli_publish_server_list', {
+        payload: {
+          active_server_id: auth.activeServerId,
+          servers: auth.servers.map(s => ({ id: s.id, name: s.name })),
+        },
+      });
+    }).then(u => unsubs.push(u));
+    listen<string>('cli:server-set', async e => {
+      const raw = typeof e.payload === 'string' ? e.payload : '';
+      const id = raw.trim();
+      if (!id) return;
+      const server = useAuthStore.getState().servers.find(s => s.id === id);
+      if (!server) {
+        showToast(i18n.t('contextMenu.cliServerNotFound', { defaultValue: 'Server id not found.' }), 4000, 'error');
+        return;
+      }
+      const ok = await switchActiveServer(server);
+      if (!ok) {
+        showToast(i18n.t('contextMenu.cliServerSwitchFailed', { defaultValue: 'Could not switch server (ping failed).' }), 5000, 'error');
+      }
+    }).then(u => unsubs.push(u));
+    listen<{ scope: string; query: string }>('cli:search', async e => {
+      const { scope, query } = e.payload;
+      const base = { scope, query, ready: false };
+      try {
+        const r = await subsonicSearch(query, { songCount: 50, albumCount: 30, artistCount: 30 });
+        const payload =
+          scope === 'track'
+            ? {
+                ...base,
+                songs: r.songs.map(s => ({ id: s.id, title: s.title, artist: s.artist })),
+                albums: [] as { id: string; name: string; artist: string }[],
+                artists: [] as { id: string; name: string }[],
+                ready: true,
+              }
+            : scope === 'album'
+              ? {
+                  ...base,
+                  songs: [] as { id: string; title: string; artist: string }[],
+                  albums: r.albums.map(a => ({ id: a.id, name: a.name, artist: a.artist })),
+                  artists: [] as { id: string; name: string }[],
+                  ready: true,
+                }
+              : {
+                  ...base,
+                  songs: [] as { id: string; title: string; artist: string }[],
+                  albums: [] as { id: string; name: string; artist: string }[],
+                  artists: r.artists.map(a => ({ id: a.id, name: a.name })),
+                  ready: true,
+                };
+        await invoke('cli_publish_search_results', { payload });
+      } catch (err) {
+        console.error('CLI search failed', err);
+        await invoke('cli_publish_search_results', {
+          payload: {
+            ...base,
+            songs: [],
+            albums: [],
+            artists: [],
+            ready: true,
+            error: err instanceof Error ? err.message : 'search failed',
+          },
+        }).catch(() => {});
+      }
+    }).then(u => unsubs.push(u));
+    listen<string>('cli:play-id', async e => {
+      const id = typeof e.payload === 'string' ? e.payload.trim() : '';
+      if (!id) return;
+      try {
+        await playByOpaqueId(id);
+      } catch (err) {
+        console.error('CLI play failed', err);
+        const notFound = err instanceof Error && err.message === 'play_by_id_not_found';
+        showToast(
+          i18n.t('contextMenu.cliPlayIdNotFound', {
+            defaultValue: notFound
+              ? 'No song, album, or artist matches this id.'
+              : 'Could not start playback.',
+          }),
+          5000,
+          'error',
+        );
+      }
+    }).then(u => unsubs.push(u));
+    listen('cli:shuffle-queue', () => {
+      usePlayerStore.getState().shuffleQueue();
+    }).then(u => unsubs.push(u));
+    listen<string>('cli:set-repeat', e => {
+      const m = typeof e.payload === 'string' ? e.payload : '';
+      const mode = m === 'all' ? 'all' : m === 'one' ? 'one' : 'off';
+      usePlayerStore.setState({ repeatMode: mode });
+    }).then(u => unsubs.push(u));
+    listen('cli:mute', () => {
+      const { volume, setVolume } = usePlayerStore.getState();
+      if (volume > 0) cliPremuteVolume = volume;
+      setVolume(0);
+    }).then(u => unsubs.push(u));
+    listen('cli:unmute', () => {
+      const restore = cliPremuteVolume ?? 0.8;
+      cliPremuteVolume = null;
+      usePlayerStore.getState().setVolume(restore);
+    }).then(u => unsubs.push(u));
+    listen<boolean>('cli:star-current', async e => {
+      const want = e.payload === true;
+      const track = usePlayerStore.getState().currentTrack;
+      if (!track) {
+        showToast(i18n.t('contextMenu.cliMixNeedsTrack'), 5000, 'error');
+        return;
+      }
+      try {
+        if (want) {
+          await star(track.id, 'song');
+          usePlayerStore.getState().setStarredOverride(track.id, true);
+        } else {
+          await unstar(track.id, 'song');
+          usePlayerStore.getState().setStarredOverride(track.id, false);
+        }
+      } catch (err) {
+        console.error('CLI star failed', err);
+        showToast(i18n.t('contextMenu.cliStarFailed', { defaultValue: 'Star/unstar failed.' }), 5000, 'error');
+      }
+    }).then(u => unsubs.push(u));
+    listen<number>('cli:set-rating-current', async e => {
+      const stars = e.payload;
+      if (typeof stars !== 'number' || Number.isNaN(stars) || stars < 0 || stars > 5) return;
+      const track = usePlayerStore.getState().currentTrack;
+      if (!track) {
+        showToast(i18n.t('contextMenu.cliMixNeedsTrack'), 5000, 'error');
+        return;
+      }
+      try {
+        await setRating(track.id, stars);
+        usePlayerStore.getState().setUserRatingOverride(track.id, stars);
+      } catch (err) {
+        console.error('CLI set rating failed', err);
+      }
+    }).then(u => unsubs.push(u));
+    listen('cli:reload-player', async () => {
+      const store = usePlayerStore.getState();
+      const { currentTrack, queue, stop, resetAudioPause, playTrack, initializeFromServerQueue } = store;
+      stop();
+      resetAudioPause();
+      await invoke('audio_stop').catch(() => {});
+      if (currentTrack) {
+        try {
+          const fresh = await getSong(currentTrack.id);
+          const t = fresh ? songToTrack(fresh) : currentTrack;
+          playTrack(t, queue, true);
+        } catch {
+          playTrack(currentTrack, queue, true);
+        }
+      } else {
+        await initializeFromServerQueue();
+      }
+    }).then(u => unsubs.push(u));
+    return () => {
+      unsubs.forEach(u => u());
+    };
+  }, []);
+
   // Sync tray-icon visibility with the user's stored setting.
   // Runs once on mount (initial sync) and again whenever the setting changes.
   const showTrayIcon = useAuthStore(s => s.showTrayIcon);
@@ -524,11 +794,14 @@ function TauriEventBridge() {
     const setup = async () => {
       const handlers: Array<[string, () => void]> = [
         ['media:play-pause',  () => togglePlay()],
+        ['media:play',        () => { const s = usePlayerStore.getState(); if (!s.isPlaying) s.resume(); }],
+        ['media:pause',       () => { const s = usePlayerStore.getState(); if (s.isPlaying) s.pause(); }],
         ['media:next',        () => next()],
         ['media:prev',        () => previous()],
         ['tray:play-pause',   () => togglePlay()],
         ['tray:next',         () => next()],
         ['tray:previous',     () => previous()],
+        ['media:stop',        () => usePlayerStore.getState().stop()],
         ['media:volume-up',   () => { const s = usePlayerStore.getState(); s.setVolume(Math.min(1, s.volume + 0.05)); }],
         ['media:volume-down', () => { const s = usePlayerStore.getState(); s.setVolume(Math.max(0, s.volume - 0.05)); }],
       ];
@@ -559,6 +832,15 @@ function TauriEventBridge() {
         if (cancelled) { u(); return; }
         unlisten.push(u);
       }
+      {
+        const u = await listen<number>('media:set-volume', e => {
+          const p = e.payload;
+          if (typeof p !== 'number' || Number.isNaN(p)) return;
+          usePlayerStore.getState().setVolume(Math.min(1, Math.max(0, p / 100)));
+        });
+        if (cancelled) { u(); return; }
+        unlisten.push(u);
+      }
 
       // window:close-requested is emitted by Rust (prevent_close + emit).
       // JS decides: minimize to tray or exit, based on user setting.
@@ -576,6 +858,59 @@ function TauriEventBridge() {
     setup();
     return () => { cancelled = true; unlisten.forEach(u => u()); };
   }, [togglePlay, next, previous]);
+
+  // `psysonic --info`: JSON snapshot under XDG_RUNTIME_DIR (Rust writes atomically).
+  useEffect(() => {
+    let tid: ReturnType<typeof setTimeout> | undefined;
+    const publish = () => {
+      const s = usePlayerStore.getState();
+      const auth = useAuthStore.getState();
+      const sid = auth.activeServerId;
+      const selected = sid ? (auth.musicLibraryFilterByServer[sid] ?? 'all') : 'all';
+      const ct = s.currentTrack;
+      const currentTrackUserRating =
+        ct != null ? (s.userRatingOverrides[ct.id] ?? ct.userRating ?? null) : null;
+      const currentTrackStarred =
+        ct != null
+          ? (ct.id in s.starredOverrides ? s.starredOverrides[ct.id] : Boolean(ct.starred))
+          : null;
+      const snapshot = {
+        current_track: s.currentTrack,
+        current_radio: s.currentRadio,
+        queue: s.queue,
+        queue_index: s.queueIndex,
+        queue_length: s.queue.length,
+        is_playing: s.isPlaying,
+        current_time: s.currentTime,
+        volume: s.volume,
+        repeat_mode: s.repeatMode,
+        current_track_user_rating: currentTrackUserRating,
+        current_track_starred: currentTrackStarred,
+        servers: auth.servers.map(({ id, name }) => ({ id, name })),
+        music_library: {
+          active_server_id: sid,
+          selected,
+          folders: auth.musicFolders.map(f => ({ id: f.id, name: f.name })),
+        },
+      };
+      invoke('cli_publish_player_snapshot', { snapshot }).catch(() => {});
+    };
+    publish();
+    const schedule = () => {
+      if (tid !== undefined) clearTimeout(tid);
+      tid = setTimeout(() => {
+        tid = undefined;
+        publish();
+      }, 200);
+    };
+    const unsubP = usePlayerStore.subscribe(schedule);
+    const unsubA = useAuthStore.subscribe(schedule);
+    return () => {
+      unsubP();
+      unsubA();
+      if (tid !== undefined) clearTimeout(tid);
+    };
+  }, []);
 
   return null;
 }

@@ -1473,7 +1473,7 @@ pub struct AudioEngine {
     pub eq_gains: Arc<[AtomicU32; 10]>,
     pub eq_enabled: Arc<AtomicBool>,
     pub eq_pre_gain: Arc<AtomicU32>,
-    pub preloaded: Arc<Mutex<Option<PreloadedTrack>>>,
+    pub(crate) preloaded: Arc<Mutex<Option<PreloadedTrack>>>,
     pub crossfade_enabled: Arc<AtomicBool>,
     pub crossfade_secs: Arc<AtomicU32>,
     pub fading_out_sink: Arc<Mutex<Option<Sink>>>,
@@ -1482,7 +1482,7 @@ pub struct AudioEngine {
     pub gapless_enabled: Arc<AtomicBool>,
     /// Info about the next-up chained track (gapless mode).
     /// The progress task reads this when `current_source_done` fires.
-    pub chained_info: Arc<Mutex<Option<ChainedInfo>>>,
+    pub(crate) chained_info: Arc<Mutex<Option<ChainedInfo>>>,
     /// Atomic sample counter — incremented by CountingSource in the audio thread.
     /// Progress task reads this for drift-free position tracking.
     pub samples_played: Arc<AtomicU64>,
@@ -1495,7 +1495,7 @@ pub struct AudioEngine {
     pub gapless_switch_at: Arc<AtomicU64>,
     /// Active radio session state.  None for regular (non-radio) tracks.
     /// Dropping the value aborts the HTTP download task via RadioLiveState::Drop.
-    pub radio_state: Mutex<Option<RadioLiveState>>,
+    pub(crate) radio_state: Mutex<Option<RadioLiveState>>,
 }
 
 pub struct AudioCurrent {
@@ -3026,6 +3026,17 @@ pub fn audio_canonicalize_selected_device(state: State<'_, AudioEngine>) -> Opti
     Some(canon)
 }
 
+/// Same device list as [`audio_list_devices`] without the Tauri `State` wrapper (CLI / single-instance).
+pub fn audio_list_devices_for_engine(engine: &AudioEngine) -> Vec<String> {
+    let mut list = enumerate_output_device_names();
+    if let Some(ref name) = *engine.selected_device.lock().unwrap() {
+        if !name.is_empty() && !output_enumeration_includes_pinned(&list, name) {
+            list.push(name.clone());
+        }
+    }
+    list
+}
+
 /// Returns the names of all available audio output devices on the current host.
 /// On Linux, ALSA probes unavailable backends (JACK, OSS, dmix) and prints errors to
 /// stderr. We suppress fd 2 for the duration of enumeration to keep the terminal clean.
@@ -3034,13 +3045,7 @@ pub fn audio_canonicalize_selected_device(state: State<'_, AudioEngine>) -> Opti
 /// streaming) so the Settings dropdown still matches `audioOutputDevice`.
 #[tauri::command]
 pub fn audio_list_devices(state: State<'_, AudioEngine>) -> Vec<String> {
-    let mut list = enumerate_output_device_names();
-    if let Some(ref name) = *state.selected_device.lock().unwrap() {
-        if !name.is_empty() && !output_enumeration_includes_pinned(&list, name) {
-            list.push(name.clone());
-        }
-    }
-    list
+    audio_list_devices_for_engine(&state)
 }
 
 /// Device id string for the host default output (matches an entry from `audio_list_devices` when present).

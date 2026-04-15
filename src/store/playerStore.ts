@@ -64,7 +64,7 @@ export function songToTrack(song: SubsonicSong): Track {
   };
 }
 
-function shuffleArray<T>(items: T[]): T[] {
+export function shuffleArray<T>(items: T[]): T[] {
   const arr = [...items];
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -131,6 +131,8 @@ interface PlayerState {
 
   playRadio: (station: InternetRadioStation) => void;
   playTrack: (track: Track, queue?: Track[], manual?: boolean) => void;
+  /** Queue becomes `[track]` only; if already on this track, does not restart `audio_play`. */
+  reseedQueueForInstantMix: (track: Track) => void;
   pause: () => void;
   resume: () => void;
   stop: () => void;
@@ -940,6 +942,22 @@ export const usePlayerStore = create<PlayerState>()(
         }
         syncQueueToServer(newQueue, track, 0);
         touchHotCacheOnPlayback(track.id, authState.activeServerId ?? '');
+      },
+
+      reseedQueueForInstantMix: (track) => {
+        const s = get();
+        if (s.currentTrack?.id !== track.id) {
+          get().playTrack(track, [track]);
+          return;
+        }
+        const wasPlaying = s.isPlaying;
+        set({
+          queue: [track],
+          queueIndex: 0,
+          currentTrack: track,
+        });
+        syncQueueToServer([track], track, s.currentTime);
+        if (!wasPlaying) get().resume();
       },
 
       // ── pause / resume / togglePlay ──────────────────────────────────────────

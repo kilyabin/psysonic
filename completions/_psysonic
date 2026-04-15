@@ -1,0 +1,144 @@
+#compdef psysonic
+# Zsh completion for Psysonic CLI (see `psysonic --help`).
+
+_psysonic_audio_device_json() {
+  local f
+  if [[ -n $XDG_RUNTIME_DIR ]]; then
+    f="$XDG_RUNTIME_DIR/psysonic-cli-audio-devices.json"
+    [[ -r $f ]] && { print -r -- "$f"; return }
+  fi
+  f="${TMPDIR:-/tmp}/psysonic-cli-audio-devices.json"
+  [[ -r $f ]] && print -r -- "$f"
+}
+
+_psysonic_audio_device_ids() {
+  command -v jq &>/dev/null || return
+  local jf
+  jf="$(_psysonic_audio_device_json)" || return
+  local -a devs
+  devs=( ${(@f)"$(jq -r '.devices[]? | select(type == "string")' "$jf" 2>/dev/null)"} )
+  (( $#devs )) && compadd -a devs
+}
+
+_psysonic_library_json() {
+  local f
+  if [[ -n $XDG_RUNTIME_DIR ]]; then
+    f="$XDG_RUNTIME_DIR/psysonic-cli-library.json"
+    [[ -r $f ]] && { print -r -- "$f"; return }
+  fi
+  f="${TMPDIR:-/tmp}/psysonic-cli-library.json"
+  [[ -r $f ]] && print -r -- "$f"
+}
+
+_psysonic_library_folder_ids() {
+  command -v jq &>/dev/null || return
+  local jf
+  jf="$(_psysonic_library_json)" || return
+  local -a ids
+  ids=( ${(@f)"$(jq -r '.folders[]? | select(.id != null) | .id | tostring' "$jf" 2>/dev/null)"} )
+  (( $#ids )) && compadd -a ids
+}
+
+_psysonic_snapshot_json() {
+  local f
+  if [[ -n $XDG_RUNTIME_DIR ]]; then
+    f="$XDG_RUNTIME_DIR/psysonic-cli-snapshot.json"
+    [[ -r $f ]] && { print -r -- "$f"; return }
+  fi
+  f="${TMPDIR:-/tmp}/psysonic-cli-snapshot.json"
+  [[ -r $f ]] && print -r -- "$f"
+}
+
+_psysonic_server_ids() {
+  command -v jq &>/dev/null || return
+  local jf
+  jf="$(_psysonic_snapshot_json)" || return
+  local -a ids
+  ids=( ${(@f)"$(jq -r '.servers[]? | select(.id != null) | .id | tostring' "$jf" 2>/dev/null)"} )
+  (( $#ids )) && compadd -a ids
+}
+
+_psysonic_globals() {
+  compadd -J options -X 'option' -- \
+    --help --version --info --json --quiet --player completions
+}
+
+integer i pidx=0
+for (( i = 2; i < CURRENT; i++ )); do
+  [[ ${words[i]} == --player ]] && pidx=i
+done
+
+if (( pidx == 0 )); then
+  if (( CURRENT == 3 )) && [[ ${words[2]} == completions ]]; then
+    compadd help bash zsh
+    return
+  fi
+  _psysonic_globals
+  return
+fi
+
+local -a sub
+if (( pidx + 1 <= CURRENT - 1 )); then
+  sub=( ${words[pidx + 1,CURRENT - 1]} )
+else
+  sub=()
+fi
+
+integer n=${#sub[@]}
+if (( n == 0 )); then
+  compadd -J verbs -X 'player command' -- \
+    next prev play pause stop seek volume shuffle repeat mute unmute star unstar rating reload \
+    audio-device library server search mix
+  return
+fi
+
+case ${sub[1]} in
+  audio-device)
+    if (( n == 1 )); then
+      compadd list set
+    elif [[ ${sub[2]} == set ]] && (( n == 2 )); then
+      compadd default
+      _psysonic_audio_device_ids
+    fi
+    ;;
+  library)
+    if (( n == 1 )); then
+      compadd list set
+    elif [[ ${sub[2]} == set ]] && (( n == 2 )); then
+      compadd all
+      _psysonic_library_folder_ids
+    fi
+    ;;
+  mix)
+    (( n == 1 )) && compadd append new
+    ;;
+  server)
+    if (( n == 1 )); then
+      compadd list set
+    elif [[ ${sub[2]} == set ]] && (( n == 2 )); then
+      _psysonic_server_ids
+    fi
+    ;;
+  search)
+    if (( n == 1 )); then
+      compadd track album artist
+    elif (( n >= 2 )); then
+      _message -e descriptions 'search query'
+    fi
+    ;;
+  repeat)
+    (( n == 1 )) && compadd off all one
+    ;;
+  rating)
+    (( n == 1 )) && compadd 0 1 2 3 4 5
+    ;;
+  seek)
+    (( n == 1 )) && _message -e descriptions 'integer delta (seconds, e.g. -5)'
+    ;;
+  volume)
+    (( n == 1 )) && _message -e descriptions 'percent 0–100'
+    ;;
+  play)
+    (( n == 1 )) && _message -e descriptions 'Subsonic id (song, album, or artist)'
+    ;;
+esac
