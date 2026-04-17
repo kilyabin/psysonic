@@ -117,6 +117,9 @@ const CONTRIBUTORS = [
       'Linux audio output device picker: stable watcher (disable false enumeration-miss resets), canonicalize ALSA name drift, ghost entry for unlisted device (PR #176)',
       'Opus audio playback via symphonia-adapter-libopus with bundled libopus (PR #183)',
       'CLI player controls with D-Bus forwarding, shell completions for bash/zsh, library/audio-device/instant-mix CLI commands, active server switcher in header (PR #187)',
+      'Streaming playback stability: stream-first start, seek recovery, crossfade/gapless backup preload, hot-cache promotion (PR #200)',
+      'ReplayGain values in Queue tech strip (PR #196)',
+      'Playback source badge (offline / cache / stream) in Queue tech strip (PR #201)',
     ],
   },
   {
@@ -149,6 +152,8 @@ const CONTRIBUTORS = [
       'Spotify CSV playlist import (PR #190)',
       'Context menu for songs in AdvancedSearch and SearchResults (PR #191)',
       'Tracklist column picker alignment and toggle fix across Favorites and PlaylistDetail (PR #192)',
+      'CSV import: dynamic match threshold, cleaned title search, score display in report (PR #199)',
+      'Discord Rich Presence: configurable text templates for details, state and album tooltip (PR #198)',
     ],
   },
   {
