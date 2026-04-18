@@ -8832,6 +8832,156 @@ html.no-compositing .fsr-lyric-line.fsrl-active .fsr-lyric-word.active {
    led-pulse, …) even when the app is minimized, causing constant GPU use.
    Pausing them cuts that to near zero while hidden without touching the
    running Rust/audio threads. */
+/* ─ Mini Player window ───────────────────────────────────────────────────── */
+.mini-player {
+  width: 100%;
+  height: 100vh;
+  display: grid;
+  grid-template-columns: 112px 1fr;
+  grid-template-rows: 1fr auto;
+  gap: 10px;
+  padding: 12px;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  overflow: hidden;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.mini-player__art {
+  grid-row: 1 / span 2;
+  aspect-ratio: 1;
+  width: 112px;
+  height: 112px;
+  background: var(--bg-card);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+.mini-player__art img,
+.mini-player__art-fallback {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.mini-player__art-fallback {
+  background: linear-gradient(135deg, var(--bg-secondary), var(--bg-card));
+}
+
+.mini-player__body {
+  padding: 0 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mini-player__titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.mini-player__title {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mini-player__artist {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-player__controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 2px;
+}
+.mini-player__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.mini-player__btn:hover {
+  background: var(--bg-hover);
+}
+.mini-player__btn--primary {
+  width: 36px;
+  height: 36px;
+  background: var(--accent);
+  color: var(--ctp-crust);
+}
+.mini-player__btn--primary:hover {
+  background: var(--accent);
+  filter: brightness(1.08);
+}
+
+.mini-player__progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.mini-player__progress-time {
+  font-variant-numeric: tabular-nums;
+  min-width: 30px;
+}
+.mini-player__progress-track {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--ctp-surface1);
+  overflow: hidden;
+}
+.mini-player__progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.25s linear;
+}
+
+.mini-player__toolbar {
+  grid-column: 2;
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+.mini-player__tool {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.mini-player__tool:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.mini-player__tool--active {
+  color: var(--accent);
+}
+
 html[data-app-hidden="true"] *,
 html[data-app-hidden="true"] *::before,
 html[data-app-hidden="true"] *::after {

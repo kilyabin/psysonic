@@ -2,8 +2,10 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { createPortal } from 'react-dom';
 import {
   Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Music,
-  Square, Repeat, Repeat1, Maximize2, SlidersVertical, X, Heart, Cast
+  Square, Repeat, Repeat1, Maximize2, SlidersVertical, X, Heart, Cast,
+  PictureInPicture2,
 } from 'lucide-react';
+import { invoke } from '@tauri-apps/api/core';
 import { usePlayerStore } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../store/authStore';
@@ -308,6 +310,16 @@ export default function PlayerBar() {
         data-tooltip="Equalizer"
       >
         <SlidersVertical size={15} />
+      </button>
+
+      {/* Mini Player */}
+      <button
+        className="player-btn player-btn-sm"
+        onClick={() => invoke('open_mini_player').catch(() => {})}
+        aria-label="Mini Player"
+        data-tooltip="Mini Player"
+      >
+        <PictureInPicture2 size={15} />
       </button>
 
       {/* Volume */}

@@ -38,6 +38,8 @@ import InternetRadio from './pages/InternetRadio';
 import FolderBrowser from './pages/FolderBrowser';
 import DeviceSync from './pages/DeviceSync';
 import NowPlayingPage from './pages/NowPlaying';
+import MiniPlayer from './components/MiniPlayer';
+import { initMiniPlayerBridgeOnMain } from './utils/miniPlayerBridge';
 import FullscreenPlayer from './components/FullscreenPlayer';
 import ContextMenu from './components/ContextMenu';
 import SongInfoModal from './components/SongInfoModal';
@@ -944,6 +946,12 @@ export default function App() {
   const font = useFontStore(s => s.font);
   const [exportPickerOpen, setExportPickerOpen] = useState(false);
 
+  // Mini Player window: detected via Tauri window label. Rendered without
+  // router / sidebar / full audio listeners — it just listens for state + sends
+  // control events. Label is read synchronously from a global set in main.tsx
+  // so the initial render picks the right tree.
+  const isMiniWindow = typeof window !== 'undefined' && (window as any).__PSY_WINDOW_LABEL__ === 'mini';
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', effectiveTheme);
   }, [effectiveTheme]);
@@ -951,6 +959,16 @@ export default function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-font', font);
   }, [font]);
+
+  // Main window only: push playback state to mini window + handle control events.
+  useEffect(() => {
+    if (isMiniWindow) return;
+    return initMiniPlayerBridgeOnMain();
+  }, [isMiniWindow]);
+
+  if (isMiniWindow) {
+    return <MiniPlayer />;
+  }
 
   // UI scaling is scoped to .main-content via an inner wrapper (see <main>
   // below). Sidebar, queue, player bar and (Linux) custom title bar stay 1:1

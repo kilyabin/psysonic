@@ -2597,6 +2597,103 @@ fn is_tiling_wm_cmd() -> bool {
     }
 }
 
+// ── Mini Player window ──────────────────────────────────────────────────────
+// Secondary always-on-top window with minimal playback controls. Uses the
+// same frontend bundle as the main window; disambiguated by window label
+// "mini". On tiling WMs (Hyprland, Sway, i3, …) always-on-top is ignored, so
+// we fall back to a regular window there.
+
+/// Open (or toggle) the mini player window. Creates it on first call; on
+/// subsequent calls, hides it if visible, shows + focuses it if hidden.
+/// Opening the mini player minimizes the main window; hiding the mini player
+/// restores the main window.
+#[tauri::command]
+fn open_mini_player(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("mini") {
+        let visible = win.is_visible().unwrap_or(false);
+        if visible {
+            win.hide().map_err(|e| e.to_string())?;
+            if let Some(main) = app.get_webview_window("main") {
+                let _ = main.unminimize();
+                let _ = main.show();
+                let _ = main.set_focus();
+            }
+        } else {
+            win.show().map_err(|e| e.to_string())?;
+            let _ = win.set_focus();
+            if let Some(main) = app.get_webview_window("main") {
+                let _ = main.minimize();
+            }
+        }
+        return Ok(());
+    }
+
+    let use_always_on_top = {
+        #[cfg(target_os = "linux")]
+        { !is_tiling_wm() }
+        #[cfg(not(target_os = "linux"))]
+        { true }
+    };
+
+    let win = tauri::WebviewWindowBuilder::new(
+        &app,
+        "mini",
+        tauri::WebviewUrl::App("index.html".into()),
+    )
+    .title("Psysonic Mini")
+    .inner_size(340.0, 140.0)
+    .min_inner_size(320.0, 120.0)
+    .resizable(true)
+    .decorations(true)
+    .always_on_top(use_always_on_top)
+    .skip_taskbar(false)
+    .build()
+    .map_err(|e| format!("failed to build mini player window: {e}"))?;
+
+    let _ = win.set_focus();
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.minimize();
+    }
+    Ok(())
+}
+
+/// Hide the mini player window if it exists and restore the main window.
+/// Does not destroy the mini window so its state is preserved for next open.
+#[tauri::command]
+fn close_mini_player(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("mini") {
+        win.hide().map_err(|e| e.to_string())?;
+    }
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.unminimize();
+        let _ = main.show();
+        let _ = main.set_focus();
+    }
+    Ok(())
+}
+
+/// Unminimize + show + focus the main window. Called from the mini player's
+/// "expand" button. Can't rely on a JS event bridge here because the main
+/// window's JS is paused while minimized on WebKitGTK.
+#[tauri::command]
+fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(main) = app.get_webview_window("main") {
+        main.unminimize().map_err(|e| e.to_string())?;
+        main.show().map_err(|e| e.to_string())?;
+        main.set_focus().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// Toggle always-on-top on the mini player window.
+#[tauri::command]
+fn set_mini_player_always_on_top(app: tauri::AppHandle, on_top: bool) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("mini") {
+        win.set_always_on_top(on_top).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 pub fn run() {
     // Linux: second `psysonic --player …` forwards over D-Bus before heavy startup.
     #[cfg(target_os = "linux")]
@@ -2794,6 +2891,16 @@ pub fn run() {
                         // Let JS decide: minimize to tray or exit, based on user setting.
                         let _ = window.emit("window:close-requested", ());
                     }
+                } else if window.label() == "mini" {
+                    // Native close on the mini: hide instead of destroying so
+                    // state is preserved, and restore the main window.
+                    api.prevent_close();
+                    let _ = window.hide();
+                    if let Some(main) = window.app_handle().get_webview_window("main") {
+                        let _ = main.unminimize();
+                        let _ = main.show();
+                        let _ = main.set_focus();
+                    }
                 }
             }
         })
@@ -2809,6 +2916,10 @@ pub fn run() {
             set_linux_webkit_smooth_scrolling,
             no_compositing_mode,
             is_tiling_wm_cmd,
+            open_mini_player,
+            close_mini_player,
+            set_mini_player_always_on_top,
+            show_main_window,
             register_global_shortcut,
             unregister_global_shortcut,
             mpris_set_metadata,

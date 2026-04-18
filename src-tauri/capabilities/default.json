@@ -3,7 +3,7 @@
   "identifier": "default",
   "description": "Default capabilities for Psysonic",
   "platforms": ["linux", "macOS", "windows"],
-  "windows": ["main"],
+  "windows": ["main", "mini"],
   "permissions": [
     "core:default",
     "shell:default",
