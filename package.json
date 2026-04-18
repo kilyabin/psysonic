@@ -1,6 +1,6 @@
 {
   "name": "psysonic",
-  "version": "1.34.23",
+  "version": "1.40.0",
   "private": true,
   "scripts": {
     "dev": "vite",

@@ -5,61 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-> **⚠️ Note for Windows users:** This is one of the last releases with an unsigned Windows installer. We are waiting for our code signing certificate and hope it will arrive within the next few days. The installer does not contain a virus — any warnings from Windows SmartScreen or antivirus software are false positives. If you'd like to help cover the certificate costs, you can do so at [ko-fi.com/psychotoxic](https://ko-fi.com/psychotoxic) — completely voluntary, no pressure at all.
+> **🛡️ A note on safety investments:** Making sure Psysonic is trusted on every OS takes real money out of my pocket — an Apple Developer Account (now active, which is why macOS builds are signed + notarized for everyone starting with this release) and a Windows code-signing certificate (ordered, currently in validation). If you'd like to help cover those costs, you can chip in at [ko-fi.com/psychotoxic](https://ko-fi.com/psychotoxic) — completely voluntary, no pressure at all. Every bit helps keep Psysonic free and safe across Windows, macOS and Linux.
 >
-> **🎉 macOS users:** Starting with **v1.34.15**, Psysonic can **update itself silently**. No more DMG downloading and dragging to Applications — the updater fetches the signed `.app` bundle, verifies the signature, replaces the app in place, and relaunches. Just click "Update" when the toast appears.
-
-## [1.34.23] - 2026-04-18
-
-> ### ⚠️ PLEASE IGNORE — TEST BUILD ONLY
+> **⚠️ Windows users:** This is one of the last releases with an unsigned Windows installer. Until the certificate clears validation, any SmartScreen or antivirus warning on the installer is a false positive — the binary itself is safe.
 >
-> Update-target for verifying that v1.34.22 can auto-update itself end-to-end. No functional changes. Will be deleted after the test.
-
-## [1.34.22] - 2026-04-18
-
-> ### ⚠️ PLEASE IGNORE — TEST BUILD ONLY
+> **🎉 macOS users:** Starting with **v1.40.0**, Psysonic is signed + notarized and can **update itself silently**. No more DMG downloading and dragging to Applications — the updater fetches the signed `.app` bundle, verifies the signature, replaces the app in place, and relaunches. Just click "Install now" when the update notification appears.
 >
-> Corrects the minisign public key in the bundle. The earlier releases had a character lost in transmission, which made the embedded pubkey one byte short and therefore invalid — any auto-update attempt failed with "Invalid encoding in minisign data". This rebuild has the correct key. Test builds will be deleted soon.
+> **📦 Version jump 1.34.x → 1.40.0:** The 1.34.x patch series was bumped a lot as each small feature landed. 1.40.0 consolidates the last few months of work — macOS signing + auto-updater, the Device-Sync overhaul, theme work and contrast audits — into a single coherent release. The next major bump (2.0.0) is planned once Windows code-signing + Windows auto-updater are active as well.
 
-## [1.34.21] - 2026-04-18
-
-> ### ⚠️ PLEASE IGNORE THIS RELEASE — TEST BUILD ONLY
->
-> **This is a throwaway test build used to verify the macOS auto-updater pipeline end-to-end. There are no new features, no bug fixes, no changes of any kind that affect how Psysonic behaves for end users — only the version number, plus a small UI polish in the update notification on macOS.**
->
-> **This release will be deleted within a day or two.** Do not download it, do not rely on it, do not link to it. Stay on whatever version you currently have installed; normal releases will resume shortly under the regular versioning scheme.
->
-> Thanks for your patience while we stabilise the updater infrastructure.
-
-## [1.34.20] - 2026-04-18
-
-> ### ⚠️ PLEASE IGNORE THIS RELEASE — TEST BUILD ONLY
->
-> **This is a throwaway test build used to verify the macOS auto-updater pipeline end-to-end. There are no new features, no bug fixes, no changes of any kind that affect how Psysonic behaves — only the version number is different.**
->
-> **This release will be deleted within a day or two.** Do not download it, do not rely on it, do not link to it. Stay on whatever version you currently have installed; normal releases will resume shortly under the regular versioning scheme.
->
-> Thanks for your patience while we stabilise the updater infrastructure.
-
-## [1.34.16] - 2026-04-18
-
-### Fixed
-
-- **CI — Updater signature upload** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: tauri-action on macOS produces the `.app.tar.gz.sig` minisign signature locally but does not upload it as a release asset for cross-target builds, which caused the `latest.json` manifest generator to fail (no signature to embed). An explicit post-build step now finds the `.sig` under `src-tauri/target/*/release/bundle/macos/` and uploads it with the expected filename (`Psysonic_aarch64.app.tar.gz.sig` / `Psysonic_x64.app.tar.gz.sig`).
-
-## [1.34.15] - 2026-04-18
-
-### Added
-
-- **macOS — in-app auto-update** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: The Tauri Updater plugin is now active on macOS. When a new release is available, clicking **Update** in the notification toast downloads the signed `.app.tar.gz` bundle, verifies its minisign signature against the bundled public key, replaces `/Applications/Psysonic.app` in place, and relaunches the app — all in one click, no Gatekeeper warnings, no manual DMG handling. Windows and Linux continue to use the existing "download installer / point to folder" flow until their signing pipelines are wired up.
-
-## [1.34.14] - 2026-04-18
+## [1.40.0] - 2026-04-18
 
 ### Added
 
 - **macOS — signed and notarized builds** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: macOS releases are now signed with a Developer ID Application certificate and notarized by Apple. Gatekeeper no longer shows the "app from unidentified developer" dialog; the DMG opens and runs with a single click on both Apple Silicon and Intel Macs. Signing + notarization happens in CI on every release.
 
+- **macOS — in-app auto-update** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: The Tauri Updater plugin is now active on macOS. When a new release is available, clicking **Install now** in the notification modal downloads the signed `.app.tar.gz` bundle, verifies its minisign signature against the bundled public key, replaces `/Applications/Psysonic.app` in place, and relaunches the app — all in one click, no Gatekeeper re-approval, no manual DMG handling. The modal shows trust badges ("Notarized by Apple" + "Signature verified"), a 3-second restart countdown after install with a manual "Restart now" option, and hides redundant buttons during each download/install phase. Windows and Linux continue to use the existing "download installer / point to folder" flow until their signing pipelines are wired up.
+
 - **WebKitGTK wheel scroll mode (Linux)** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#207](https://github.com/Psychotoxical/psysonic/pull/207))*: The Linux build now defaults to WebKitGTK's native smooth (kinetic) wheel scrolling and exposes a toggle in Settings → General to fall back to classic linear line-by-line scroll. Existing installs are migrated to smooth scrolling once, after which the toggle is fully user-controlled.
+
+### Changed
+
+- **Device Sync — fixed naming scheme + playlist folders** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: The user-configurable filename template is gone. Every sync now writes files under a single, non-negotiable scheme:
+  - Album / artist sources: `{AlbumArtist}/{Album}/{TrackNum:02d} - {Title}.{ext}`
+  - Playlist sources: `Playlists/{PlaylistName}/{Index:02d} - {Artist} - {Title}.{ext}` plus a self-contained `.m3u8` that references sibling filenames.
+
+  **Why:** different OSes normalised separators and special characters differently, so the same library synced from macOS and then plugged into a Windows machine appeared "different" and re-downloaded every album. The fixed scheme ends that forever.
+
+  **Playlist folders instead of the album tree:** playlists used to be scattered across the album structure as `.m3u8` references. For playlists with 40 artists that meant 40 new folders on the stick. Now every playlist is one self-contained folder; the `.m3u8` sits inside it and references siblings, so you can copy the whole folder anywhere.
+
+  **Migration for existing sticks:** a "Reorganize existing files…" button on the Device Sync page reads the legacy template from the v1 manifest, computes per-track rename pairs, detects collisions, and executes atomic `fs::rename`s. Empty directories left behind are cleaned up automatically. Playlist tracks synced under the old scheme are left for the next sync to re-download into the new playlist folder, rather than being force-moved.
+
+  **Album-Artist fallback:** libraries without an albumArtist tag fall back to the track artist — "Unknown Artist" is only ever a last-resort placeholder.
 
 ### Fixed
 
@@ -67,9 +43,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **WCAG contrast audit — Nucleo theme** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: Darkened `--warning`, `--border`, `--text-muted`, and `--positive` tokens to reach AA on the warm cream palette; added a component-level override for the column resize grip (default `--ctp-surface1` was 1.08:1 on the card background, effectively invisible) using the new `--border` token at 2px width. Brass-and-parchment aesthetic preserved.
 
-### Changed
+### Contributors
 
-- **Contributors list updated** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: Settings → About now credits PRs [#205](https://github.com/Psychotoxical/psysonic/pull/205) (Apple Music-style scrolling lyrics by [@kilyabin](https://github.com/kilyabin)), [#206](https://github.com/Psychotoxical/psysonic/pull/206) (Golos Text + Unbounded fonts with Cyrillic support by [@kilyabin](https://github.com/kilyabin)), and [#207](https://github.com/Psychotoxical/psysonic/pull/207) (WebKitGTK wheel scroll mode by [@cucadmuh](https://github.com/cucadmuh)).
+- **PR [#205](https://github.com/Psychotoxical/psysonic/pull/205)** — Apple Music-style scrolling lyrics with spring-physics scroll, by [@kilyabin](https://github.com/kilyabin).
+- **PR [#206](https://github.com/Psychotoxical/psysonic/pull/206)** — Golos Text + Unbounded fonts with Cyrillic support, by [@kilyabin](https://github.com/kilyabin).
+- **PR [#207](https://github.com/Psychotoxical/psysonic/pull/207)** — WebKitGTK wheel scroll mode toggle, by [@cucadmuh](https://github.com/cucadmuh).
+
+All three now credited in Settings → About.
 
 ---
 
