@@ -4,7 +4,7 @@ import { open } from '@tauri-apps/plugin-shell';
 import { listen } from '@tauri-apps/api/event';
 import { dirname } from '@tauri-apps/api/path';
 import { invoke } from '@tauri-apps/api/core';
-import { ArrowUpCircle, ChevronDown, Download, FolderOpen, X } from 'lucide-react';
+import { ArrowUpCircle, CheckCircle2, ChevronDown, Download, FolderOpen, RefreshCw, ShieldCheck, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { version as currentVersion } from '../../package.json';
 import { IS_LINUX, IS_MACOS, IS_WINDOWS } from '../utils/platform';
@@ -103,7 +103,10 @@ export default function AppUpdater() {
   const [dlProgress, setDlProgress] = useState({ bytes: 0, total: 0 });
   const [dlPath, setDlPath] = useState('');
   const [dlError, setDlError] = useState('');
+  const [countdown, setCountdown] = useState<number | null>(null);
   const unlistenRef = useRef<(() => void) | null>(null);
+  const countdownRef = useRef<number | null>(null);
+  const relaunchFnRef = useRef<(() => Promise<void>) | null>(null);
 
   const fetchRelease = async (preview = false) => {
     try {
@@ -152,7 +155,10 @@ export default function AppUpdater() {
 
   // Clean up download listener when component unmounts
   useEffect(() => {
-    return () => { unlistenRef.current?.(); };
+    return () => {
+      unlistenRef.current?.();
+      if (countdownRef.current) window.clearInterval(countdownRef.current);
+    };
   }, []);
 
   if (!release || dismissed) return null;
@@ -169,6 +175,31 @@ export default function AppUpdater() {
     setDismissed(true);
   };
 
+  const startRestartCountdown = (seconds: number) => {
+    let remaining = seconds;
+    setCountdown(remaining);
+    countdownRef.current = window.setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        if (countdownRef.current) window.clearInterval(countdownRef.current);
+        countdownRef.current = null;
+        setCountdown(null);
+        relaunchFnRef.current?.();
+      } else {
+        setCountdown(remaining);
+      }
+    }, 1000);
+  };
+
+  const handleRestartNow = async () => {
+    if (countdownRef.current) {
+      window.clearInterval(countdownRef.current);
+      countdownRef.current = null;
+    }
+    setCountdown(null);
+    await relaunchFnRef.current?.();
+  };
+
   const handleDownload = async () => {
     // On macOS: use the Tauri Updater plugin — downloads .app.tar.gz, verifies
     // the minisign signature against the bundled pubkey, replaces the .app, and
@@ -179,6 +210,8 @@ export default function AppUpdater() {
       setDlError('');
       try {
         const { check } = await import('@tauri-apps/plugin-updater');
+        const { relaunch } = await import('@tauri-apps/plugin-process');
+        relaunchFnRef.current = relaunch;
         const update = await check();
         if (!update) {
           setDlError(t('common.updaterErrorMsg'));
@@ -196,9 +229,12 @@ export default function AppUpdater() {
             setDlProgress({ bytes: downloaded, total });
           } else if (event.event === 'Finished') {
             setDlState('done');
+            // downloadAndInstall replaces the .app in place but does not exit
+            // the running process. Give the user a 3s countdown (with a manual
+            // "Restart now" button) before auto-relaunch.
+            startRestartCountdown(3);
           }
         });
-        // downloadAndInstall replaces the .app and relaunches automatically on macOS.
       } catch (e) {
         setDlError(String(e));
         setDlState('error');
@@ -316,12 +352,25 @@ export default function AppUpdater() {
           ) : useTauriUpdater ? (
             <>
               {dlState === 'idle' && (
-                <div className="update-modal-asset">
-                  <span className="update-modal-asset-name">
+                <div className="update-modal-mac-info">
+                  <div className="update-modal-mac-info-main">
+                    {t('common.updaterMacReadyTitle', { defaultValue: 'Ready to install' })}
+                  </div>
+                  <div className="update-modal-mac-info-sub">
                     {t('common.updaterMacReady', {
-                      defaultValue: 'Downloads, verifies and installs automatically. The app will restart when done.',
+                      defaultValue: 'The update downloads, verifies and applies in place — no DMG needed. The app restarts automatically when done.',
                     })}
-                  </span>
+                  </div>
+                  <div className="update-modal-trust-badges">
+                    <span className="update-modal-trust-badge">
+                      <ShieldCheck size={12} />
+                      {t('common.updaterTrustNotarized', { defaultValue: 'Notarized by Apple' })}
+                    </span>
+                    <span className="update-modal-trust-badge">
+                      <CheckCircle2 size={12} />
+                      {t('common.updaterTrustSignature', { defaultValue: 'Signature verified' })}
+                    </span>
+                  </div>
                 </div>
               )}
               {dlState === 'downloading' && (
@@ -338,8 +387,14 @@ export default function AppUpdater() {
               )}
               {dlState === 'done' && (
                 <div className="update-modal-done">
+                  <CheckCircle2 size={32} className="update-modal-done-icon" />
                   <div className="update-modal-done-title">
-                    {t('common.updaterMacDone', { defaultValue: 'Installed. Restarting…' })}
+                    {t('common.updaterMacDoneTitle', { defaultValue: 'Update installed' })}
+                  </div>
+                  <div className="update-modal-done-countdown">
+                    {countdown !== null
+                      ? t('common.updaterRestartingIn', { defaultValue: 'Restarting in {{n}}s…', n: countdown })
+                      : t('common.updaterRestarting', { defaultValue: 'Restarting…' })}
                   </div>
                 </div>
               )}
@@ -394,27 +449,55 @@ export default function AppUpdater() {
         </div>
         </div>{/* end update-modal-body */}
 
-        {/* Footer buttons */}
+        {/* Footer buttons — state-dependent to avoid redundant/jumping buttons */}
         <div className="update-modal-footer">
-          <button className="btn btn-ghost update-modal-skip" onClick={handleSkip}>
-            {t('common.updaterSkipBtn')}
-          </button>
-          <div style={{ flex: 1 }} />
-          <button className="btn btn-surface" onClick={() => setDismissed(true)}>
-            {t('common.updaterRemindBtn')}
-          </button>
-          {showInstallBtn && dlState === 'idle' && (
-            <button className="btn btn-primary" onClick={handleDownload}>
-              <Download size={14} />
-              {useTauriUpdater
-                ? t('common.updaterInstallNow', { defaultValue: 'Install now' })
-                : t('common.updaterDownloadBtn')}
-            </button>
+          {dlState === 'idle' && (
+            <>
+              <button className="btn btn-ghost update-modal-skip" onClick={handleSkip}>
+                {t('common.updaterSkipBtn')}
+              </button>
+              <div style={{ flex: 1 }} />
+              <button className="btn btn-surface" onClick={() => setDismissed(true)}>
+                {t('common.updaterRemindBtn')}
+              </button>
+              {showInstallBtn && (
+                <button className="btn btn-primary" onClick={handleDownload}>
+                  <Download size={14} />
+                  {useTauriUpdater
+                    ? t('common.updaterInstallNow', { defaultValue: 'Install now' })
+                    : t('common.updaterDownloadBtn')}
+                </button>
+              )}
+            </>
+          )}
+          {dlState === 'downloading' && <div style={{ flex: 1 }} />}
+          {dlState === 'done' && useTauriUpdater && (
+            <>
+              <div style={{ flex: 1 }} />
+              <button className="btn btn-primary" onClick={handleRestartNow}>
+                <RefreshCw size={14} />
+                {t('common.updaterRestartNow', { defaultValue: 'Restart now' })}
+              </button>
+            </>
+          )}
+          {dlState === 'done' && !useTauriUpdater && (
+            <>
+              <div style={{ flex: 1 }} />
+              <button className="btn btn-surface" onClick={() => setDismissed(true)}>
+                {t('common.updaterRemindBtn')}
+              </button>
+            </>
           )}
           {dlState === 'error' && (
-            <button className="btn btn-primary" onClick={handleDownload}>
-              {t('common.updaterRetryBtn')}
-            </button>
+            <>
+              <div style={{ flex: 1 }} />
+              <button className="btn btn-surface" onClick={() => setDismissed(true)}>
+                {t('common.updaterRemindBtn')}
+              </button>
+              <button className="btn btn-primary" onClick={handleDownload}>
+                {t('common.updaterRetryBtn')}
+              </button>
+            </>
           )}
         </div>
       </div>

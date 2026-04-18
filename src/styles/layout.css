@@ -769,6 +769,53 @@
   gap: var(--space-2);
   font-size: 12px;
 }
+/* macOS Tauri Updater — idle state info block */
+.update-modal-mac-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.update-modal-mac-info-main {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.update-modal-mac-info-sub {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+.update-modal-trust-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+.update-modal-trust-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--positive, var(--accent));
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+}
+.update-modal-trust-badge svg {
+  flex-shrink: 0;
+}
+/* macOS Tauri Updater — done state (after install, before/during restart) */
+.update-modal-done-icon {
+  align-self: center;
+  color: var(--positive, var(--accent));
+  margin-bottom: var(--space-1);
+}
+.update-modal-done-countdown {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
 /* AUR hint */
 .update-modal-aur {
   display: flex;
