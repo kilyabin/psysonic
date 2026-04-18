@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **⚠️ Note for Windows users:** This is one of the last releases with an unsigned Windows installer. We are waiting for our code signing certificate and hope it will arrive within the next few days. The installer does not contain a virus — any warnings from Windows SmartScreen or antivirus software are false positives. If you'd like to help cover the certificate costs, you can do so at [ko-fi.com/psychotoxic](https://ko-fi.com/psychotoxic) — completely voluntary, no pressure at all.
 >
-> **✅ macOS users:** Starting with this release, macOS builds are **signed and notarized** by Apple. No more "unidentified developer" warnings — the app launches with a single click.
+> **🎉 macOS users:** Starting with **v1.34.15**, Psysonic can **update itself silently**. No more DMG downloading and dragging to Applications — the updater fetches the signed `.app` bundle, verifies the signature, replaces the app in place, and relaunches. Just click "Update" when the toast appears.
+
+## [1.34.15] - 2026-04-18
+
+### Added
+
+- **macOS — in-app auto-update** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: The Tauri Updater plugin is now active on macOS. When a new release is available, clicking **Update** in the notification toast downloads the signed `.app.tar.gz` bundle, verifies its minisign signature against the bundled public key, replaces `/Applications/Psysonic.app` in place, and relaunches the app — all in one click, no Gatekeeper warnings, no manual DMG handling. Windows and Linux continue to use the existing "download installer / point to folder" flow until their signing pipelines are wired up.
 
 ## [1.34.14] - 2026-04-18
 
