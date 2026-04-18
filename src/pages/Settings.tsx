@@ -120,6 +120,7 @@ const CONTRIBUTORS = [
       'Streaming playback stability: stream-first start, seek recovery, crossfade/gapless backup preload, hot-cache promotion (PR #200)',
       'ReplayGain values in Queue tech strip (PR #196)',
       'Playback source badge (offline / cache / stream) in Queue tech strip (PR #201)',
+      'WebKitGTK wheel scroll mode: smooth (kinetic) default with optional linear toggle (PR #207)',
     ],
   },
   {
@@ -135,6 +136,8 @@ const CONTRIBUTORS = [
       'Merge Random Mix & Albums into a single Build a Mix hub (PR #155)',
       'Fullscreen player: software-rendering performance fixes + portrait toggle & dimming setting (PR #156)',
       'Fullscreen player: stop mesh blob and portrait animations in no-compositing mode; remove seekbar box-shadow repaint (PR #175)',
+      'Apple Music-style scrolling lyrics with spring-physics scroll for fullscreen player and sidebar; per-style controls (PR #205)',
+      'Golos Text and Unbounded fonts with Cyrillic support (PR #206)',
     ],
   },
   {
