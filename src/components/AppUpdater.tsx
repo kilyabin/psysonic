@@ -159,6 +159,10 @@ export default function AppUpdater() {
 
   const asset = pickAsset(release.assets);
   const showAurHint = IS_LINUX && isArch;
+  // On macOS the Tauri Updater handles architecture, signature verification
+  // and in-place install — we don't need (and should not show) a DMG asset.
+  const useTauriUpdater = IS_MACOS;
+  const showInstallBtn = !showAurHint && (useTauriUpdater || !!asset);
 
   const handleSkip = () => {
     localStorage.setItem(SKIP_KEY, release.version);
@@ -309,6 +313,40 @@ export default function AppUpdater() {
               <code className="update-modal-aur-cmd">yay -S psysonic-bin</code>
               <code className="update-modal-aur-cmd update-modal-aur-alt">sudo pacman -Syu psysonic-bin</code>
             </div>
+          ) : useTauriUpdater ? (
+            <>
+              {dlState === 'idle' && (
+                <div className="update-modal-asset">
+                  <span className="update-modal-asset-name">
+                    {t('common.updaterMacReady', {
+                      defaultValue: 'Downloads, verifies and installs automatically. The app will restart when done.',
+                    })}
+                  </span>
+                </div>
+              )}
+              {dlState === 'downloading' && (
+                <div className="update-modal-progress">
+                  <div className="app-updater-progress-bar">
+                    <div className="app-updater-progress-fill" style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="app-updater-pct">{pct}%</span>
+                  <span className="update-modal-dl-bytes">
+                    {fmtBytes(dlProgress.bytes)}
+                    {dlProgress.total > 0 && ` / ${fmtBytes(dlProgress.total)}`}
+                  </span>
+                </div>
+              )}
+              {dlState === 'done' && (
+                <div className="update-modal-done">
+                  <div className="update-modal-done-title">
+                    {t('common.updaterMacDone', { defaultValue: 'Installed. Restarting…' })}
+                  </div>
+                </div>
+              )}
+              {dlState === 'error' && (
+                <div className="app-updater-error">{dlError || t('common.updaterErrorMsg')}</div>
+              )}
+            </>
           ) : asset ? (
             <>
               {dlState === 'idle' && (
@@ -365,10 +403,12 @@ export default function AppUpdater() {
           <button className="btn btn-surface" onClick={() => setDismissed(true)}>
             {t('common.updaterRemindBtn')}
           </button>
-          {!showAurHint && asset && dlState === 'idle' && (
+          {showInstallBtn && dlState === 'idle' && (
             <button className="btn btn-primary" onClick={handleDownload}>
               <Download size={14} />
-              {t('common.updaterDownloadBtn')}
+              {useTauriUpdater
+                ? t('common.updaterInstallNow', { defaultValue: 'Install now' })
+                : t('common.updaterDownloadBtn')}
             </button>
           )}
           {dlState === 'error' && (
