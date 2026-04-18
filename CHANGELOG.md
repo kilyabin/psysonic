@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 >
 > **🎉 macOS users:** Starting with **v1.40.0**, Psysonic is signed + notarized and can **update itself silently**. No more DMG downloading and dragging to Applications — the updater fetches the signed `.app` bundle, verifies the signature, replaces the app in place, and relaunches. Just click "Install now" when the update notification appears.
 >
-> **📦 Version jump 1.34.x → 1.40.0:** The 1.34.x patch series was bumped a lot as each small feature landed. 1.40.0 consolidates the last few months of work — macOS signing + auto-updater, the Device-Sync overhaul, theme work and contrast audits — into a single coherent release. The next major bump (2.0.0) is planned once Windows code-signing + Windows auto-updater are active as well.
+> **📦 Version jump 1.34.x → 1.40.0:** The 1.34.x patch series was bumped a lot as each small feature landed. 1.40.0 consolidates the last few weeks of work — macOS signing + auto-updater, the Device-Sync overhaul, theme work and contrast audits — into a single coherent release. The next major bump (2.0.0) is planned once Windows code-signing + Windows auto-updater are active as well.
 
 ## [1.40.0] - 2026-04-18
 
