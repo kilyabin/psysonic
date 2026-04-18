@@ -133,17 +133,27 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -x
           VERSION=${{ needs.create-release.outputs.package_version }}
-          SIG=$(find src-tauri/target -path '*/release/bundle/macos/*.app.tar.gz.sig' | head -1)
-          if [ -z "$SIG" ]; then
-            echo "::error::No .sig file found under src-tauri/target/*/release/bundle/macos/"
-            exit 1
-          fi
-          echo "Found signature: $SIG"
-          if echo "$SIG" | grep -q 'aarch64-apple-darwin'; then
+          TARGET_ARG='${{ matrix.settings.args }}'
+          if echo "$TARGET_ARG" | grep -q 'aarch64'; then
+            TARGET="aarch64-apple-darwin"
             DST="Psysonic_aarch64.app.tar.gz.sig"
           else
+            TARGET="x86_64-apple-darwin"
             DST="Psysonic_x64.app.tar.gz.sig"
+          fi
+
+          BUNDLE_DIR="src-tauri/target/${TARGET}/release/bundle/macos"
+          echo "=== Listing $BUNDLE_DIR ==="
+          ls -la "$BUNDLE_DIR" || true
+          echo "=== Searching whole target tree for .sig ==="
+          find "src-tauri/target" -name '*.sig' -type f 2>/dev/null || true
+
+          SIG="${BUNDLE_DIR}/Psysonic.app.tar.gz.sig"
+          if [ ! -f "$SIG" ]; then
+            echo "::error::Signature not at expected path: $SIG"
+            exit 1
           fi
           cp "$SIG" "$DST"
           gh release upload "app-v${VERSION}" "$DST" --clobber
@@ -223,6 +233,11 @@ jobs:
   #
   # The refreshed lock/hash files are committed back to `main` when they change.
   verify-nix:
+    # TEMPORARILY DISABLED during the v1.34.x testing iteration (signing +
+    # updater stabilisation). Remove `if: false` to re-enable — it auto-commits
+    # flake.lock / npmDepsHash refreshes to main on every release, which causes
+    # rebase friction while we're iterating fast on the release pipeline.
+    if: false
     needs: create-release
     runs-on: ubuntu-24.04
     permissions:
