@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 >
 > **🎉 macOS users:** Starting with **v1.34.15**, Psysonic can **update itself silently**. No more DMG downloading and dragging to Applications — the updater fetches the signed `.app` bundle, verifies the signature, replaces the app in place, and relaunches. Just click "Update" when the toast appears.
 
+## [1.34.20] - 2026-04-18
+
+> ### ⚠️ PLEASE IGNORE THIS RELEASE — TEST BUILD ONLY
+>
+> **This is a throwaway test build used to verify the macOS auto-updater pipeline end-to-end. There are no new features, no bug fixes, no changes of any kind that affect how Psysonic behaves — only the version number is different.**
+>
+> **This release will be deleted within a day or two.** Do not download it, do not rely on it, do not link to it. Stay on whatever version you currently have installed; normal releases will resume shortly under the regular versioning scheme.
+>
+> Thanks for your patience while we stabilise the updater infrastructure.
+
 ## [1.34.16] - 2026-04-18
 
 ### Fixed
