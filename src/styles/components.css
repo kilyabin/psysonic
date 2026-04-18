@@ -8838,7 +8838,7 @@ html.no-compositing .fsr-lyric-line.fsrl-active .fsr-lyric-word.active {
   height: 100vh;
   display: grid;
   grid-template-columns: 112px 1fr;
-  grid-template-rows: 1fr auto;
+  grid-template-rows: auto auto;
   gap: 10px;
   padding: 12px;
   background: var(--bg-app);
@@ -8846,6 +8846,10 @@ html.no-compositing .fsr-lyric-line.fsrl-active .fsr-lyric-word.active {
   overflow: hidden;
   user-select: none;
   box-sizing: border-box;
+}
+
+.mini-player--queue-open {
+  grid-template-rows: auto auto 1fr;
 }
 
 .mini-player__art {
@@ -8961,6 +8965,91 @@ html.no-compositing .fsr-lyric-line.fsrl-active .fsr-lyric-word.active {
   display: flex;
   gap: 4px;
   justify-content: flex-end;
+}
+
+.mini-queue {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--bg-card);
+  border-radius: 8px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.mini-queue__empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.mini-queue__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  border-radius: 4px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.mini-queue__item:hover {
+  background: var(--bg-hover);
+}
+
+.mini-queue__item--current {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.mini-queue__num {
+  flex-shrink: 0;
+  width: 20px;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.mini-queue__item--current .mini-queue__num {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.mini-queue__meta {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.mini-queue__title {
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-queue__artist {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-queue__item--current .mini-queue__artist {
+  color: var(--accent);
+  opacity: 0.8;
 }
 .mini-player__tool {
   display: flex;

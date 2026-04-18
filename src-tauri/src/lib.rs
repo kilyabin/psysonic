@@ -2641,8 +2641,8 @@ fn open_mini_player(app: tauri::AppHandle) -> Result<(), String> {
         tauri::WebviewUrl::App("index.html".into()),
     )
     .title("Psysonic Mini")
-    .inner_size(340.0, 140.0)
-    .min_inner_size(320.0, 120.0)
+    .inner_size(340.0, 180.0)
+    .min_inner_size(320.0, 180.0)
     .resizable(true)
     .decorations(true)
     .always_on_top(use_always_on_top)
@@ -2674,9 +2674,13 @@ fn close_mini_player(app: tauri::AppHandle) -> Result<(), String> {
 
 /// Unminimize + show + focus the main window. Called from the mini player's
 /// "expand" button. Can't rely on a JS event bridge here because the main
-/// window's JS is paused while minimized on WebKitGTK.
+/// window's JS is paused while minimized on WebKitGTK. Also hides the mini
+/// window so the two don't sit on screen at the same time.
 #[tauri::command]
 fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(mini) = app.get_webview_window("mini") {
+        let _ = mini.hide();
+    }
     if let Some(main) = app.get_webview_window("main") {
         main.unminimize().map_err(|e| e.to_string())?;
         main.show().map_err(|e| e.to_string())?;
@@ -2690,6 +2694,16 @@ fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
 fn set_mini_player_always_on_top(app: tauri::AppHandle, on_top: bool) -> Result<(), String> {
     if let Some(win) = app.get_webview_window("mini") {
         win.set_always_on_top(on_top).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// Resize the mini player window (logical pixels). Used when toggling the
+/// queue panel to expand/collapse without a capability dance.
+#[tauri::command]
+fn resize_mini_player(app: tauri::AppHandle, width: f64, height: f64) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("mini") {
+        win.set_size(tauri::LogicalSize::new(width, height)).map_err(|e| e.to_string())?;
     }
     Ok(())
 }
@@ -2721,7 +2735,11 @@ pub fn run() {
         .manage(TrayState::default())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_denylist(&["mini"])
+                .build()
+        )
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -2919,6 +2937,7 @@ pub fn run() {
             open_mini_player,
             close_mini_player,
             set_mini_player_always_on_top,
+            resize_mini_player,
             show_main_window,
             register_global_shortcut,
             unregister_global_shortcut,

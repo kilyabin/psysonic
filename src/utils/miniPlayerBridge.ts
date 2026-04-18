@@ -4,18 +4,22 @@ import { usePlayerStore } from '../store/playerStore';
 
 export const MINI_WINDOW_LABEL = 'mini';
 
+export interface MiniTrackInfo {
+  id: string;
+  title: string;
+  artist: string;
+  album: string;
+  albumId?: string;
+  artistId?: string;
+  coverArt?: string;
+  duration?: number;
+  starred?: boolean;
+}
+
 export interface MiniSyncPayload {
-  track: {
-    id: string;
-    title: string;
-    artist: string;
-    album: string;
-    albumId?: string;
-    artistId?: string;
-    coverArt?: string;
-    duration?: number;
-    starred?: boolean;
-  } | null;
+  track: MiniTrackInfo | null;
+  queue: MiniTrackInfo[];
+  queueIndex: number;
   isPlaying: boolean;
   isMobile: false;
 }
@@ -26,21 +30,26 @@ export type MiniControlAction =
   | 'prev'
   | 'show-main';
 
+function toMini(t: any): MiniTrackInfo {
+  return {
+    id: t.id,
+    title: t.title,
+    artist: t.artist,
+    album: t.album,
+    albumId: t.albumId,
+    artistId: t.artistId,
+    coverArt: t.coverArt,
+    duration: t.duration,
+    starred: !!t.starred,
+  };
+}
+
 function snapshot(): MiniSyncPayload {
   const s = usePlayerStore.getState();
-  const t = s.currentTrack;
   return {
-    track: t ? {
-      id: t.id,
-      title: t.title,
-      artist: t.artist,
-      album: t.album,
-      albumId: t.albumId,
-      artistId: t.artistId,
-      coverArt: t.coverArt,
-      duration: t.duration,
-      starred: !!t.starred,
-    } : null,
+    track: s.currentTrack ? toMini(s.currentTrack) : null,
+    queue: (s.queue ?? []).map(toMini),
+    queueIndex: s.queueIndex ?? 0,
     isPlaying: s.isPlaying,
     isMobile: false,
   };
@@ -61,7 +70,8 @@ export function initMiniPlayerBridgeOnMain(): () => void {
   let last = '';
   const push = () => {
     const payload = snapshot();
-    const key = `${payload.track?.id ?? ''}|${payload.isPlaying}|${payload.track?.starred ?? ''}`;
+    const queueIds = payload.queue.map(q => q.id).join(',');
+    const key = `${payload.track?.id ?? ''}|${payload.isPlaying}|${payload.track?.starred ?? ''}|${payload.queueIndex}|${queueIds}`;
     if (key === last) return;
     last = key;
     emitTo(MINI_WINDOW_LABEL, 'mini:sync', payload).catch(() => {});
@@ -70,7 +80,9 @@ export function initMiniPlayerBridgeOnMain(): () => void {
   const unsub = usePlayerStore.subscribe((state, prev) => {
     if (state.currentTrack?.id !== prev.currentTrack?.id
       || state.isPlaying !== prev.isPlaying
-      || state.currentTrack?.starred !== prev.currentTrack?.starred) {
+      || state.currentTrack?.starred !== prev.currentTrack?.starred
+      || state.queueIndex !== prev.queueIndex
+      || state.queue !== prev.queue) {
       push();
     }
   });
@@ -99,9 +111,19 @@ export function initMiniPlayerBridgeOnMain(): () => void {
     }
   });
 
+  // Jump to a specific queue index.
+  const jumpUnlisten = listen<{ index: number }>('mini:jump', (e) => {
+    const store = usePlayerStore.getState();
+    const idx = e.payload?.index ?? -1;
+    if (idx < 0 || idx >= store.queue.length) return;
+    const track = store.queue[idx];
+    if (track) store.playTrack(track, store.queue, true);
+  });
+
   return () => {
     unsub();
     readyUnlisten.then(fn => fn()).catch(() => {});
     controlUnlisten.then(fn => fn()).catch(() => {});
+    jumpUnlisten.then(fn => fn()).catch(() => {});
   };
 }
