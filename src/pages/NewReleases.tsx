@@ -137,7 +137,7 @@ export default function NewReleases() {
 
   return (
     <div className="content-body animate-fade-in">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+      <div className="page-sticky-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
         <h1 className="page-title" style={{ marginBottom: 0 }}>
           {selectionMode && selectedIds.size > 0
             ? t('albums.selectionCount', { count: selectedIds.size })

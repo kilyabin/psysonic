@@ -1031,6 +1031,33 @@
   contain: paint;
 }
 
+/* Every page re-uses .content-body as its outer wrapper, but App.tsx already
+   renders one around <Routes /> as the scroll container. The inner one must
+   not establish its own scroll ancestor — otherwise `position: sticky`
+   children anchor to a container that never scrolls, and the header just
+   scrolls along with the content. Padding stays: the outer App.tsx
+   content-body has `padding: 0` inline, the inner one is what gives each
+   page its breathing room. */
+.content-body .content-body {
+  overflow: visible;
+}
+
+/* Sticky page header: keeps page title + filter/search bar visible while the
+   body scrolls. Negative horizontal margins (+ matching padding) make the
+   background flush with the scroll container edges so the sticky block looks
+   like a real bar, not a floating island. `top: 0` clamps below the content-
+   body's own padding-top; the residual 24px gap above the sticky block while
+   scrolling is intentional — gives the bar visual breathing room. */
+.page-sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg-app);
+  margin: 0 calc(-1 * var(--space-6)) var(--space-5);
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
 /* ─── Offline Banner ─── */
 .offline-banner {
   display: flex;

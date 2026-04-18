@@ -172,75 +172,77 @@ export default function Artists() {
 
   return (
     <div className="content-body animate-fade-in">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <h1 className="page-title" style={{ marginBottom: 0 }}>
-            {selectionMode && selectedIds.size > 0
-              ? t('artists.selectionCount', { count: selectedIds.size })
-              : t('artists.title')}
-          </h1>
-          <input
-            className="input"
-            style={{ maxWidth: 220 }}
-            placeholder={t('artists.search')}
-            value={filter}
-            onChange={e => setFilter(e.target.value)}
-            id="artist-filter-input"
-          />
+      <div className="page-sticky-header">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <h1 className="page-title" style={{ marginBottom: 0 }}>
+              {selectionMode && selectedIds.size > 0
+                ? t('artists.selectionCount', { count: selectedIds.size })
+                : t('artists.title')}
+            </h1>
+            <input
+              className="input"
+              style={{ maxWidth: 220 }}
+              placeholder={t('artists.search')}
+              value={filter}
+              onChange={e => setFilter(e.target.value)}
+              id="artist-filter-input"
+            />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {!(selectionMode && selectedIds.size > 0) && (<>
+                <button
+                  className={`btn btn-surface`}
+                  onClick={() => setShowArtistImages(!showArtistImages)}
+                  style={showArtistImages ? { background: 'var(--accent)', color: 'var(--ctp-crust)', padding: '0.5rem' } : { padding: '0.5rem' }}
+                  data-tooltip={showArtistImages ? t('artists.imagesOn') : t('artists.imagesOff')}
+                  data-tooltip-wrap
+                >
+                  <Images size={20} />
+                </button>
+                <button
+                  className={`btn btn-surface ${viewMode === 'grid' ? 'btn-sort-active' : ''}`}
+                  onClick={() => setViewMode('grid')}
+                  style={viewMode === 'grid' ? { background: 'var(--accent)', color: 'var(--ctp-crust)', padding: '0.5rem' } : { padding: '0.5rem' }}
+                  data-tooltip={t('artists.gridView')}
+                >
+                  <LayoutGrid size={20} />
+                </button>
+                <button
+                  className={`btn btn-surface ${viewMode === 'list' ? 'btn-sort-active' : ''}`}
+                  onClick={() => setViewMode('list')}
+                  style={viewMode === 'list' ? { background: 'var(--accent)', color: 'var(--ctp-crust)', padding: '0.5rem' } : { padding: '0.5rem' }}
+                  data-tooltip={t('artists.listView')}
+                >
+                  <List size={20} />
+                </button>
+              </>
+            )}
+            <button
+              className={`btn btn-surface${selectionMode ? ' btn-sort-active' : ''}`}
+              onClick={toggleSelectionMode}
+              data-tooltip={selectionMode ? t('artists.cancelSelect') : t('artists.startSelect')}
+              data-tooltip-pos="bottom"
+              style={selectionMode ? { background: 'var(--accent)', color: 'var(--ctp-crust)' } : {}}
+            >
+              <CheckSquare2 size={15} />
+              {selectionMode ? t('artists.cancelSelect') : t('artists.select')}
+            </button>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          {!(selectionMode && selectedIds.size > 0) && (<>
-              <button
-                className={`btn btn-surface`}
-                onClick={() => setShowArtistImages(!showArtistImages)}
-                style={showArtistImages ? { background: 'var(--accent)', color: 'var(--ctp-crust)', padding: '0.5rem' } : { padding: '0.5rem' }}
-                data-tooltip={showArtistImages ? t('artists.imagesOn') : t('artists.imagesOff')}
-                data-tooltip-wrap
-              >
-                <Images size={20} />
-              </button>
-              <button
-                className={`btn btn-surface ${viewMode === 'grid' ? 'btn-sort-active' : ''}`}
-                onClick={() => setViewMode('grid')}
-                style={viewMode === 'grid' ? { background: 'var(--accent)', color: 'var(--ctp-crust)', padding: '0.5rem' } : { padding: '0.5rem' }}
-                data-tooltip={t('artists.gridView')}
-              >
-                <LayoutGrid size={20} />
-              </button>
-              <button
-                className={`btn btn-surface ${viewMode === 'list' ? 'btn-sort-active' : ''}`}
-                onClick={() => setViewMode('list')}
-                style={viewMode === 'list' ? { background: 'var(--accent)', color: 'var(--ctp-crust)', padding: '0.5rem' } : { padding: '0.5rem' }}
-                data-tooltip={t('artists.listView')}
-              >
-                <List size={20} />
-              </button>
-            </>
-          )}
-          <button
-            className={`btn btn-surface${selectionMode ? ' btn-sort-active' : ''}`}
-            onClick={toggleSelectionMode}
-            data-tooltip={selectionMode ? t('artists.cancelSelect') : t('artists.startSelect')}
-            data-tooltip-pos="bottom"
-            style={selectionMode ? { background: 'var(--accent)', color: 'var(--ctp-crust)' } : {}}
-          >
-            <CheckSquare2 size={15} />
-            {selectionMode ? t('artists.cancelSelect') : t('artists.select')}
-          </button>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: 'var(--space-4)' }}>
+          {ALPHABET.map(l => (
+            <button
+              key={l}
+              onClick={() => setLetterFilter(l)}
+              className={`artists-alpha-btn${letterFilter === l ? ' artists-alpha-btn--active' : ''}`}
+            >
+              {l === ALL_SENTINEL ? t('artists.all') : l}
+            </button>
+          ))}
         </div>
-      </div>
-
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginBottom: '2rem' }}>
-        {ALPHABET.map(l => (
-          <button
-            key={l}
-            onClick={() => setLetterFilter(l)}
-            className={`artists-alpha-btn${letterFilter === l ? ' artists-alpha-btn--active' : ''}`}
-          >
-            {l === ALL_SENTINEL ? t('artists.all') : l}
-          </button>
-        ))}
       </div>
 
       {loading && <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}><div className="spinner" /></div>}
