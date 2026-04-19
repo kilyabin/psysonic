@@ -5,7 +5,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Wifi, WifiOff, Globe, Music2, Sliders, LogOut, CheckCircle2, FolderOpen,
   Palette, Server, Plus, Trash2, Eye, EyeOff, Info, ExternalLink, Shuffle, X, Play, Type, Keyboard, ChevronDown,
-  GripVertical, PanelLeft, RotateCcw, LayoutGrid, AppWindow, HardDrive, Upload, Download, Waves, Star, Clock, ZoomIn, Sparkles, AlertTriangle, Maximize2, AudioLines, User, Lock
+  GripVertical, PanelLeft, RotateCcw, LayoutGrid, AppWindow, HardDrive, Upload, Download, Waves, Star, Clock, ZoomIn, Sparkles, AlertTriangle, Maximize2, AudioLines, User, Lock,
+  Users, UserPlus, Pencil, Shield
 } from 'lucide-react';
 import i18n from '../i18n';
 import { exportBackup, importBackup } from '../utils/backup';
@@ -33,6 +34,10 @@ import { useHomeStore, HomeSectionId } from '../store/homeStore';
 import { useDragDrop, useDragSource } from '../contexts/DragDropContext';
 import { ALL_NAV_ITEMS } from '../config/navItems';
 import { pingWithCredentials, scheduleInstantMixProbeForServer } from '../api/subsonic';
+import {
+  ndLogin, ndListUsers, ndCreateUser, ndUpdateUser, ndDeleteUser,
+  type NdUser,
+} from '../api/navidromeAdmin';
 import { switchActiveServer } from '../utils/switchActiveServer';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { Trans, useTranslation } from 'react-i18next';
@@ -184,7 +189,7 @@ const SPECIAL_THANKS = [
   },
 ] as const;
 
-type Tab = 'general' | 'server' | 'audio' | 'storage' | 'appearance' | 'input' | 'system';
+type Tab = 'general' | 'server' | 'users' | 'audio' | 'storage' | 'appearance' | 'input' | 'system';
 
 function AddServerForm({ onSave, onCancel }: { onSave: (data: Omit<ServerProfile, 'id'>) => void; onCancel: () => void }) {
   const { t } = useTranslation();
@@ -241,6 +246,337 @@ function AddServerForm({ onSave, onCancel }: { onSave: (data: Omit<ServerProfile
         </button>
       </div>
     </div>
+  );
+}
+
+interface UserFormState {
+  userName: string;
+  name: string;
+  email: string;
+  password: string;
+  isAdmin: boolean;
+}
+
+function initialUserFormState(u?: NdUser): UserFormState {
+  return {
+    userName: u?.userName ?? '',
+    name: u?.name ?? '',
+    email: u?.email ?? '',
+    password: '',
+    isAdmin: !!u?.isAdmin,
+  };
+}
+
+function UserForm({
+  initial,
+  onSave,
+  onCancel,
+  busy,
+}: {
+  initial: NdUser | null;
+  onSave: (form: UserFormState) => void;
+  onCancel: () => void;
+  busy: boolean;
+}) {
+  const { t } = useTranslation();
+  const [form, setForm] = useState<UserFormState>(() => initialUserFormState(initial ?? undefined));
+  const [showPass, setShowPass] = useState(false);
+  const isEdit = !!initial;
+
+  const set = <K extends keyof UserFormState>(k: K, v: UserFormState[K]) =>
+    setForm(f => ({ ...f, [k]: v }));
+
+  const canSave =
+    form.userName.trim().length > 0 &&
+    form.name.trim().length > 0 &&
+    form.password.length > 0;
+
+  return (
+    <div className="settings-card" style={{ marginBottom: '1.25rem' }}>
+      <h3 style={{ fontWeight: 600, marginBottom: '1rem', fontSize: '14px' }}>
+        {isEdit ? t('settings.userMgmtEditUserTitle') : t('settings.userMgmtAddUserTitle')}
+      </h3>
+      <div className="form-row" style={{ marginBottom: '0.75rem' }}>
+        <div className="form-group">
+          <label style={{ fontSize: 13 }}>{t('settings.userMgmtUsername')}</label>
+          <input
+            className="input"
+            type="text"
+            value={form.userName}
+            onChange={e => set('userName', e.target.value)}
+            disabled={isEdit}
+            autoComplete="off"
+          />
+        </div>
+        <div className="form-group">
+          <label style={{ fontSize: 13 }}>{t('settings.userMgmtName')}</label>
+          <input
+            className="input"
+            type="text"
+            value={form.name}
+            onChange={e => set('name', e.target.value)}
+            autoComplete="off"
+          />
+        </div>
+      </div>
+      <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+        <label style={{ fontSize: 13 }}>{t('settings.userMgmtEmail')}</label>
+        <input
+          className="input"
+          type="email"
+          value={form.email}
+          onChange={e => set('email', e.target.value)}
+          autoComplete="off"
+        />
+      </div>
+      <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+        <label style={{ fontSize: 13 }}>{t('settings.userMgmtPassword')}</label>
+        <div style={{ position: 'relative' }}>
+          <input
+            className="input"
+            type={showPass ? 'text' : 'password'}
+            value={form.password}
+            onChange={e => set('password', e.target.value)}
+            placeholder="••••••••"
+            autoComplete="new-password"
+            style={{ paddingRight: '2.5rem' }}
+          />
+          <button
+            type="button"
+            style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}
+            onClick={() => setShowPass(v => !v)}
+          >
+            {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
+          </button>
+        </div>
+        {isEdit && (
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+            {t('settings.userMgmtPasswordEditHint')}
+          </div>
+        )}
+      </div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', marginBottom: '1rem' }}>
+        <input
+          type="checkbox"
+          checked={form.isAdmin}
+          onChange={e => set('isAdmin', e.target.checked)}
+        />
+        <Shield size={14} />
+        {t('settings.userMgmtRoleAdmin')}
+      </label>
+      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+        <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>
+          {t('settings.userMgmtCancel')}
+        </button>
+        <button
+          className="btn btn-primary"
+          onClick={() => onSave(form)}
+          disabled={busy || !canSave}
+        >
+          {t('settings.userMgmtSave')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function UserManagementSection({
+  serverUrl,
+  token,
+  currentUsername,
+}: {
+  serverUrl: string;
+  token: string;
+  currentUsername: string;
+}) {
+  const { t } = useTranslation();
+  const [users, setUsers] = useState<NdUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<NdUser | 'new' | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const list = await ndListUsers(serverUrl, token);
+      setUsers([...list].sort((a, b) => a.userName.localeCompare(b.userName)));
+    } catch (e) {
+      const msg = (e instanceof Error && e.message) ? e.message : t('settings.userMgmtLoadError');
+      setLoadError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }, [serverUrl, token, t]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const handleSave = async (form: UserFormState) => {
+    const userName = form.userName.trim();
+    const name = form.name.trim();
+    const email = form.email.trim();
+    if (!userName || !name || !form.password) {
+      showToast(t('settings.userMgmtValidationMissing'), 4000, 'error');
+      return;
+    }
+    if (!token) return;
+    setBusy(true);
+    try {
+      if (editing === 'new') {
+        await ndCreateUser(serverUrl, token, {
+          userName, name, email, password: form.password, isAdmin: form.isAdmin,
+        });
+        showToast(t('settings.userMgmtCreated'), 3000, 'info');
+      } else if (editing) {
+        await ndUpdateUser(serverUrl, token, editing.id, {
+          userName, name, email, password: form.password, isAdmin: form.isAdmin,
+        });
+        showToast(t('settings.userMgmtUpdated'), 3000, 'info');
+      }
+      setEditing(null);
+      await load();
+    } catch (e) {
+      const msg = (e instanceof Error && e.message) ? e.message : (typeof e === 'string' ? e : null);
+      const fallback = editing === 'new'
+        ? t('settings.userMgmtCreateError')
+        : t('settings.userMgmtUpdateError');
+      showToast(msg ?? fallback, 5000, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDelete = async (u: NdUser) => {
+    if (!token) return;
+    if (!confirm(t('settings.userMgmtConfirmDelete', { username: u.userName }))) return;
+    setBusy(true);
+    try {
+      await ndDeleteUser(serverUrl, token, u.id);
+      showToast(t('settings.userMgmtDeleted'), 3000, 'info');
+      await load();
+    } catch (e) {
+      const msg = (e instanceof Error && e.message) ? e.message : (typeof e === 'string' ? e : t('settings.userMgmtDeleteError'));
+      showToast(msg, 5000, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="settings-section">
+      <div className="settings-section-header">
+        <Users size={18} />
+        <h2>{t('settings.userMgmtTitle')}</h2>
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+        {t('settings.userMgmtDesc')}
+      </div>
+
+      {loading && (
+        <div className="settings-card" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="spinner" style={{ width: 14, height: 14 }} />
+          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>…</span>
+        </div>
+      )}
+
+      {!loading && loadError && (
+        <div className="settings-card" style={{ color: 'var(--danger)', fontSize: 13 }}>
+          {loadError}
+        </div>
+      )}
+
+      {!loading && !loadError && (
+        <>
+          {editing ? (
+            <UserForm
+              initial={editing === 'new' ? null : editing}
+              onSave={handleSave}
+              onCancel={() => setEditing(null)}
+              busy={busy}
+            />
+          ) : (
+            <button
+              className="btn btn-surface"
+              style={{ marginBottom: '0.75rem' }}
+              onClick={() => setEditing('new')}
+              disabled={busy}
+            >
+              <UserPlus size={16} /> {t('settings.userMgmtAddUser')}
+            </button>
+          )}
+
+          {users.length === 0 ? (
+            <div className="settings-card" style={{ color: 'var(--text-muted)', fontSize: 14 }}>
+              {t('settings.userMgmtEmpty')}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {users.map(u => {
+                const isSelf = u.userName === currentUsername;
+                return (
+                  <div key={u.id} className="settings-card">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+                      <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <User size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: 600 }}>{u.userName}</span>
+                            {u.name && u.name !== u.userName && (
+                              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>· {u.name}</span>
+                            )}
+                            {isSelf && (
+                              <span style={{ fontSize: 10, background: 'var(--accent)', color: 'var(--ctp-crust)', padding: '1px 6px', borderRadius: 10, fontWeight: 600 }}>
+                                {t('settings.userMgmtYouBadge')}
+                              </span>
+                            )}
+                            {u.isAdmin && (
+                              <span
+                                style={{ fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 10, fontWeight: 600, background: 'color-mix(in srgb, var(--color-warning, #f59e0b) 22%, transparent)', color: 'var(--text-primary)' }}
+                                data-tooltip={t('settings.userMgmtRoleAdmin')}
+                              >
+                                <Shield size={10} />
+                                {t('settings.userMgmtAdminBadge')}
+                              </span>
+                            )}
+                          </div>
+                          {u.email && (
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {u.email}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                        <button
+                          className="btn btn-surface"
+                          style={{ fontSize: 12, padding: '4px 10px' }}
+                          onClick={() => setEditing(u)}
+                          disabled={busy}
+                          data-tooltip={t('settings.userMgmtEdit')}
+                        >
+                          <Pencil size={13} />
+                          {t('settings.userMgmtEdit')}
+                        </button>
+                        <button
+                          className="btn btn-ghost"
+                          style={{ color: 'var(--danger)', padding: '4px 8px' }}
+                          onClick={() => handleDelete(u)}
+                          disabled={busy || isSelf}
+                          data-tooltip={t('settings.userMgmtDelete')}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 
@@ -423,6 +759,28 @@ export default function Settings() {
   const [contributorsOpen, setContributorsOpen] = useState(false);
   const [fontPickerOpen, setFontPickerOpen] = useState(false);
   const [discordOptionsOpen, setDiscordOptionsOpen] = useState(false);
+  const [ndAdminAuth, setNdAdminAuth] = useState<{ token: string; serverUrl: string; username: string } | null>(null);
+  const [ndAuthChecked, setNdAuthChecked] = useState(false);
+
+  useEffect(() => {
+    const server = auth.getActiveServer();
+    setNdAuthChecked(false);
+    if (!server) { setNdAdminAuth(null); setNdAuthChecked(true); return; }
+    const serverUrl = (server.url.startsWith('http') ? server.url : `http://${server.url}`).replace(/\/$/, '');
+    let cancelled = false;
+    ndLogin(serverUrl, server.username, server.password)
+      .then(res => {
+        if (cancelled) return;
+        setNdAdminAuth(res.isAdmin ? { token: res.token, serverUrl, username: server.username } : null);
+      })
+      .catch(() => { if (!cancelled) setNdAdminAuth(null); })
+      .finally(() => { if (!cancelled) setNdAuthChecked(true); });
+    return () => { cancelled = true; };
+  }, [auth.activeServerId]);
+
+  useEffect(() => {
+    if (activeTab === 'users' && ndAuthChecked && ndAdminAuth === null) setActiveTab('general');
+  }, [activeTab, ndAdminAuth, ndAuthChecked]);
 
   useEffect(() => {
     if (!auth.lastfmSessionKey || !auth.lastfmUsername) { setLfmUserInfo(null); return; }
@@ -671,6 +1029,7 @@ export default function Settings() {
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: 'general',    label: t('settings.tabGeneral'),    icon: <AppWindow size={15} /> },
     { id: 'server',     label: t('settings.tabServer'),     icon: <Server size={15} /> },
+    ...(ndAdminAuth ? [{ id: 'users' as Tab, label: t('settings.tabUsers'), icon: <Users size={15} /> }] : []),
     { id: 'audio',      label: t('settings.tabAudio'),      icon: <Music2 size={15} /> },
     { id: 'storage',    label: t('settings.tabStorage'),    icon: <HardDrive size={15} /> },
     { id: 'appearance', label: t('settings.tabAppearance'), icon: <Palette size={15} /> },
@@ -2441,6 +2800,14 @@ export default function Settings() {
       )}
 
       {/* ── System ───────────────────────────────────────────────────────────── */}
+      {activeTab === 'users' && ndAdminAuth && (
+        <UserManagementSection
+          serverUrl={ndAdminAuth.serverUrl}
+          token={ndAdminAuth.token}
+          currentUsername={ndAdminAuth.username}
+        />
+      )}
+
       {activeTab === 'system' && (
         <>
         <BackupSection />
