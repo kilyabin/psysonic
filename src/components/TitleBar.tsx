@@ -10,8 +10,6 @@ export default function TitleBar() {
 
   return (
     <div className="titlebar" data-tauri-drag-region>
-      <span className="titlebar-title" data-tauri-drag-region>Psysonic</span>
-
       <div className="titlebar-track" data-tauri-drag-region>
         {currentTrack && (
           <>
