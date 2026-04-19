@@ -2684,7 +2684,9 @@ function LyricsSourcesCustomizer() {
   const lyricsStaticOnly = useAuthStore(s => s.lyricsStaticOnly);
   const setLyricsStaticOnly = useAuthStore(s => s.setLyricsStaticOnly);
   const { isDragging: isPsyDragging } = useDragDrop();
-  const containerRef = useRef<HTMLDivElement>(null);
+  // useState (not useRef) so the listener-effect re-runs when the container
+  // gets unmounted/remounted by the {lyricsMode === 'standard'} wrapper.
+  const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
   const [dropTarget, setDropTarget] = useState<LyricsDropTarget>(null);
   const dropTargetRef = useRef<LyricsDropTarget>(null);
   const sourcesRef = useRef(lyricsSources);
@@ -2695,8 +2697,7 @@ function LyricsSourcesCustomizer() {
   }, [isPsyDragging]);
 
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
+    if (!containerEl) return;
     const onPsyDrop = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (!detail?.data) return;
@@ -2717,13 +2718,13 @@ function LyricsSourcesCustomizer() {
       next.splice(insertBefore > fromIdx ? insertBefore - 1 : insertBefore, 0, moved);
       setLyricsSources(next);
     };
-    el.addEventListener('psy-drop', onPsyDrop);
-    return () => el.removeEventListener('psy-drop', onPsyDrop);
-  }, [setLyricsSources]);
+    containerEl.addEventListener('psy-drop', onPsyDrop);
+    return () => containerEl.removeEventListener('psy-drop', onPsyDrop);
+  }, [containerEl, setLyricsSources]);
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isPsyDragging || !containerRef.current) return;
-    const rows = containerRef.current.querySelectorAll<HTMLElement>('[data-lyrics-idx]');
+    if (!isPsyDragging || !containerEl) return;
+    const rows = containerEl.querySelectorAll<HTMLElement>('[data-lyrics-idx]');
     let target: LyricsDropTarget = null;
     for (const row of rows) {
       const rect = row.getBoundingClientRect();
@@ -2817,7 +2818,7 @@ function LyricsSourcesCustomizer() {
       </div>
 
       {lyricsMode === 'standard' && (
-        <div className="settings-card" style={{ padding: '4px 0' }} ref={containerRef} onMouseMove={handleMouseMove}>
+        <div className="settings-card" style={{ padding: '4px 0' }} ref={setContainerEl} onMouseMove={handleMouseMove}>
           {lyricsSources.map((src, i) => {
             const label = t(LYRICS_SOURCE_LABEL_KEYS[src.id]);
             const isBefore = isPsyDragging && dropTarget?.idx === i && dropTarget.before;
