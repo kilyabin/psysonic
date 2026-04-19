@@ -7814,11 +7814,11 @@ html.no-compositing .fsr-lyric-line.fsrl-active .fsr-lyric-word.active {
 
 .folder-col-row.selected {
   background: var(--accent);
-  color: #fff;
+  color: oklch(from var(--accent) clamp(0, (0.58 - l) * 100, 1) 0 h);
 }
 
 .folder-col-row.selected .folder-col-chevron {
-  color: rgba(255, 255, 255, 0.7);
+  color: oklch(from var(--accent) clamp(0, (0.58 - l) * 100, 1) 0 h / 0.7);
 }
 
 .folder-col-icon {
