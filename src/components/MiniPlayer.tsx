@@ -8,7 +8,7 @@ import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import { usePlayerStore } from '../store/playerStore';
 import { useKeybindingsStore, matchInAppBinding } from '../store/keybindingsStore';
 import { useDragDrop } from '../contexts/DragDropContext';
-import { IS_MACOS } from '../utils/platform';
+import { IS_LINUX } from '../utils/platform';
 import MiniContextMenu from './MiniContextMenu';
 import type { MiniSyncPayload, MiniControlAction, MiniTrackInfo } from '../utils/miniPlayerBridge';
 
@@ -145,8 +145,16 @@ export default function MiniPlayer() {
   }, []);
 
   // Announce to main window that we're mounted; it replies with a snapshot.
+  // Also re-announce on window focus: on Windows the mini is pre-created at
+  // app startup so the mount-time emit can race past main's bridge before
+  // it has attached its listener. Re-emitting on focus means every actual
+  // open of the mini (user clicks the player-bar icon) triggers a fresh
+  // sync regardless of startup ordering.
   useEffect(() => {
     emit('mini:ready', {}).catch(() => {});
+    const onFocus = () => { emit('mini:ready', {}).catch(() => {}); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, []);
 
   // Restore the expanded window size on initial mount when the queue was
@@ -327,16 +335,17 @@ export default function MiniPlayer() {
   return (
     <div className="mini-player-shell">
       <div
-        className={`mini-player__titlebar${IS_MACOS ? ' mini-player__titlebar--mac' : ''}`}
-        {...(IS_MACOS ? {} : { 'data-tauri-drag-region': true })}
+        className={`mini-player__titlebar${!IS_LINUX ? ' mini-player__titlebar--mac' : ''}`}
+        {...(!IS_LINUX ? {} : { 'data-tauri-drag-region': true })}
       >
-        {!IS_MACOS ? (
+        {IS_LINUX ? (
           <span className="mini-player__titlebar-title" data-tauri-drag-region>
             {track?.title ?? 'Psysonic Mini'}
           </span>
         ) : (
-          // macOS already shows the track title in the native titlebar; we
-          // just need a flexible spacer so the action buttons sit right.
+          // macOS/Windows already render a native titlebar with the window
+          // title + close button; we just need a flexible spacer so the
+          // action buttons sit right.
           <span className="mini-player__titlebar-spacer" />
         )}
         <button
@@ -369,9 +378,9 @@ export default function MiniPlayer() {
         >
           <Maximize2 size={13} />
         </button>
-        {/* macOS already provides Close via the red traffic light — skip
-            the duplicate so the in-app titlebar stays minimal. */}
-        {!IS_MACOS && (
+        {/* macOS + Windows already provide Close via the native titlebar —
+            skip the duplicate so the in-app titlebar stays minimal. */}
+        {IS_LINUX && (
           <button
             type="button"
             className="mini-player__titlebar-btn mini-player__titlebar-btn--close"

@@ -2705,41 +2705,13 @@ fn default_mini_position(app: &tauri::AppHandle) -> Option<tauri::PhysicalPositi
     ))
 }
 
-/// Open (or toggle) the mini player window. Creates it on first call; on
-/// subsequent calls, hides it if visible, shows + focuses it if hidden.
-/// Opening the mini player minimizes the main window; hiding the mini player
-/// restores the main window.
-#[tauri::command]
-fn open_mini_player(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(win) = app.get_webview_window("mini") {
-        let visible = win.is_visible().unwrap_or(false);
-        if visible {
-            win.hide().map_err(|e| e.to_string())?;
-            if let Some(main) = app.get_webview_window("main") {
-                let _ = main.unminimize();
-                let _ = main.show();
-                let _ = main.set_focus();
-            }
-        } else {
-            // Re-applying the saved position after show() — many Linux WMs
-            // (Mutter, KWin) re-centre hidden windows when they're shown
-            // again, ignoring any earlier set_position. Mark the move as
-            // programmatic so the Moved-event handler doesn't echo the
-            // intermediate centre coords back to disk.
-            let target = read_mini_pos(&app);
-            mark_mini_pos_programmatic();
-            win.show().map_err(|e| e.to_string())?;
-            let _ = win.set_focus();
-            if let Some(p) = target {
-                let _ = win.set_position(tauri::PhysicalPosition::new(p.x, p.y));
-            }
-            if let Some(main) = app.get_webview_window("main") {
-                let _ = main.minimize();
-            }
-        }
-        return Ok(());
-    }
-
+/// Build the mini player webview window. Caller decides `visible` so the
+/// same code path serves both pre-creation (Windows, hidden at app start)
+/// and lazy creation (other platforms, shown on demand).
+fn build_mini_player_window(
+    app: &tauri::AppHandle,
+    visible: bool,
+) -> Result<tauri::WebviewWindow, String> {
     let use_always_on_top = {
         #[cfg(target_os = "linux")]
         { !is_tiling_wm() }
@@ -2750,9 +2722,9 @@ fn open_mini_player(app: tauri::AppHandle) -> Result<(), String> {
     // Resolve target position BEFORE building so the WM places the window
     // correctly from creation. Calling `set_position` after `build()` is
     // unreliable on several Linux WMs which re-centre hidden windows.
-    let target_physical = read_mini_pos(&app)
+    let target_physical = read_mini_pos(app)
         .map(|p| tauri::PhysicalPosition::new(p.x, p.y))
-        .or_else(|| default_mini_position(&app));
+        .or_else(|| default_mini_position(app));
     let scale = app
         .primary_monitor()
         .ok()
@@ -2760,13 +2732,13 @@ fn open_mini_player(app: tauri::AppHandle) -> Result<(), String> {
         .map(|m| m.scale_factor())
         .unwrap_or(1.0);
 
-    // macOS keeps the native titlebar (traffic lights + system look).
-    // Windows and Linux use a custom in-page titlebar so the mini fits a
-    // tighter visual style across all WMs (incl. tiling).
-    let use_decorations = cfg!(target_os = "macos");
+    // macOS + Windows keep the native titlebar (traffic lights / caption
+    // buttons + system look). Linux uses a custom in-page titlebar so the
+    // mini fits a tighter visual style across all WMs (incl. tiling).
+    let use_decorations = !cfg!(target_os = "linux");
 
     let mut builder = tauri::WebviewWindowBuilder::new(
-        &app,
+        app,
         "mini",
         tauri::WebviewUrl::App("index.html".into()),
     )
@@ -2776,7 +2748,8 @@ fn open_mini_player(app: tauri::AppHandle) -> Result<(), String> {
     .resizable(true)
     .decorations(use_decorations)
     .always_on_top(use_always_on_top)
-    .skip_taskbar(false);
+    .skip_taskbar(false)
+    .visible(visible);
 
     if let Some(pos) = target_physical {
         builder = builder.position(pos.x as f64 / scale, pos.y as f64 / scale);
@@ -2786,13 +2759,51 @@ fn open_mini_player(app: tauri::AppHandle) -> Result<(), String> {
     // fire stray Moved events with default coords during the first paint.
     mark_mini_pos_programmatic();
 
-    let win = builder
+    builder
         .build()
-        .map_err(|e| format!("failed to build mini player window: {e}"))?;
+        .map_err(|e| format!("failed to build mini player window: {e}"))
+}
 
-    let _ = win.set_focus();
-    if let Some(main) = app.get_webview_window("main") {
-        let _ = main.minimize();
+/// Open (or toggle) the mini player window. On platforms where the window
+/// was pre-created at startup (Windows), this is a pure show/hide. On
+/// other platforms the window is created lazily on first call.
+/// Opening the mini player minimizes the main window; hiding the mini
+/// player restores the main window. Both steps are skipped on Windows
+/// because creating + immediately minimizing main stalls WebView2's paint
+/// pipeline and locks up the Tauri event loop.
+#[tauri::command]
+fn open_mini_player(app: tauri::AppHandle) -> Result<(), String> {
+    let win = match app.get_webview_window("mini") {
+        Some(w) => w,
+        None => build_mini_player_window(&app, false)?,
+    };
+
+    let visible = win.is_visible().unwrap_or(false);
+    if visible {
+        win.hide().map_err(|e| e.to_string())?;
+        #[cfg(not(target_os = "windows"))]
+        if let Some(main) = app.get_webview_window("main") {
+            let _ = main.unminimize();
+            let _ = main.show();
+            let _ = main.set_focus();
+        }
+    } else {
+        // Re-applying the saved position after show() — many Linux WMs
+        // (Mutter, KWin) re-centre hidden windows when they're shown
+        // again, ignoring any earlier set_position. Mark the move as
+        // programmatic so the Moved-event handler doesn't echo the
+        // intermediate centre coords back to disk.
+        let target = read_mini_pos(&app);
+        mark_mini_pos_programmatic();
+        win.show().map_err(|e| e.to_string())?;
+        let _ = win.set_focus();
+        if let Some(p) = target {
+            let _ = win.set_position(tauri::PhysicalPosition::new(p.x, p.y));
+        }
+        #[cfg(not(target_os = "windows"))]
+        if let Some(main) = app.get_webview_window("main") {
+            let _ = main.minimize();
+        }
     }
     Ok(())
 }
@@ -3047,6 +3058,21 @@ pub fn run() {
                 use tauri::Manager;
                 let engine = app.state::<audio::AudioEngine>();
                 audio::start_device_watcher(&engine, app.handle().clone());
+            }
+
+            // ── Pre-create mini player window (Windows) ──────────────────
+            // Creating the second WebView2 webview lazily from an invoke
+            // handler on Windows reliably stalls the Tauri event loop —
+            // the mini shows a blank white window, neither main nor mini
+            // can be closed, and the user has to kill the process via
+            // Task Manager. Building it at startup (hidden) avoids the
+            // runtime-creation code path entirely; later `open_mini_player`
+            // calls are pure show/hide.
+            #[cfg(target_os = "windows")]
+            {
+                if let Err(e) = build_mini_player_window(app.handle(), false) {
+                    eprintln!("[psysonic] Failed to pre-create mini window: {e}");
+                }
             }
 
             // Cold start with `--player …`: defer emit so the webview can register listeners.
