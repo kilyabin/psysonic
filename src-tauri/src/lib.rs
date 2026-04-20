@@ -2862,6 +2862,16 @@ fn build_mini_player_window(
         { true }
     };
 
+    // Tiling WMs manage window sizes themselves — enforcing a max width
+    // there fights the compositor. Everywhere else we cap the width so
+    // a horizontal drag can't stretch the layout across a whole monitor.
+    let cap_width = {
+        #[cfg(target_os = "linux")]
+        { !is_tiling_wm() }
+        #[cfg(not(target_os = "linux"))]
+        { true }
+    };
+
     // Resolve target position BEFORE building so the WM places the window
     // correctly from creation. Calling `set_position` after `build()` is
     // unreliable on several Linux WMs which re-centre hidden windows.
@@ -2894,6 +2904,14 @@ fn build_mini_player_window(
     .skip_taskbar(false)
     .visible(visible);
 
+    // Cap width so horizontal drag can't stretch the layout across a whole
+    // monitor. Height is intentionally left effectively unlimited so users
+    // can grow the queue list as tall as they want. Skipped on tiling WMs
+    // since those manage window sizing themselves.
+    if cap_width {
+        builder = builder.max_inner_size(400.0, 4096.0);
+    }
+
     if let Some(pos) = target_physical {
         builder = builder.position(pos.x as f64 / scale, pos.y as f64 / scale);
     }
@@ -2924,9 +2942,7 @@ fn preload_mini_player(app: tauri::AppHandle) -> Result<(), String> {
 /// was pre-created at startup (Windows), this is a pure show/hide. On
 /// other platforms the window is created lazily on first call.
 /// Opening the mini player minimizes the main window; hiding the mini
-/// player restores the main window. Both steps are skipped on Windows
-/// because creating + immediately minimizing main stalls WebView2's paint
-/// pipeline and locks up the Tauri event loop.
+/// player restores the main window.
 #[tauri::command]
 fn open_mini_player(app: tauri::AppHandle) -> Result<(), String> {
     let win = match app.get_webview_window("mini") {
@@ -2937,7 +2953,6 @@ fn open_mini_player(app: tauri::AppHandle) -> Result<(), String> {
     let visible = win.is_visible().unwrap_or(false);
     if visible {
         win.hide().map_err(|e| e.to_string())?;
-        #[cfg(not(target_os = "windows"))]
         if let Some(main) = app.get_webview_window("main") {
             let _ = main.unminimize();
             let _ = main.show();
@@ -2956,7 +2971,6 @@ fn open_mini_player(app: tauri::AppHandle) -> Result<(), String> {
         if let Some(p) = target {
             let _ = win.set_position(tauri::PhysicalPosition::new(p.x, p.y));
         }
-        #[cfg(not(target_os = "windows"))]
         if let Some(main) = app.get_webview_window("main") {
             let _ = main.minimize();
         }
