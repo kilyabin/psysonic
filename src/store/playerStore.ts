@@ -1427,6 +1427,9 @@ export const usePlayerStore = create<PlayerState>()(
           seekDebounce = null;
           seekTarget = time;
           invoke('audio_seek', { seconds: time }).catch((err: unknown) => {
+            // Release the progress-tick guard so the UI doesn't freeze
+            // waiting for a target the engine will never reach.
+            seekTarget = null;
             const msg = String(err ?? '');
             if (!msg.includes('not seekable')) {
               console.error(err);
