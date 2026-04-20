@@ -9010,8 +9010,19 @@ html.no-compositing .fs-seekbar-played {
   background: var(--bg-app);
   color: var(--text-primary);
   user-select: none;
+  -webkit-user-select: none;
   overflow: hidden;
   box-sizing: border-box;
+}
+
+/* Belt-and-suspenders: WebKit/WebView2 occasionally lets descendants pick up
+   user-select: auto from UA defaults (especially inside <button>). Force it
+   off for every node in the mini so neither mouse-drag nor Ctrl+A can ever
+   highlight track meta or titlebar text. */
+.mini-player-shell,
+.mini-player-shell * {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* ── Custom in-page titlebar.
@@ -9075,26 +9086,27 @@ html.no-compositing .fs-seekbar-played {
 
 .mini-player {
   flex: 1;
-  display: grid;
-  grid-template-columns: 84px 1fr;
-  grid-template-rows: 84px auto;
-  gap: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   padding: 10px 12px;
   overflow: hidden;
   box-sizing: border-box;
   min-height: 0;
 }
 
-.mini-player--queue-open {
-  grid-template-rows: 84px auto 1fr;
+.mini-player__meta {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  flex-shrink: 0;
 }
 
 .mini-player__art {
-  grid-column: 1;
-  grid-row: 1;
-  aspect-ratio: 1;
+  flex: 0 0 84px;
   width: 84px;
   height: 84px;
+  aspect-ratio: 1;
   background: var(--bg-card);
   border-radius: 8px;
   overflow: hidden;
@@ -9111,36 +9123,114 @@ html.no-compositing .fs-seekbar-played {
   background: linear-gradient(135deg, var(--bg-secondary), var(--bg-card));
 }
 
-.mini-player__body {
-  grid-column: 2;
-  grid-row: 1;
-  padding: 0 2px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 4px;
+.mini-player__meta-text {
+  flex: 1;
   min-width: 0;
-}
-
-.mini-player__titles {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 2px;
-  min-width: 0;
 }
 .mini-player__title {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.mini-player__artist {
+.mini-player__artist,
+.mini-player__album,
+.mini-player__year {
   font-size: 11px;
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.mini-player__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 4px 0 10px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.mini-player__toolbar-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border-subtle);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
+.mini-player__volume-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.mini-player__volume-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 10px 6px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+}
+
+.mini-player__volume-pct {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 28px;
+  text-align: center;
+}
+
+.mini-player__volume-bar {
+  position: relative;
+  width: 5px;
+  height: 110px;
+  background: var(--ctp-surface1);
+  border-radius: 3px;
+  overflow: hidden;
+  cursor: pointer;
+  /* Visual hit-box wider than the strip so dragging is forgiving. */
+  padding: 0 6px;
+  background-clip: content-box;
+  box-sizing: content-box;
+}
+
+.mini-player__volume-bar-fill {
+  position: absolute;
+  bottom: 0;
+  left: 6px;
+  width: 5px;
+  background: var(--volume-accent, var(--accent));
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.mini-player__bottom {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* When the queue is closed there is no flex-grow sibling to fill the
+     extra space — push the bottom to the actual bottom of the player so
+     the controls + progress always sit on the floor. When the queue IS
+     open, queue takes flex: 1 and this margin collapses to 0. */
+  margin-top: auto;
 }
 
 .mini-player__controls {
@@ -9177,8 +9267,6 @@ html.no-compositing .fs-seekbar-played {
 }
 
 .mini-player__progress {
-  grid-column: 1 / -1;
-  grid-row: 2;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -9204,13 +9292,13 @@ html.no-compositing .fs-seekbar-played {
 
 
 .mini-queue-wrap {
-  grid-column: 1 / -1;
-  grid-row: 3;
+  flex: 1 1 auto;
   position: relative;
   background: var(--bg-card);
   border-radius: 8px;
   overflow: hidden;
   min-height: 0;
+  margin-top: 10px;
 }
 
 .mini-queue {
@@ -9329,20 +9417,31 @@ html.no-compositing .fs-seekbar-played {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 30px;
+  height: 30px;
   border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-.mini-player__tool:hover {
+  border-radius: 50%;
   background: var(--bg-hover);
   color: var(--text-primary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.mini-player__tool:hover:not(:disabled) {
+  background: var(--border);
+  color: var(--accent);
+}
+.mini-player__tool:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 .mini-player__tool--active {
-  color: var(--accent);
+  color: var(--ctp-base);
+  background: var(--accent);
+}
+.mini-player__tool--active:hover:not(:disabled) {
+  color: var(--ctp-base);
+  background: var(--accent);
 }
 
 html[data-app-hidden="true"] *,

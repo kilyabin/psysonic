@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { emit, listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { useTranslation } from 'react-i18next';
-import { Play, Pause, SkipBack, SkipForward, Pin, PinOff, Maximize2, X, ListMusic } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Pin, PinOff, Maximize2, X, ListMusic, Volume2, VolumeX, Shuffle, Infinity as InfinityIcon, Waves, ArrowUpToLine } from 'lucide-react';
 import CachedImage from './CachedImage';
 import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import { usePlayerStore } from '../store/playerStore';
@@ -12,13 +12,13 @@ import { IS_LINUX } from '../utils/platform';
 import MiniContextMenu from './MiniContextMenu';
 import type { MiniSyncPayload, MiniControlAction, MiniTrackInfo } from '../utils/miniPlayerBridge';
 
-const COLLAPSED_SIZE = { w: 340, h: 180 };
-const EXPANDED_SIZE  = { w: 340, h: 440 };
+const COLLAPSED_SIZE = { w: 340, h: 260 };
+const EXPANDED_SIZE  = { w: 340, h: 500 };
 // Minimum window dimensions per state. When the queue is open the floor must
 // keep at least two queue rows visible; a stricter min would let the user
 // collapse the queue area to nothing while it's still toggled on.
-const COLLAPSED_MIN  = { w: 320, h: 180 };
-const EXPANDED_MIN   = { w: 320, h: 260 };
+const COLLAPSED_MIN  = { w: 320, h: 240 };
+const EXPANDED_MIN   = { w: 320, h: 340 };
 
 // Persist the expanded-window height so reopening the queue restores the
 // user's preferred size instead of snapping back to EXPANDED_SIZE.h.
@@ -53,6 +53,7 @@ function toMini(t: any): MiniTrackInfo {
     coverArt: t.coverArt,
     duration: t.duration,
     starred: !!t.starred,
+    year: t.year,
   };
 }
 
@@ -69,10 +70,18 @@ function initialSnapshot(): MiniSyncPayload {
       queue: (s.queue ?? []).map(toMini),
       queueIndex: s.queueIndex ?? 0,
       isPlaying: s.isPlaying,
+      volume: s.volume ?? 1,
+      gaplessEnabled: false,
+      crossfadeEnabled: false,
+      infiniteQueueEnabled: false,
       isMobile: false,
     };
   } catch {
-    return { track: null, queue: [], queueIndex: 0, isPlaying: false, isMobile: false };
+    return {
+      track: null, queue: [], queueIndex: 0, isPlaying: false,
+      volume: 1, gaplessEnabled: false, crossfadeEnabled: false,
+      infiniteQueueEnabled: false, isMobile: false,
+    };
   }
 }
 
@@ -99,8 +108,11 @@ export default function MiniPlayer() {
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
   const [queueOpen, setQueueOpen] = useState(readQueueOpen);
   const [scrollMeta, setScrollMeta] = useState({ thumbH: 0, thumbT: 0, visible: false });
+  const [volume, setVolumeState] = useState(() => initialSnapshot().volume);
+  const [volumeOpen, setVolumeOpen] = useState(false);
   const ticker = useRef<number | null>(null);
   const queueScrollRef = useRef<HTMLDivElement>(null);
+  const volumeWrapRef = useRef<HTMLDivElement>(null);
 
   // ── PsyDnD reorder ──
   // Mirrors QueuePanel's pattern: mousedown threshold → startDrag, mousemove
@@ -223,6 +235,7 @@ export default function MiniPlayer() {
     const unSync = listen<MiniSyncPayload>('mini:sync', (e) => {
       setState(e.payload);
       if (e.payload.track?.duration) setDuration(e.payload.track.duration);
+      if (typeof e.payload.volume === 'number') setVolumeState(e.payload.volume);
     });
     const unProgress = listen<ProgressPayload>('audio:progress', (e) => {
       setCurrentTime(e.payload.current_time);
@@ -238,6 +251,35 @@ export default function MiniPlayer() {
   }, []);
 
   const control = (action: MiniControlAction) => emit('mini:control', action).catch(() => {});
+
+  const handleVolumeChange = (v: number) => {
+    const clamped = Math.max(0, Math.min(1, v));
+    setVolumeState(clamped);
+    emit('mini:set-volume', { value: clamped }).catch(() => {});
+  };
+
+  const toggleMute = () => {
+    handleVolumeChange(volume === 0 ? 1 : 0);
+  };
+
+  // Close the volume popover on outside click / Escape.
+  useEffect(() => {
+    if (!volumeOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (volumeWrapRef.current && !volumeWrapRef.current.contains(e.target as Node)) {
+        setVolumeOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setVolumeOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [volumeOpen]);
 
   const toggleOnTop = async () => {
     const next = !alwaysOnTop;
@@ -350,16 +392,6 @@ export default function MiniPlayer() {
         )}
         <button
           type="button"
-          className={`mini-player__titlebar-btn${queueOpen ? ' mini-player__titlebar-btn--active' : ''}`}
-          onClick={toggleQueue}
-          data-tauri-drag-region="false"
-          data-tooltip={queueOpen ? t('miniPlayer.hideQueue') : t('miniPlayer.showQueue')}
-          aria-label={queueOpen ? t('miniPlayer.hideQueue') : t('miniPlayer.showQueue')}
-        >
-          <ListMusic size={13} />
-        </button>
-        <button
-          type="button"
           className={`mini-player__titlebar-btn${alwaysOnTop ? ' mini-player__titlebar-btn--active' : ''}`}
           onClick={toggleOnTop}
           data-tauri-drag-region="false"
@@ -395,47 +427,147 @@ export default function MiniPlayer() {
       </div>
 
       <div className={`mini-player${queueOpen ? ' mini-player--queue-open' : ''}`}>
-        <div className="mini-player__art">
-          {track?.coverArt ? (
-            <CachedImage
-              src={buildCoverArtUrl(track.coverArt, 300)}
-              cacheKey={coverArtCacheKey(track.coverArt, 300)}
-              alt={track.album}
-            />
-          ) : (
-            <div className="mini-player__art-fallback" />
-          )}
-        </div>
+        <div className="mini-player__meta">
+          <div className="mini-player__art">
+            {track?.coverArt ? (
+              <CachedImage
+                src={buildCoverArtUrl(track.coverArt, 300)}
+                cacheKey={coverArtCacheKey(track.coverArt, 300)}
+                alt={track.album}
+              />
+            ) : (
+              <div className="mini-player__art-fallback" />
+            )}
+          </div>
 
-        <div className="mini-player__body" data-tauri-drag-region="false">
-          <div className="mini-player__titles">
+          <div className="mini-player__meta-text" data-tauri-drag-region="false">
             <div className="mini-player__title" title={track?.title}>
               {track?.title ?? '—'}
             </div>
-            <div className="mini-player__artist" title={track?.artist}>
-              {track?.artist ?? ''}
-            </div>
-          </div>
-
-          <div className="mini-player__controls">
-            <button className="mini-player__btn" onClick={() => control('prev')} data-tauri-drag-region="false">
-              <SkipBack size={16} />
-            </button>
-            <button className="mini-player__btn mini-player__btn--primary" onClick={() => control('toggle')} data-tauri-drag-region="false">
-              {isPlaying ? <Pause size={18} /> : <Play size={18} />}
-            </button>
-            <button className="mini-player__btn" onClick={() => control('next')} data-tauri-drag-region="false">
-              <SkipForward size={16} />
-            </button>
+            {track?.artist && (
+              <div className="mini-player__artist" title={track.artist}>{track.artist}</div>
+            )}
+            {track?.album && (
+              <div className="mini-player__album" title={track.album}>{track.album}</div>
+            )}
+            {track?.year && (
+              <div className="mini-player__year">{track.year}</div>
+            )}
           </div>
         </div>
 
-        <div className="mini-player__progress" data-tauri-drag-region="false">
-          <div className="mini-player__progress-time">{fmt(currentTime)}</div>
-          <div className="mini-player__progress-track">
-            <div className="mini-player__progress-fill" style={{ width: `${progress}%` }} />
+        <div className="mini-player__toolbar" data-tauri-drag-region="false">
+          <div className="mini-player__volume-wrap" ref={volumeWrapRef}>
+            <button
+              type="button"
+              className={`mini-player__tool${volumeOpen ? ' mini-player__tool--active' : ''}`}
+              onClick={() => setVolumeOpen(v => !v)}
+              onContextMenu={(e) => { e.preventDefault(); toggleMute(); }}
+              data-tauri-drag-region="false"
+              data-tooltip={volume === 0 ? t('player.volume') : `${t('player.volume')} ${Math.round(volume * 100)}%`}
+              aria-label={t('player.volume')}
+            >
+              {volume === 0 ? <VolumeX size={13} /> : <Volume2 size={13} />}
+            </button>
+            {volumeOpen && (
+              <div className="mini-player__volume-popover" data-tauri-drag-region="false">
+                <span className="mini-player__volume-pct">{Math.round(volume * 100)}%</span>
+                <div
+                  className="mini-player__volume-bar"
+                  role="slider"
+                  aria-label={t('player.volume')}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.round(volume * 100)}
+                  onMouseDown={(e) => {
+                    const target = e.currentTarget;
+                    const setFromY = (clientY: number) => {
+                      const rect = target.getBoundingClientRect();
+                      const ratio = 1 - (clientY - rect.top) / rect.height;
+                      handleVolumeChange(ratio);
+                    };
+                    setFromY(e.clientY);
+                    const onMove = (me: MouseEvent) => setFromY(me.clientY);
+                    const onUp = () => {
+                      document.removeEventListener('mousemove', onMove);
+                      document.removeEventListener('mouseup', onUp);
+                    };
+                    document.addEventListener('mousemove', onMove);
+                    document.addEventListener('mouseup', onUp);
+                  }}
+                  onWheel={(e) => {
+                    e.preventDefault();
+                    handleVolumeChange(volume + (e.deltaY > 0 ? -0.05 : 0.05));
+                  }}
+                >
+                  <div
+                    className="mini-player__volume-bar-fill"
+                    style={{ height: `${Math.round(volume * 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
-          <div className="mini-player__progress-time">{fmt(duration)}</div>
+
+          <button
+            type="button"
+            className="mini-player__tool"
+            onClick={() => emit('mini:shuffle').catch(() => {})}
+            disabled={state.queue.length < 2}
+            data-tauri-drag-region="false"
+            data-tooltip={t('queue.shuffle')}
+            aria-label={t('queue.shuffle')}
+          >
+            <Shuffle size={13} />
+          </button>
+
+          <span className="mini-player__toolbar-sep" aria-hidden />
+
+          <button
+            type="button"
+            className={`mini-player__tool${state.gaplessEnabled ? ' mini-player__tool--active' : ''}`}
+            onClick={() => emit('mini:set-gapless', { value: !state.gaplessEnabled }).catch(() => {})}
+            data-tauri-drag-region="false"
+            data-tooltip={t('queue.gapless')}
+            aria-label={t('queue.gapless')}
+          >
+            <InfinityIcon size={13} />
+          </button>
+
+          <button
+            type="button"
+            className={`mini-player__tool${state.crossfadeEnabled ? ' mini-player__tool--active' : ''}`}
+            onClick={() => emit('mini:set-crossfade', { value: !state.crossfadeEnabled }).catch(() => {})}
+            data-tauri-drag-region="false"
+            data-tooltip={t('queue.crossfade')}
+            aria-label={t('queue.crossfade')}
+          >
+            <Waves size={13} />
+          </button>
+
+          <button
+            type="button"
+            className={`mini-player__tool${state.infiniteQueueEnabled ? ' mini-player__tool--active' : ''}`}
+            onClick={() => emit('mini:set-infinite-queue', { value: !state.infiniteQueueEnabled }).catch(() => {})}
+            data-tauri-drag-region="false"
+            data-tooltip={t('queue.infiniteQueue')}
+            aria-label={t('queue.infiniteQueue')}
+          >
+            <ArrowUpToLine size={13} />
+          </button>
+
+          <span className="mini-player__toolbar-sep" aria-hidden />
+
+          <button
+            type="button"
+            className={`mini-player__tool${queueOpen ? ' mini-player__tool--active' : ''}`}
+            onClick={toggleQueue}
+            data-tauri-drag-region="false"
+            data-tooltip={queueOpen ? t('miniPlayer.hideQueue') : t('miniPlayer.showQueue')}
+            aria-label={queueOpen ? t('miniPlayer.hideQueue') : t('miniPlayer.showQueue')}
+          >
+            <ListMusic size={13} />
+          </button>
         </div>
 
         {queueOpen && (
@@ -531,6 +663,28 @@ export default function MiniPlayer() {
           )}
         </div>
       )}
+
+        <div className="mini-player__bottom" data-tauri-drag-region="false">
+          <div className="mini-player__controls">
+            <button className="mini-player__btn" onClick={() => control('prev')} data-tauri-drag-region="false">
+              <SkipBack size={16} />
+            </button>
+            <button className="mini-player__btn mini-player__btn--primary" onClick={() => control('toggle')} data-tauri-drag-region="false">
+              {isPlaying ? <Pause size={18} /> : <Play size={18} />}
+            </button>
+            <button className="mini-player__btn" onClick={() => control('next')} data-tauri-drag-region="false">
+              <SkipForward size={16} />
+            </button>
+          </div>
+
+          <div className="mini-player__progress">
+            <div className="mini-player__progress-time">{fmt(currentTime)}</div>
+            <div className="mini-player__progress-track">
+              <div className="mini-player__progress-fill" style={{ width: `${progress}%` }} />
+            </div>
+            <div className="mini-player__progress-time">{fmt(duration)}</div>
+          </div>
+        </div>
 
         {ctxMenu && (
           <MiniContextMenu

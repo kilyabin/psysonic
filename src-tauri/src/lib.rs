@@ -2838,7 +2838,7 @@ fn default_mini_position(app: &tauri::AppHandle) -> Option<tauri::PhysicalPositi
     let m_size = monitor.size();
 
     let win_w = (340.0 * scale).round() as i32;
-    let win_h = (180.0 * scale).round() as i32;
+    let win_h = (260.0 * scale).round() as i32;
     let margin_x = (24.0 * scale).round() as i32;
     let margin_y = (56.0 * scale).round() as i32;
 
@@ -2886,8 +2886,8 @@ fn build_mini_player_window(
         tauri::WebviewUrl::App("index.html".into()),
     )
     .title("Psysonic Mini")
-    .inner_size(340.0, 180.0)
-    .min_inner_size(320.0, 180.0)
+    .inner_size(340.0, 260.0)
+    .min_inner_size(320.0, 240.0)
     .resizable(true)
     .decorations(use_decorations)
     .always_on_top(use_always_on_top)

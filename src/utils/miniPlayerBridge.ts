@@ -1,6 +1,7 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen, emitTo } from '@tauri-apps/api/event';
 import { usePlayerStore } from '../store/playerStore';
+import { useAuthStore } from '../store/authStore';
 
 export const MINI_WINDOW_LABEL = 'mini';
 
@@ -14,6 +15,7 @@ export interface MiniTrackInfo {
   coverArt?: string;
   duration?: number;
   starred?: boolean;
+  year?: number;
 }
 
 export interface MiniSyncPayload {
@@ -21,6 +23,10 @@ export interface MiniSyncPayload {
   queue: MiniTrackInfo[];
   queueIndex: number;
   isPlaying: boolean;
+  volume: number;
+  gaplessEnabled: boolean;
+  crossfadeEnabled: boolean;
+  infiniteQueueEnabled: boolean;
   isMobile: false;
 }
 
@@ -41,16 +47,22 @@ function toMini(t: any): MiniTrackInfo {
     coverArt: t.coverArt,
     duration: t.duration,
     starred: !!t.starred,
+    year: t.year,
   };
 }
 
 function snapshot(): MiniSyncPayload {
   const s = usePlayerStore.getState();
+  const a = useAuthStore.getState();
   return {
     track: s.currentTrack ? toMini(s.currentTrack) : null,
     queue: (s.queue ?? []).map(toMini),
     queueIndex: s.queueIndex ?? 0,
     isPlaying: s.isPlaying,
+    volume: s.volume,
+    gaplessEnabled: !!a.gaplessEnabled,
+    crossfadeEnabled: !!a.crossfadeEnabled,
+    infiniteQueueEnabled: !!a.infiniteQueueEnabled,
     isMobile: false,
   };
 }
@@ -71,7 +83,17 @@ export function initMiniPlayerBridgeOnMain(): () => void {
   const push = () => {
     const payload = snapshot();
     const queueIds = payload.queue.map(q => q.id).join(',');
-    const key = `${payload.track?.id ?? ''}|${payload.isPlaying}|${payload.track?.starred ?? ''}|${payload.queueIndex}|${queueIds}`;
+    const key = [
+      payload.track?.id ?? '',
+      payload.isPlaying,
+      payload.track?.starred ?? '',
+      payload.queueIndex,
+      payload.volume,
+      payload.gaplessEnabled,
+      payload.crossfadeEnabled,
+      payload.infiniteQueueEnabled,
+      queueIds,
+    ].join('|');
     if (key === last) return;
     last = key;
     emitTo(MINI_WINDOW_LABEL, 'mini:sync', payload).catch(() => {});
@@ -82,7 +104,18 @@ export function initMiniPlayerBridgeOnMain(): () => void {
       || state.isPlaying !== prev.isPlaying
       || state.currentTrack?.starred !== prev.currentTrack?.starred
       || state.queueIndex !== prev.queueIndex
-      || state.queue !== prev.queue) {
+      || state.queue !== prev.queue
+      || state.volume !== prev.volume) {
+      push();
+    }
+  });
+
+  // Toolbar toggles (gapless / crossfade / infinite queue) live in authStore;
+  // subscribe so changes from the main window propagate to the mini.
+  const unsubAuth = useAuthStore.subscribe((state, prev) => {
+    if (state.gaplessEnabled !== prev.gaplessEnabled
+      || state.crossfadeEnabled !== prev.crossfadeEnabled
+      || state.infiniteQueueEnabled !== prev.infiniteQueueEnabled) {
       push();
     }
   });
@@ -153,6 +186,39 @@ export function initMiniPlayerBridgeOnMain(): () => void {
     window.dispatchEvent(new CustomEvent('psy:navigate', { detail: { to } }));
   });
 
+  // Volume changes from the mini's vertical slider.
+  const volumeUnlisten = listen<{ value: number }>('mini:set-volume', (e) => {
+    const v = e.payload?.value;
+    if (typeof v !== 'number') return;
+    usePlayerStore.getState().setVolume(Math.max(0, Math.min(1, v)));
+  });
+
+  // Toolbar actions from the mini.
+  const shuffleUnlisten = listen('mini:shuffle', () => {
+    usePlayerStore.getState().shuffleQueue();
+  });
+
+  // Gapless ↔ Crossfade are mutually exclusive (see CLAUDE.md). Bridge handles
+  // the exclusion so the mini doesn't need to know about both states to act.
+  const gaplessUnlisten = listen<{ value: boolean }>('mini:set-gapless', (e) => {
+    const v = !!e.payload?.value;
+    const a = useAuthStore.getState();
+    if (v) a.setCrossfadeEnabled(false);
+    a.setGaplessEnabled(v);
+  });
+
+  const crossfadeUnlisten = listen<{ value: boolean }>('mini:set-crossfade', (e) => {
+    const v = !!e.payload?.value;
+    const a = useAuthStore.getState();
+    if (v) a.setGaplessEnabled(false);
+    a.setCrossfadeEnabled(v);
+  });
+
+  const infiniteQueueUnlisten = listen<{ value: boolean }>('mini:set-infinite-queue', (e) => {
+    const v = !!e.payload?.value;
+    useAuthStore.getState().setInfiniteQueueEnabled(v);
+  });
+
   // Open the SongInfo modal in main for a given track id.
   const songInfoUnlisten = listen<{ id: string }>('mini:song-info', (e) => {
     const id = e.payload?.id;
@@ -166,12 +232,18 @@ export function initMiniPlayerBridgeOnMain(): () => void {
 
   return () => {
     unsub();
+    unsubAuth();
     readyUnlisten.then(fn => fn()).catch(() => {});
     controlUnlisten.then(fn => fn()).catch(() => {});
     jumpUnlisten.then(fn => fn()).catch(() => {});
     reorderUnlisten.then(fn => fn()).catch(() => {});
     removeUnlisten.then(fn => fn()).catch(() => {});
     navigateUnlisten.then(fn => fn()).catch(() => {});
+    volumeUnlisten.then(fn => fn()).catch(() => {});
+    shuffleUnlisten.then(fn => fn()).catch(() => {});
+    gaplessUnlisten.then(fn => fn()).catch(() => {});
+    crossfadeUnlisten.then(fn => fn()).catch(() => {});
+    infiniteQueueUnlisten.then(fn => fn()).catch(() => {});
     songInfoUnlisten.then(fn => fn()).catch(() => {});
   };
 }
