@@ -1,13 +1,12 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { version as appVersion } from '../../package.json';
-import changelogRaw from '../../CHANGELOG.md?raw';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Wifi, WifiOff, Globe, Music2, Sliders, LogOut, CheckCircle2, FolderOpen,
   Palette, Server, Plus, Trash2, Eye, EyeOff, Info, ExternalLink, Shuffle, X, Play, Type, Keyboard, ChevronDown,
   GripVertical, PanelLeft, RotateCcw, LayoutGrid, AppWindow, HardDrive, Upload, Download, Waves, Star, Clock, ZoomIn, Sparkles, AlertTriangle, Maximize2, AudioLines, User, Lock,
-  Users, UserPlus, Shield, Wand2
+  Users, UserPlus, Shield, Wand2, Search
 } from 'lucide-react';
 import i18n from '../i18n';
 import { exportBackup, importBackup } from '../utils/backup';
@@ -21,6 +20,7 @@ import { useHotCacheStore } from '../store/hotCacheStore';
 import { lastfmGetToken, lastfmAuthUrl, lastfmGetSession, lastfmGetUserInfo, LastfmUserInfo } from '../api/lastfm';
 import LastfmIcon from '../components/LastfmIcon';
 import CustomSelect from '../components/CustomSelect';
+import SettingsSubSection from '../components/SettingsSubSection';
 import ThemePicker, { THEME_GROUPS } from '../components/ThemePicker';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore, ServerProfile, MIX_MIN_RATING_FILTER_MAX_STARS, type SeekbarStyle, type LyricsSourceId, type LyricsSourceConfig, type LoggingMode } from '../store/authStore';
@@ -193,14 +193,39 @@ const CONTRIBUTORS = [
   },
 ] as const;
 
-const SPECIAL_THANKS = [
-  {
-    github: 'netherguy4',
-    reason: 'Countless constructive feature ideas and thoughtful feedback',
-  },
+const MAINTAINERS = [
+  { github: 'Psychotoxical' },
+  { github: 'cucadmuh' },
 ] as const;
 
-type Tab = 'general' | 'server' | 'users' | 'audio' | 'storage' | 'appearance' | 'input' | 'system';
+type Tab =
+  | 'library'
+  | 'servers'
+  | 'audio'
+  | 'lyrics'
+  | 'appearance'
+  | 'personalisation'
+  | 'integrations'
+  | 'input'
+  | 'storage'
+  | 'system'
+  | 'users';
+
+// Legacy Tab-IDs die via Route-State oder persisted State noch aufschlagen koennen
+// auf die neue Struktur mappen. Gibt es keinen Match, faellt die Settings-Page
+// einfach auf 'library' zurueck.
+const LEGACY_TAB_ALIAS: Record<string, Tab> = {
+  general: 'library',
+  server: 'servers',
+};
+
+function resolveTab(input: string | undefined | null): Tab {
+  if (!input) return 'servers';
+  const aliased = LEGACY_TAB_ALIAS[input];
+  if (aliased) return aliased;
+  const known: Tab[] = ['library', 'servers', 'audio', 'lyrics', 'appearance', 'personalisation', 'integrations', 'input', 'storage', 'system', 'users'];
+  return (known as string[]).includes(input) ? (input as Tab) : 'servers';
+}
 
 function AddServerForm({ onSave, onCancel }: { onSave: (data: Omit<ServerProfile, 'id'>) => void; onCancel: () => void }) {
   const { t } = useTranslation();
@@ -1317,7 +1342,11 @@ export default function Settings() {
   const { state: routeState } = useLocation();
   const { t, i18n } = useTranslation();
 
-  const [activeTab, setActiveTab] = useState<Tab>((routeState as { tab?: Tab } | null)?.tab ?? 'general');
+  const [activeTab, setActiveTab] = useState<Tab>(resolveTab((routeState as { tab?: string } | null)?.tab));
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  // -1 bedeutet: keine aktive Suche; >= 0 ist die Trefferzahl im aktuellen Tab.
+  const [searchHits, setSearchHits] = useState<number>(-1);
   const [connStatus, setConnStatus] = useState<Record<string, 'idle' | 'testing' | 'ok' | 'error'>>({});
   const [showAddForm, setShowAddForm] = useState(false);
   const [newGenre, setNewGenre] = useState('');
@@ -1334,11 +1363,34 @@ export default function Settings() {
   const [devicesLoading, setDevicesLoading] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [clearing, setClearing] = useState(false);
-  const [contributorsOpen, setContributorsOpen] = useState(false);
   const [fontPickerOpen, setFontPickerOpen] = useState(false);
-  const [discordOptionsOpen, setDiscordOptionsOpen] = useState(false);
   const [ndAdminAuth, setNdAdminAuth] = useState<{ token: string; serverUrl: string; username: string } | null>(null);
   const [ndAuthChecked, setNdAuthChecked] = useState(false);
+
+  // In-Page-Suche: filtert Sub-Sections des aktiven Tabs per data-settings-search
+  // Attribut. DOM-basiert, damit wir nicht den Query durch jede Komponente
+  // propagieren muessen. Laeuft nach jedem Render, also auch wenn der Tab
+  // wechselt und neue Sub-Sections im Baum erscheinen.
+  useEffect(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const subs = document.querySelectorAll<HTMLElement>('[data-settings-search]');
+    if (!q) {
+      subs.forEach(el => el.classList.remove('settings-sub-section--hidden'));
+      setSearchHits(-1);
+      return;
+    }
+    let hits = 0;
+    subs.forEach(el => {
+      const text = (el.getAttribute('data-settings-search') || '').toLowerCase();
+      if (text.includes(q)) {
+        el.classList.remove('settings-sub-section--hidden');
+        hits++;
+      } else {
+        el.classList.add('settings-sub-section--hidden');
+      }
+    });
+    setSearchHits(hits);
+  });
 
   useEffect(() => {
     const server = auth.getActiveServer();
@@ -1357,7 +1409,7 @@ export default function Settings() {
   }, [auth.activeServerId]);
 
   useEffect(() => {
-    if (activeTab === 'users' && ndAuthChecked && ndAdminAuth === null) setActiveTab('general');
+    if (activeTab === 'users' && ndAuthChecked && ndAdminAuth === null) setActiveTab('servers');
   }, [activeTab, ndAdminAuth, ndAuthChecked]);
 
   useEffect(() => {
@@ -1622,19 +1674,65 @@ export default function Settings() {
   };
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    { id: 'general',    label: t('settings.tabGeneral'),    icon: <AppWindow size={15} /> },
-    { id: 'server',     label: t('settings.tabServer'),     icon: <Server size={15} /> },
+    { id: 'servers',         label: t('settings.tabServers'),         icon: <Server size={15} /> },
+    { id: 'library',         label: t('settings.tabLibrary'),         icon: <Music2 size={15} /> },
+    { id: 'audio',           label: t('settings.tabAudio'),           icon: <AudioLines size={15} /> },
+    { id: 'lyrics',          label: t('settings.tabLyrics'),          icon: <Music2 size={15} /> },
+    { id: 'appearance',      label: t('settings.tabAppearance'),      icon: <Palette size={15} /> },
+    { id: 'personalisation', label: t('settings.tabPersonalisation'), icon: <LayoutGrid size={15} /> },
+    { id: 'integrations',    label: t('settings.tabIntegrations'),    icon: <Sparkles size={15} /> },
+    { id: 'input',           label: t('settings.tabInput'),           icon: <Keyboard size={15} /> },
+    { id: 'storage',         label: t('settings.tabStorage'),         icon: <HardDrive size={15} /> },
+    { id: 'system',          label: t('settings.tabSystem'),          icon: <Info size={15} /> },
     ...(ndAdminAuth ? [{ id: 'users' as Tab, label: t('settings.tabUsers'), icon: <Users size={15} /> }] : []),
-    { id: 'audio',      label: t('settings.tabAudio'),      icon: <Music2 size={15} /> },
-    { id: 'storage',    label: t('settings.tabStorage'),    icon: <HardDrive size={15} /> },
-    { id: 'appearance', label: t('settings.tabAppearance'), icon: <Palette size={15} /> },
-    { id: 'input',      label: t('settings.tabInput'),      icon: <Keyboard size={15} /> },
-    { id: 'system',     label: t('settings.tabSystem'),     icon: <Info size={15} /> },
   ];
 
   return (
     <div className="content-body animate-fade-in">
-      <h1 className="page-title" style={{ marginBottom: '1.5rem' }}>{t('settings.title')}</h1>
+      <div className="settings-header">
+        <h1 className="page-title">{t('settings.title')}</h1>
+        <div className="settings-search">
+          {!searchOpen ? (
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={() => setSearchOpen(true)}
+              aria-label={t('settings.searchPlaceholder')}
+              data-tooltip={t('settings.searchPlaceholder')}
+              data-tooltip-pos="left"
+            >
+              <Search size={16} />
+            </button>
+          ) : (
+            <div className="settings-search-wrap">
+              <Search size={14} className="settings-search-icon" aria-hidden="true" />
+              <input
+                type="search"
+                className="input settings-search-input"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder={t('settings.searchPlaceholder')}
+                aria-label={t('settings.searchPlaceholder')}
+                autoFocus
+                onKeyDown={e => {
+                  if (e.key === 'Escape') {
+                    setSearchQuery('');
+                    setSearchOpen(false);
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="settings-search-clear"
+                onClick={() => { setSearchQuery(''); setSearchOpen(false); }}
+                aria-label={t('common.clear')}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Tab navigation */}
       <nav className="settings-tabs" aria-label="Settings navigation">
@@ -1650,15 +1748,21 @@ export default function Settings() {
         ))}
       </nav>
 
+      {searchQuery && searchHits === 0 && (
+        <div className="settings-search-empty" role="status">
+          {t('settings.searchNoResults')}
+        </div>
+      )}
+
       {/* ── Audio ────────────────────────────────────────────────────────────── */}
       {activeTab === 'audio' && (
         <>
           {/* Audio Output Device */}
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <AudioLines size={18} />
-              <h2>{t('settings.audioOutputDevice')}</h2>
-            </div>
+          <SettingsSubSection
+            title={t('settings.audioOutputDevice')}
+            icon={<AudioLines size={16} />}
+            defaultOpen
+          >
             <div className="settings-card">
               {IS_MACOS ? (
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.55 }}>
@@ -1704,14 +1808,13 @@ export default function Settings() {
                 </>
               )}
             </div>
-          </section>
+          </SettingsSubSection>
 
           {/* Native Hi-Res Playback */}
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <Waves size={18} />
-              <h2>{t('settings.hiResTitle')}</h2>
-            </div>
+          <SettingsSubSection
+            title={t('settings.hiResTitle')}
+            icon={<Waves size={16} />}
+          >
             <div className="settings-card">
               <div className="settings-toggle-row">
                 <div>
@@ -1729,25 +1832,23 @@ export default function Settings() {
                 </label>
               </div>
             </div>
-          </section>
+          </SettingsSubSection>
 
           {/* Equalizer */}
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <Sliders size={18} />
-              <h2>{t('settings.eqTitle')}</h2>
-            </div>
+          <SettingsSubSection
+            title={t('settings.eqTitle')}
+            icon={<Sliders size={16} />}
+          >
             <div className="settings-card">
               <Equalizer />
             </div>
-          </section>
+          </SettingsSubSection>
 
           {/* Replay Gain + Crossfade + Gapless */}
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <Music2 size={18} />
-              <h2>{t('settings.playbackTitle')}</h2>
-            </div>
+          <SettingsSubSection
+            title={t('settings.playbackTitle')}
+            icon={<Music2 size={16} />}
+          >
             <div className="settings-card">
               {/* Replay Gain */}
               <div className="settings-toggle-row">
@@ -1881,14 +1982,13 @@ export default function Settings() {
                 </label>
               </div>
             </div>
-          </section>
+          </SettingsSubSection>
 
           {/* Next Track Buffering */}
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <Download size={18} />
-              <h2>{t('settings.nextTrackBufferingTitle')}</h2>
-            </div>
+          <SettingsSubSection
+            title={t('settings.nextTrackBufferingTitle')}
+            icon={<Download size={16} />}
+          >
             <div className="settings-card">
               <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: '0.75rem' }}>
                 {t('settings.preloadHotCacheMutualExclusive')}
@@ -2063,107 +2163,149 @@ export default function Settings() {
               )}
 
             </div>
-          </section>
+          </SettingsSubSection>
 
         </>
       )}
 
-      {/* ── General ──────────────────────────────────────────────────────────── */}
-      {activeTab === 'general' && (
+      {/* ── Lyrics ───────────────────────────────────────────────────────────── */}
+      {activeTab === 'lyrics' && (
         <>
-          {/* App behaviour */}
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <AppWindow size={18} />
-              <h2>{t('settings.behavior')}</h2>
-            </div>
+          <SettingsSubSection
+            title={t('settings.lyricsSourcesTitle')}
+            icon={<Music2 size={16} />}
+            defaultOpen
+          >
+            <LyricsSourcesCustomizer />
+          </SettingsSubSection>
+
+          <SettingsSubSection
+            title={t('settings.sidebarLyricsStyle')}
+            icon={<AudioLines size={16} />}
+          >
             <div className="settings-card">
-              <div className="settings-toggle-row">
-                <div>
-                  <div style={{ fontWeight: 500 }}>{t('settings.showTrayIcon')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showTrayIconDesc')}</div>
-                </div>
-                <label className="toggle-switch" aria-label={t('settings.showTrayIcon')}>
-                  <input type="checkbox" checked={auth.showTrayIcon} onChange={e => auth.setShowTrayIcon(e.target.checked)} />
-                  <span className="toggle-track" />
-                </label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {(['classic', 'apple'] as const).map(style => {
+                  const key = style === 'classic' ? 'Classic' : 'Apple';
+                  return (
+                    <button
+                      key={style}
+                      onClick={() => auth.setSidebarLyricsStyle(style)}
+                      style={{
+                        flex: 1,
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: `2px solid ${auth.sidebarLyricsStyle === style ? 'var(--accent)' : 'var(--border)'}`,
+                        background: auth.sidebarLyricsStyle === style ? 'color-mix(in srgb, var(--accent) 12%, transparent)' : 'var(--bg-secondary)',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        color: 'var(--text-primary)',
+                        transition: 'border-color 0.15s, background 0.15s',
+                      }}
+                    >
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>{t(`settings.sidebarLyricsStyle${key}` as any)}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{t(`settings.sidebarLyricsStyle${key}Desc` as any)}</div>
+                    </button>
+                  );
+                })}
               </div>
-              <div className="settings-section-divider" />
-              <div className="settings-toggle-row">
-                <div>
-                  <div style={{ fontWeight: 500 }}>{t('settings.minimizeToTray')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.minimizeToTrayDesc')}</div>
-                </div>
-                <label className="toggle-switch" aria-label={t('settings.minimizeToTray')}>
-                  <input type="checkbox" checked={auth.minimizeToTray} onChange={e => auth.setMinimizeToTray(e.target.checked)} />
-                  <span className="toggle-track" />
-                </label>
-              </div>
-              {!IS_WINDOWS && (
-                <>
-                  <div className="settings-section-divider" />
+            </div>
+          </SettingsSubSection>
+        </>
+      )}
+
+      {/* ── Integrations ─────────────────────────────────────────────────────── */}
+      {activeTab === 'integrations' && (
+        <>
+          <div
+            className="settings-privacy-notice"
+            role="note"
+            aria-label={t('settings.integrationsPrivacyTitle')}
+          >
+            <AlertTriangle size={16} className="settings-privacy-notice-icon" aria-hidden="true" />
+            <div>
+              <div className="settings-privacy-notice-title">{t('settings.integrationsPrivacyTitle')}</div>
+              <div
+                className="settings-privacy-notice-body"
+                // Enthaelt <strong> aus dem i18n-String — der Inhalt ist statisch
+                // und kommt nur aus unseren Locales, kein User-Input.
+                dangerouslySetInnerHTML={{ __html: t('settings.integrationsPrivacyBody') }}
+              />
+            </div>
+          </div>
+
+          {/* Last.fm */}
+          <SettingsSubSection
+            title={t('settings.lfmTitle')}
+            icon={<LastfmIcon size={16} />}
+            defaultOpen
+          >
+            <div className="settings-card">
+              {auth.lastfmSessionKey ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', borderRadius: '10px', background: 'color-mix(in srgb, var(--accent) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 20%, transparent)' }}>
+                    <div style={{ flexShrink: 0, color: '#e31c23' }}><LastfmIcon size={20} /></div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>@{auth.lastfmUsername}</div>
+                      {lfmUserInfo && (
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, display: 'flex', gap: '0.75rem' }}>
+                          <span>{t('settings.lfmScrobbles', { n: lfmUserInfo.playcount.toLocaleString() })}</span>
+                          <span>{t('settings.lfmMemberSince', { year: new Date(lfmUserInfo.registeredAt * 1000).getFullYear() })}</span>
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      className="btn btn-ghost"
+                      style={{ fontSize: 12, padding: '4px 10px', flexShrink: 0 }}
+                      onClick={() => auth.disconnectLastfm()}
+                    >
+                      {t('settings.lfmDisconnect')}
+                    </button>
+                  </div>
                   <div className="settings-toggle-row">
                     <div>
-                      <div style={{ fontWeight: 500 }}>{t('settings.preloadMiniPlayer')}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.preloadMiniPlayerDesc')}</div>
+                      <div style={{ fontWeight: 500 }}>{t('settings.scrobbleEnabled')}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.scrobbleDesc')}</div>
                     </div>
-                    <label className="toggle-switch" aria-label={t('settings.preloadMiniPlayer')}>
-                      <input
-                        type="checkbox"
-                        checked={auth.preloadMiniPlayer}
-                        onChange={e => auth.setPreloadMiniPlayer(e.target.checked)}
-                      />
+                    <label className="toggle-switch" aria-label={t('settings.scrobbleEnabled')}>
+                      <input type="checkbox" checked={auth.scrobblingEnabled} onChange={e => auth.setScrobblingEnabled(e.target.checked)} id="scrobbling-toggle" />
                       <span className="toggle-track" />
                     </label>
                   </div>
-                </>
-              )}
-              {IS_LINUX && !isTilingWm && (
-                <>
-                  <div className="settings-section-divider" />
-                  <div className="settings-toggle-row">
-                    <div>
-                      <div style={{ fontWeight: 500 }}>{t('settings.useCustomTitlebar')}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.useCustomTitlebarDesc')}</div>
-                    </div>
-                    <label className="toggle-switch" aria-label={t('settings.useCustomTitlebar')}>
-                      <input type="checkbox" checked={auth.useCustomTitlebar} onChange={e => auth.setUseCustomTitlebar(e.target.checked)} />
-                      <span className="toggle-track" />
-                    </label>
-                  </div>
-                </>
-              )}
-              {IS_LINUX && (
-                <>
-                  <div className="settings-section-divider" />
-                  <div className="settings-toggle-row">
-                    <div>
-                      <div style={{ fontWeight: 500 }}>{t('settings.linuxWebkitSmoothScroll')}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.linuxWebkitSmoothScrollDesc')}</div>
-                    </div>
-                    <label className="toggle-switch" aria-label={t('settings.linuxWebkitSmoothScroll')}>
-                      <input
-                        type="checkbox"
-                        checked={auth.linuxWebkitKineticScroll}
-                        onChange={e => auth.setLinuxWebkitKineticScroll(e.target.checked)}
-                      />
-                      <span className="toggle-track" />
-                    </label>
-                  </div>
-                </>
-              )}
-              <div className="settings-section-divider" />
-              <div className="settings-toggle-row">
-                <div>
-                  <div style={{ fontWeight: 500 }}>{t('settings.showArtistImages')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showArtistImagesDesc')}</div>
                 </div>
-                <label className="toggle-switch" aria-label={t('settings.showArtistImages')}>
-                  <input type="checkbox" checked={auth.showArtistImages} onChange={e => auth.setShowArtistImages(e.target.checked)} />
-                  <span className="toggle-track" />
-                </label>
-              </div>
-              <div className="settings-section-divider" />
+              ) : lfmState === 'waiting' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: 13, color: 'var(--text-secondary)' }}>
+                    <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+                    {t('settings.lfmConnecting')}
+                  </div>
+                  <button className="btn btn-ghost" style={{ alignSelf: 'flex-start', fontSize: 12 }}
+                    onClick={() => { setLfmState('idle'); setLfmPendingToken(null); }}>
+                    {t('common.cancel')}
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    {t('settings.lfmConnectDesc')}
+                  </p>
+                  {lfmState === 'error' && (
+                    <p style={{ fontSize: 12, color: 'var(--danger)' }}>{lfmError}</p>
+                  )}
+                  <button className="btn btn-primary" style={{ alignSelf: 'flex-start' }} onClick={startLastfmConnect}>
+                    {t('settings.lfmConnect')}
+                  </button>
+                </div>
+              )}
+            </div>
+          </SettingsSubSection>
+
+          {/* Discord Rich Presence */}
+          <SettingsSubSection
+            title={t('settings.discordRichPresence')}
+            icon={<Sparkles size={16} />}
+          >
+            <div className="settings-card">
               <div className="settings-toggle-row">
                 <div>
                   <div style={{ fontWeight: 500 }}>{t('settings.discordRichPresence')}</div>
@@ -2177,83 +2319,81 @@ export default function Settings() {
               {auth.discordRichPresence && (
                 <>
                   <div className="settings-section-divider" />
-                  <div style={{ paddingLeft: 16, paddingTop: 8, paddingBottom: 8 }}>
-                    <button
-                      type="button"
-                      onClick={() => setDiscordOptionsOpen(v => !v)}
-                      style={{
-                        background: 'none', border: 'none', padding: 0, width: '100%',
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        cursor: 'pointer', color: 'inherit', textAlign: 'left',
-                      }}
-                      aria-expanded={discordOptionsOpen}
-                    >
-                      <ChevronDown
-                        size={14}
-                        style={{
-                          color: 'var(--text-muted)',
-                          transform: discordOptionsOpen ? 'rotate(180deg)' : 'none',
-                          transition: 'transform 0.2s',
-                          flexShrink: 0,
-                        }}
+                  <div className="settings-toggle-row">
+                    <div>
+                      <div style={{ fontWeight: 500 }}>{t('settings.discordAppleCovers')}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.discordAppleCoversDesc')}</div>
+                    </div>
+                    <label className="toggle-switch" aria-label={t('settings.discordAppleCovers')}>
+                      <input type="checkbox" checked={auth.enableAppleMusicCoversDiscord} onChange={e => auth.setEnableAppleMusicCoversDiscord(e.target.checked)} />
+                      <span className="toggle-track" />
+                    </label>
+                  </div>
+                  <div className="settings-section-divider" />
+                  <div style={{ paddingTop: 8 }}>
+                    <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 8 }}>{t('settings.discordTemplates')}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>{t('settings.discordTemplatesDesc')}</div>
+                    <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                      <label style={{ fontSize: 12 }}>{t('settings.discordTemplateDetails')}</label>
+                      <input
+                        className="input"
+                        type="text"
+                        value={auth.discordTemplateDetails}
+                        onChange={e => auth.setDiscordTemplateDetails(e.target.value)}
+                        placeholder="{artist} - {title}"
                       />
-                      <div style={{ flex: 1, fontWeight: 500, fontSize: 13 }}>
-                        {t('settings.discordOptions')}
-                      </div>
-                    </button>
-                    {discordOptionsOpen && (
-                      <div style={{ marginTop: 12 }}>
-                        <div className="settings-toggle-row" style={{ paddingLeft: 0 }}>
-                          <div>
-                            <div style={{ fontWeight: 500 }}>{t('settings.discordAppleCovers')}</div>
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.discordAppleCoversDesc')}</div>
-                          </div>
-                          <label className="toggle-switch" aria-label={t('settings.discordAppleCovers')}>
-                            <input type="checkbox" checked={auth.enableAppleMusicCoversDiscord} onChange={e => auth.setEnableAppleMusicCoversDiscord(e.target.checked)} />
-                            <span className="toggle-track" />
-                          </label>
-                        </div>
-                        <div className="settings-section-divider" />
-                        <div style={{ paddingTop: 8 }}>
-                          <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 8 }}>{t('settings.discordTemplates')}</div>
-                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>{t('settings.discordTemplatesDesc')}</div>
-                          <div className="form-group" style={{ marginBottom: '0.75rem' }}>
-                            <label style={{ fontSize: 12 }}>{t('settings.discordTemplateDetails')}</label>
-                            <input
-                              className="input"
-                              type="text"
-                              value={auth.discordTemplateDetails}
-                              onChange={e => auth.setDiscordTemplateDetails(e.target.value)}
-                              placeholder="{artist} - {title}"
-                            />
-                          </div>
-                          <div className="form-group" style={{ marginBottom: '0.75rem' }}>
-                            <label style={{ fontSize: 12 }}>{t('settings.discordTemplateState')}</label>
-                            <input
-                              className="input"
-                              type="text"
-                              value={auth.discordTemplateState}
-                              onChange={e => auth.setDiscordTemplateState(e.target.value)}
-                              placeholder="{album}"
-                            />
-                          </div>
-                          <div className="form-group">
-                            <label style={{ fontSize: 12 }}>{t('settings.discordTemplateLargeText')}</label>
-                            <input
-                              className="input"
-                              type="text"
-                              value={auth.discordTemplateLargeText}
-                              onChange={e => auth.setDiscordTemplateLargeText(e.target.value)}
-                              placeholder="{album}"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    </div>
+                    <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                      <label style={{ fontSize: 12 }}>{t('settings.discordTemplateState')}</label>
+                      <input
+                        className="input"
+                        type="text"
+                        value={auth.discordTemplateState}
+                        onChange={e => auth.setDiscordTemplateState(e.target.value)}
+                        placeholder="{album}"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label style={{ fontSize: 12 }}>{t('settings.discordTemplateLargeText')}</label>
+                      <input
+                        className="input"
+                        type="text"
+                        value={auth.discordTemplateLargeText}
+                        onChange={e => auth.setDiscordTemplateLargeText(e.target.value)}
+                        placeholder="{album}"
+                      />
+                    </div>
                   </div>
                 </>
               )}
-              <div className="settings-section-divider" />
+            </div>
+          </SettingsSubSection>
+
+          {/* Bandsintown */}
+          <SettingsSubSection
+            title={t('settings.enableBandsintown')}
+            icon={<Info size={16} />}
+          >
+            <div className="settings-card">
+              <div className="settings-toggle-row">
+                <div>
+                  <div style={{ fontWeight: 500 }}>{t('settings.enableBandsintown')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.enableBandsintownDesc')}</div>
+                </div>
+                <label className="toggle-switch" aria-label={t('settings.enableBandsintown')}>
+                  <input type="checkbox" checked={auth.enableBandsintown} onChange={e => auth.setEnableBandsintown(e.target.checked)} />
+                  <span className="toggle-track" />
+                </label>
+              </div>
+            </div>
+          </SettingsSubSection>
+
+          {/* Now-Playing Share (Navidrome) */}
+          <SettingsSubSection
+            title={t('settings.nowPlayingEnabled')}
+            icon={<Wifi size={16} />}
+          >
+            <div className="settings-card">
               <div className="settings-toggle-row">
                 <div>
                   <div style={{ fontWeight: 500 }}>{t('settings.nowPlayingEnabled')}</div>
@@ -2264,46 +2404,82 @@ export default function Settings() {
                   <span className="toggle-track" />
                 </label>
               </div>
-              <div className="settings-section-divider" />
-              <div className="settings-toggle-row">
-                <div>
-                  <div style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span>{t('settings.enableBandsintown')}</span>
-                    <span
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        color: 'var(--text-muted)',
-                        cursor: 'help',
-                      }}
-                      data-tooltip={t('nowPlayingInfo.enableBandsintownPrivacy')}
-                      data-tooltip-pos="bottom"
-                      data-tooltip-wrap="true"
-                      aria-label={t('nowPlayingInfo.enableBandsintownPrivacy')}
-                      tabIndex={0}
-                    >
-                      <Info size={13} />
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.enableBandsintownDesc')}</div>
-                </div>
-                <label className="toggle-switch" aria-label={t('settings.enableBandsintown')}>
-                  <input type="checkbox" checked={auth.enableBandsintown} onChange={e => auth.setEnableBandsintown(e.target.checked)} />
-                  <span className="toggle-track" />
-                </label>
-              </div>
             </div>
-          </section>
+          </SettingsSubSection>
+        </>
+      )}
 
-          {/* Lyrics Sources */}
-          <LyricsSourcesCustomizer />
+      {/* ── Personalisation ──────────────────────────────────────────────────── */}
+      {activeTab === 'personalisation' && (
+        <>
+          <SettingsSubSection
+            title={t('settings.sidebarTitle')}
+            icon={<PanelLeft size={16} />}
+            defaultOpen
+            action={
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 6px' }}
+                onClick={() => useSidebarStore.getState().reset()}
+                data-tooltip={t('settings.sidebarReset')}
+                aria-label={t('settings.sidebarReset')}
+              >
+                <RotateCcw size={14} />
+              </button>
+            }
+          >
+            <SidebarCustomizer />
+          </SettingsSubSection>
 
+          <SettingsSubSection
+            title={t('settings.artistLayoutTitle')}
+            icon={<Users size={16} />}
+            action={
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 6px' }}
+                onClick={() => useArtistLayoutStore.getState().reset()}
+                data-tooltip={t('settings.artistLayoutReset')}
+                aria-label={t('settings.artistLayoutReset')}
+              >
+                <RotateCcw size={14} />
+              </button>
+            }
+          >
+            <ArtistLayoutCustomizer />
+          </SettingsSubSection>
+
+          <SettingsSubSection
+            title={t('settings.homeCustomizerTitle')}
+            icon={<LayoutGrid size={16} />}
+            action={
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 6px' }}
+                onClick={() => useHomeStore.getState().reset()}
+                data-tooltip={t('settings.sidebarReset')}
+                aria-label={t('settings.sidebarReset')}
+              >
+                <RotateCcw size={14} />
+              </button>
+            }
+          >
+            <HomeCustomizer />
+          </SettingsSubSection>
+        </>
+      )}
+
+      {/* ── Library (legacy 'general' + 'server') ────────────────────────────── */}
+      {activeTab === 'library' && (
+        <>
           {/* Random Mix */}
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <Shuffle size={18} />
-              <h2>{t('settings.randomMixTitle')}</h2>
-            </div>
+          <SettingsSubSection
+            title={t('settings.randomMixTitle')}
+            icon={<Shuffle size={16} />}
+          >
             <div className="settings-card">
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.5 }}>
                 {t('settings.randomMixBlacklistDesc')}
@@ -2380,14 +2556,13 @@ export default function Settings() {
                 ))}
               </div>
             </div>
-          </section>
+          </SettingsSubSection>
 
-          {/* Ratings (single block under Random Mix) */}
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <Star size={18} />
-              <h2>{t('settings.ratingsSectionTitle')}</h2>
-            </div>
+          {/* Ratings */}
+          <SettingsSubSection
+            title={t('settings.ratingsSectionTitle')}
+            icon={<Star size={16} />}
+          >
             <div className="settings-card">
               <div className="settings-toggle-row">
                 <div>
@@ -2485,9 +2660,8 @@ export default function Settings() {
                 </>
               )}
             </div>
-          </section>
+          </SettingsSubSection>
 
-          <HomeCustomizer />
         </>
       )}
 
@@ -2495,11 +2669,11 @@ export default function Settings() {
       {activeTab === 'storage' && (
         <>
           {/* Offline Library (In-App) — includes cache settings */}
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <Download size={18} />
-              <h2>{t('settings.offlineDirTitle')}</h2>
-            </div>
+          <SettingsSubSection
+            title={t('settings.offlineDirTitle')}
+            icon={<Download size={16} />}
+            defaultOpen
+          >
             <div className="settings-card">
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14, lineHeight: 1.5 }}>
                 {t('settings.offlineDirDesc')}
@@ -2588,14 +2762,13 @@ export default function Settings() {
                 </button>
               )}
             </div>
-          </section>
+          </SettingsSubSection>
 
           {/* ZIP Export & Archiving */}
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <FolderOpen size={18} />
-              <h2>{t('settings.downloadsTitle')}</h2>
-            </div>
+          <SettingsSubSection
+            title={t('settings.downloadsTitle')}
+            icon={<FolderOpen size={16} />}
+          >
             <div className="settings-card">
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14, lineHeight: 1.5 }}>
                 {t('settings.downloadsFolderDesc')}
@@ -2624,43 +2797,18 @@ export default function Settings() {
                 </button>
               </div>
             </div>
-          </section>
+          </SettingsSubSection>
         </>
       )}
 
       {/* ── Appearance ───────────────────────────────────────────────────────── */}
       {activeTab === 'appearance' && (
         <>
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <Globe size={18} />
-              <h2>{t('settings.language')}</h2>
-            </div>
-            <div className="settings-card">
-              <div className="form-group" style={{ maxWidth: '300px' }}>
-                <CustomSelect
-                  value={i18n.language}
-                  onChange={v => i18n.changeLanguage(v)}
-                  options={[
-                    { value: 'en', label: t('settings.languageEn') },
-                    { value: 'de', label: t('settings.languageDe') },
-                    { value: 'es', label: t('settings.languageEs') },
-                    { value: 'fr', label: t('settings.languageFr') },
-                    { value: 'nl', label: t('settings.languageNl') },
-                    { value: 'nb', label: t('settings.languageNb') },
-                    { value: 'ru', label: t('settings.languageRu') },
-                    { value: 'zh', label: t('settings.languageZh') },
-                  ]}
-                />
-              </div>
-            </div>
-          </section>
-
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <Palette size={18} />
-              <h2>{t('settings.theme')}</h2>
-            </div>
+          <SettingsSubSection
+            title={t('settings.theme')}
+            icon={<Palette size={16} />}
+            defaultOpen
+          >
             <div className="settings-card">
               {theme.enableThemeScheduler && (
                 <div className="settings-hint settings-hint-info" style={{ marginBottom: '0.75rem' }}>
@@ -2669,13 +2817,12 @@ export default function Settings() {
               )}
               <ThemePicker value={theme.theme} onChange={v => theme.setTheme(v as any)} />
             </div>
-          </section>
+          </SettingsSubSection>
 
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <Clock size={18} />
-              <h2>{t('settings.themeSchedulerTitle')}</h2>
-            </div>
+          <SettingsSubSection
+            title={t('settings.themeSchedulerTitle')}
+            icon={<Clock size={16} />}
+          >
             <div className="settings-card">
               <div className="settings-toggle-row">
                 <div>
@@ -2734,13 +2881,12 @@ export default function Settings() {
                 );
               })()}
             </div>
-          </section>
+          </SettingsSubSection>
 
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <Palette size={18} />
-              <h2>{t('settings.visualOptionsTitle')}</h2>
-            </div>
+          <SettingsSubSection
+            title={t('settings.visualOptionsTitle')}
+            icon={<Palette size={16} />}
+          >
             <div className="settings-card">
               <div className="settings-toggle-row">
                 <div>
@@ -2785,14 +2931,58 @@ export default function Settings() {
                   <span className="toggle-track" />
                 </label>
               </div>
+              <div className="settings-section-divider" />
+              <div className="settings-toggle-row">
+                <div>
+                  <div style={{ fontWeight: 500 }}>{t('settings.showArtistImages')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showArtistImagesDesc')}</div>
+                </div>
+                <label className="toggle-switch" aria-label={t('settings.showArtistImages')}>
+                  <input type="checkbox" checked={auth.showArtistImages} onChange={e => auth.setShowArtistImages(e.target.checked)} />
+                  <span className="toggle-track" />
+                </label>
+              </div>
+              {!IS_WINDOWS && (
+                <>
+                  <div className="settings-section-divider" />
+                  <div className="settings-toggle-row">
+                    <div>
+                      <div style={{ fontWeight: 500 }}>{t('settings.preloadMiniPlayer')}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.preloadMiniPlayerDesc')}</div>
+                    </div>
+                    <label className="toggle-switch" aria-label={t('settings.preloadMiniPlayer')}>
+                      <input
+                        type="checkbox"
+                        checked={auth.preloadMiniPlayer}
+                        onChange={e => auth.setPreloadMiniPlayer(e.target.checked)}
+                      />
+                      <span className="toggle-track" />
+                    </label>
+                  </div>
+                </>
+              )}
+              {IS_LINUX && !isTilingWm && (
+                <>
+                  <div className="settings-section-divider" />
+                  <div className="settings-toggle-row">
+                    <div>
+                      <div style={{ fontWeight: 500 }}>{t('settings.useCustomTitlebar')}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.useCustomTitlebarDesc')}</div>
+                    </div>
+                    <label className="toggle-switch" aria-label={t('settings.useCustomTitlebar')}>
+                      <input type="checkbox" checked={auth.useCustomTitlebar} onChange={e => auth.setUseCustomTitlebar(e.target.checked)} />
+                      <span className="toggle-track" />
+                    </label>
+                  </div>
+                </>
+              )}
             </div>
-          </section>
+          </SettingsSubSection>
 
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <ZoomIn size={18} />
-              <h2>{t('settings.uiScaleTitle')}</h2>
-            </div>
+          <SettingsSubSection
+            title={t('settings.uiScaleTitle')}
+            icon={<ZoomIn size={16} />}
+          >
             <div className="settings-card">
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -2846,13 +3036,12 @@ export default function Settings() {
                 })()}
               </div>
             </div>
-          </section>
+          </SettingsSubSection>
 
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <Type size={18} />
-              <h2>{t('settings.font')}</h2>
-            </div>
+          <SettingsSubSection
+            title={t('settings.font')}
+            icon={<Type size={16} />}
+          >
             <div className="settings-card">
               <button
                 className="btn btn-ghost"
@@ -2911,13 +3100,12 @@ export default function Settings() {
                 </div>
               )}
             </div>
-          </section>
+          </SettingsSubSection>
 
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <Maximize2 size={18} />
-              <h2>{t('settings.fsPlayerSection')}</h2>
-            </div>
+          <SettingsSubSection
+            title={t('settings.fsPlayerSection')}
+            icon={<Maximize2 size={16} />}
+          >
             <div className="settings-card">
               <div className="settings-toggle-row">
                 <div>
@@ -2947,47 +3135,12 @@ export default function Settings() {
                 </div>
               )}
             </div>
-          </section>
+          </SettingsSubSection>
 
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <Music2 size={18} />
-              <h2>{t('settings.sidebarLyricsStyle')}</h2>
-            </div>
-            <div className="settings-card">
-              <div style={{ display: 'flex', gap: 8 }}>
-                {(['classic', 'apple'] as const).map(style => {
-                  const key = style === 'classic' ? 'Classic' : 'Apple';
-                  return (
-                    <button
-                      key={style}
-                      onClick={() => auth.setSidebarLyricsStyle(style)}
-                      style={{
-                        flex: 1,
-                        padding: '10px 14px',
-                        borderRadius: 10,
-                        border: `2px solid ${auth.sidebarLyricsStyle === style ? 'var(--accent)' : 'var(--border)'}`,
-                        background: auth.sidebarLyricsStyle === style ? 'color-mix(in srgb, var(--accent) 12%, transparent)' : 'var(--bg-secondary)',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        color: 'var(--text-primary)',
-                        transition: 'border-color 0.15s, background 0.15s',
-                      }}
-                    >
-                      <div style={{ fontWeight: 600, fontSize: 13 }}>{t(`settings.sidebarLyricsStyle${key}` as any)}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{t(`settings.sidebarLyricsStyle${key}Desc` as any)}</div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </section>
-
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <Sliders size={18} />
-              <h2>{t('settings.seekbarStyle')}</h2>
-            </div>
+          <SettingsSubSection
+            title={t('settings.seekbarStyle')}
+            icon={<Sliders size={16} />}
+          >
             <div className="settings-card">
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
                 {t('settings.seekbarStyleDesc')}
@@ -3004,31 +3157,31 @@ export default function Settings() {
                 ))}
               </div>
             </div>
-          </section>
+          </SettingsSubSection>
 
-          <SidebarCustomizer />
-
-          <ArtistLayoutCustomizer />
         </>
       )}
 
       {/* ── Input ────────────────────────────────────────────────────────────── */}
       {activeTab === 'input' && (
         <>
-        <section className="settings-section">
-          <div className="settings-section-header">
-            <Keyboard size={18} />
-            <h2>{t('settings.tabInput')}</h2>
-          </div>
-          <div style={{ position: 'relative' }}>
+        <SettingsSubSection
+          title={t('settings.inputKeybindingsTitle')}
+          icon={<Keyboard size={16} />}
+          defaultOpen
+          action={
             <button
+              type="button"
               className="btn btn-ghost"
-              style={{ position: 'absolute', top: -22, right: 0, fontSize: 12, color: 'var(--text-muted)', padding: '2px 4px' }}
+              style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 6px' }}
               onClick={() => { kb.resetToDefaults(); setListeningFor(null); }}
               data-tooltip={t('settings.shortcutsReset')}
+              aria-label={t('settings.shortcutsReset')}
             >
               <RotateCcw size={14} />
             </button>
+          }
+        >
           <div className="settings-card">
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {([
@@ -3106,26 +3259,25 @@ export default function Settings() {
               })}
             </div>
           </div>
-          </div>
-        </section>
+        </SettingsSubSection>
 
-        <section className="settings-section">
-          <div className="settings-section-header">
-            <Keyboard size={18} />
-            <h2>{t('settings.globalShortcutsTitle')}</h2>
-          </div>
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '12px', lineHeight: 1.5 }}>
-            {t('settings.globalShortcutsNote')}
-          </p>
-          <div style={{ position: 'relative' }}>
+        <SettingsSubSection
+          title={t('settings.globalShortcutsTitle')}
+          icon={<Keyboard size={16} />}
+          description={t('settings.globalShortcutsNote')}
+          action={
             <button
+              type="button"
               className="btn btn-ghost"
-              style={{ position: 'absolute', top: -22, right: 0, fontSize: 12, color: 'var(--text-muted)', padding: '2px 4px' }}
+              style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 6px' }}
               onClick={() => { gs.resetAll(); setListeningForGlobal(null); }}
               data-tooltip={t('settings.shortcutsReset')}
+              aria-label={t('settings.shortcutsReset')}
             >
               <RotateCcw size={14} />
             </button>
+          }
+        >
           <div className="settings-card">
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {([
@@ -3194,13 +3346,12 @@ export default function Settings() {
               })}
             </div>
           </div>
-          </div>
-        </section>
+        </SettingsSubSection>
         </>
       )}
 
       {/* ── Server ───────────────────────────────────────────────────────────── */}
-      {activeTab === 'server' && (
+      {activeTab === 'servers' && (
         <>
           <section className="settings-section">
             <div className="settings-section-header">
@@ -3346,75 +3497,6 @@ export default function Settings() {
             )}
           </section>
 
-          {/* Last.fm */}
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <LastfmIcon size={18} />
-              <h2>{t('settings.lfmTitle')}</h2>
-            </div>
-            <div className="settings-card">
-              {auth.lastfmSessionKey ? (
-                /* ── Connected state ── */
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', borderRadius: '10px', background: 'color-mix(in srgb, var(--accent) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 20%, transparent)' }}>
-                    <div style={{ flexShrink: 0, color: '#e31c23' }}><LastfmIcon size={20} /></div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>@{auth.lastfmUsername}</div>
-                      {lfmUserInfo && (
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, display: 'flex', gap: '0.75rem' }}>
-                          <span>{t('settings.lfmScrobbles', { n: lfmUserInfo.playcount.toLocaleString() })}</span>
-                          <span>{t('settings.lfmMemberSince', { year: new Date(lfmUserInfo.registeredAt * 1000).getFullYear() })}</span>
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      className="btn btn-ghost"
-                      style={{ fontSize: 12, padding: '4px 10px', flexShrink: 0 }}
-                      onClick={() => auth.disconnectLastfm()}
-                    >
-                      {t('settings.lfmDisconnect')}
-                    </button>
-                  </div>
-                  <div className="settings-toggle-row">
-                    <div>
-                      <div style={{ fontWeight: 500 }}>{t('settings.scrobbleEnabled')}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.scrobbleDesc')}</div>
-                    </div>
-                    <label className="toggle-switch" aria-label={t('settings.scrobbleEnabled')}>
-                      <input type="checkbox" checked={auth.scrobblingEnabled} onChange={e => auth.setScrobblingEnabled(e.target.checked)} id="scrobbling-toggle" />
-                      <span className="toggle-track" />
-                    </label>
-                  </div>
-                </div>
-              ) : lfmState === 'waiting' ? (
-                /* ── Waiting for browser auth — auto-polling ── */
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: 13, color: 'var(--text-secondary)' }}>
-                    <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-                    {t('settings.lfmConnecting')}
-                  </div>
-                  <button className="btn btn-ghost" style={{ alignSelf: 'flex-start', fontSize: 12 }}
-                    onClick={() => { setLfmState('idle'); setLfmPendingToken(null); }}>
-                    {t('common.cancel')}
-                  </button>
-                </div>
-              ) : (
-                /* ── Not connected ── */
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                    {t('settings.lfmConnectDesc')}
-                  </p>
-                  {lfmState === 'error' && (
-                    <p style={{ fontSize: 12, color: 'var(--danger)' }}>{lfmError}</p>
-                  )}
-                  <button className="btn btn-primary" style={{ alignSelf: 'flex-start' }} onClick={startLastfmConnect}>
-                    {t('settings.lfmConnect')}
-                  </button>
-                </div>
-              )}
-            </div>
-          </section>
-
           <section className="settings-section">
             <button className="btn btn-danger" onClick={handleLogout} id="settings-logout-btn">
               <LogOut size={16} /> {t('settings.logout')}
@@ -3435,12 +3517,91 @@ export default function Settings() {
 
       {activeTab === 'system' && (
         <>
-          <BackupSection />
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <Sliders size={18} />
-              <h2>{t('settings.loggingTitle')}</h2>
+          <SettingsSubSection
+            title={t('settings.language')}
+            icon={<Globe size={16} />}
+            defaultOpen
+          >
+            <div className="settings-card">
+              <div className="form-group" style={{ maxWidth: '300px' }}>
+                <CustomSelect
+                  value={i18n.language}
+                  onChange={v => i18n.changeLanguage(v)}
+                  options={[
+                    { value: 'en', label: t('settings.languageEn') },
+                    { value: 'de', label: t('settings.languageDe') },
+                    { value: 'es', label: t('settings.languageEs') },
+                    { value: 'fr', label: t('settings.languageFr') },
+                    { value: 'nl', label: t('settings.languageNl') },
+                    { value: 'nb', label: t('settings.languageNb') },
+                    { value: 'ru', label: t('settings.languageRu') },
+                    { value: 'zh', label: t('settings.languageZh') },
+                  ]}
+                />
+              </div>
             </div>
+          </SettingsSubSection>
+
+          {/* App-Verhalten (aus altem library/general Behavior-Block) */}
+          <SettingsSubSection
+            title={t('settings.behavior')}
+            icon={<AppWindow size={16} />}
+          >
+            <div className="settings-card">
+              <div className="settings-toggle-row">
+                <div>
+                  <div style={{ fontWeight: 500 }}>{t('settings.showTrayIcon')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showTrayIconDesc')}</div>
+                </div>
+                <label className="toggle-switch" aria-label={t('settings.showTrayIcon')}>
+                  <input type="checkbox" checked={auth.showTrayIcon} onChange={e => auth.setShowTrayIcon(e.target.checked)} />
+                  <span className="toggle-track" />
+                </label>
+              </div>
+              <div className="settings-section-divider" />
+              <div className="settings-toggle-row">
+                <div>
+                  <div style={{ fontWeight: 500 }}>{t('settings.minimizeToTray')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.minimizeToTrayDesc')}</div>
+                </div>
+                <label className="toggle-switch" aria-label={t('settings.minimizeToTray')}>
+                  <input type="checkbox" checked={auth.minimizeToTray} onChange={e => auth.setMinimizeToTray(e.target.checked)} />
+                  <span className="toggle-track" />
+                </label>
+              </div>
+              {IS_LINUX && (
+                <>
+                  <div className="settings-section-divider" />
+                  <div className="settings-toggle-row">
+                    <div>
+                      <div style={{ fontWeight: 500 }}>{t('settings.linuxWebkitSmoothScroll')}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.linuxWebkitSmoothScrollDesc')}</div>
+                    </div>
+                    <label className="toggle-switch" aria-label={t('settings.linuxWebkitSmoothScroll')}>
+                      <input
+                        type="checkbox"
+                        checked={auth.linuxWebkitKineticScroll}
+                        onChange={e => auth.setLinuxWebkitKineticScroll(e.target.checked)}
+                      />
+                      <span className="toggle-track" />
+                    </label>
+                  </div>
+                </>
+              )}
+            </div>
+          </SettingsSubSection>
+
+          <SettingsSubSection
+            title={t('settings.backupTitle')}
+            icon={<HardDrive size={16} />}
+          >
+            <BackupSection />
+          </SettingsSubSection>
+
+          <SettingsSubSection
+            title={t('settings.loggingTitle')}
+            icon={<Sliders size={16} />}
+          >
             <div className="settings-card">
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
                 {t('settings.loggingModeDesc')}
@@ -3463,12 +3624,12 @@ export default function Settings() {
                 </div>
               )}
             </div>
-          </section>
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <Info size={18} />
-              <h2>{t('settings.aboutTitle')}</h2>
-            </div>
+          </SettingsSubSection>
+
+          <SettingsSubSection
+            title={t('settings.aboutTitle')}
+            icon={<Info size={16} />}
+          >
             <div className="settings-card settings-about">
               <div className="settings-about-header">
                 <img src="/logo-psysonic.png" width={52} height={52} alt="Psysonic" style={{ borderRadius: 14 }} />
@@ -3497,9 +3658,26 @@ export default function Settings() {
                   <span style={{ color: 'var(--text-muted)', minWidth: 56 }}>Stack</span>
                   <span style={{ color: 'var(--text-secondary)' }}>{t('settings.aboutBuiltWith')}</span>
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <span style={{ color: 'var(--text-muted)', minWidth: 56 }}>AI</span>
-                  <span style={{ color: 'var(--text-secondary)' }}>{t('settings.aboutAiCredit')}</span>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <span style={{ color: 'var(--text-muted)', minWidth: 56, flexShrink: 0 }}>{t('settings.aboutMaintainersLabel')}</span>
+                  <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    {MAINTAINERS.map(m => (
+                      <div key={m.github} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <img
+                          src={`https://github.com/${m.github}.png?size=32`}
+                          width={20} height={20}
+                          style={{ borderRadius: '50%', flexShrink: 0 }}
+                          alt={m.github}
+                        />
+                        <button
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--accent)', fontWeight: 600, fontSize: 13 }}
+                          onClick={() => openUrl(`https://github.com/${m.github}`)}
+                        >
+                          @{m.github}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <span style={{ color: 'var(--text-muted)', minWidth: 56 }}>{t('settings.aboutReleaseNotesLabel')}</span>
@@ -3513,74 +3691,22 @@ export default function Settings() {
                     {t('settings.aboutReleaseNotesLink')}
                   </button>
                 </div>
-                <div>
-                  <button
-                    style={{ display: 'flex', width: '100%', alignItems: 'center', gap: '0.5rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
-                    onClick={() => setContributorsOpen(o => !o)}
-                  >
-                    <span style={{ color: 'var(--text-muted)', minWidth: 56, flexShrink: 0 }}>{t('settings.aboutContributorsLabel')}</span>
-                    <span style={{ color: 'var(--text-secondary)', flex: 1 }}>{CONTRIBUTORS.length}</span>
-                    <ChevronDown size={13} style={{ color: 'var(--text-muted)', transform: contributorsOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-                  </button>
+              </div>
 
-                  {contributorsOpen && (
-                    <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      {CONTRIBUTORS.map(c => (
-                        <div key={c.github} style={{
-                          display: 'flex', gap: '0.75rem', alignItems: 'flex-start',
-                          background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)',
-                          padding: '0.65rem 0.75rem',
-                          boxShadow: 'inset 0 0 0 1px var(--border-subtle)',
-                        }}>
-                          <img
-                            src={`https://github.com/${c.github}.png?size=48`}
-                            width={36} height={36}
-                            style={{ borderRadius: '50%', flexShrink: 0, marginTop: 2 }}
-                            alt={c.github}
-                          />
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
-                              <button
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--accent)', fontWeight: 600, fontSize: 13 }}
-                                onClick={() => openUrl(`https://github.com/${c.github}`)}
-                              >
-                                @{c.github}
-                              </button>
-                              <span style={{ fontSize: 10, background: 'var(--accent-dim)', color: 'var(--accent)', padding: '1px 6px', borderRadius: 99, fontWeight: 600 }}>
-                                v{c.since}
-                              </span>
-                            </div>
-                            <ul style={{ margin: 0, padding: '0 0 0 1rem', fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
-                              {c.contributions.map(item => <li key={item}>{item}</li>)}
-                            </ul>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+              <div className="settings-section-divider" style={{ marginTop: '1.25rem' }} />
+              <div className="settings-toggle-row">
+                <div>
+                  <div style={{ fontWeight: 500 }}>{t('settings.showChangelogOnUpdate')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showChangelogOnUpdateDesc')}</div>
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-                  <span style={{ color: 'var(--text-muted)', minWidth: 56, flexShrink: 0, paddingTop: 2, fontSize: 13 }}>{t('settings.aboutSpecialThanksLabel')}</span>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: 1 }}>
-                    {SPECIAL_THANKS.map(s => (
-                      <div key={s.github} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <img
-                          src={`https://github.com/${s.github}.png?size=32`}
-                          width={22} height={22}
-                          style={{ borderRadius: '50%', flexShrink: 0 }}
-                          alt={s.github}
-                        />
-                        <button
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--accent)', fontWeight: 600, fontSize: 13 }}
-                          onClick={() => openUrl(`https://github.com/${s.github}`)}
-                        >
-                          @{s.github}
-                        </button>
-                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>— {s.reason}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <label className="toggle-switch" aria-label={t('settings.showChangelogOnUpdate')}>
+                  <input
+                    type="checkbox"
+                    checked={auth.showChangelogOnUpdate}
+                    onChange={e => auth.setShowChangelogOnUpdate(e.target.checked)}
+                  />
+                  <span className="toggle-track" />
+                </label>
               </div>
 
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.25rem', flexWrap: 'wrap' }}>
@@ -3594,34 +3720,64 @@ export default function Settings() {
                 </button>
               </div>
             </div>
-          </section>
+          </SettingsSubSection>
 
-          <ChangelogSection />
+          <SettingsSubSection
+            title={t('settings.aboutContributorsLabel')}
+            icon={<Users size={16} />}
+          >
+            <div className="contributors-grid">
+              {[...CONTRIBUTORS].sort((a, b) => b.contributions.length - a.contributions.length).map(c => (
+                <details key={c.github} className="contributor-card">
+                  <summary className="contributor-card-summary">
+                    <img
+                      src={`https://github.com/${c.github}.png?size=48`}
+                      width={32}
+                      height={32}
+                      className="contributor-card-avatar"
+                      alt={c.github}
+                    />
+                    <div className="contributor-card-meta">
+                      <span
+                        className="contributor-card-name"
+                        role="button"
+                        tabIndex={0}
+                        onClick={e => { e.stopPropagation(); openUrl(`https://github.com/${c.github}`); }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            openUrl(`https://github.com/${c.github}`);
+                          }
+                        }}
+                      >
+                        @{c.github}
+                      </span>
+                      <span className="contributor-card-sub">
+                        <span className="contributor-card-since">v{c.since}</span>
+                        <span>·</span>
+                        <span>{t('settings.aboutContributorsCount', { count: c.contributions.length })}</span>
+                      </span>
+                    </div>
+                    <ChevronDown size={14} className="contributor-card-chevron" aria-hidden />
+                  </summary>
+                  <ul className="contributor-card-list">
+                    {c.contributions.map(item => <li key={item}>{item}</li>)}
+                  </ul>
+                </details>
+              ))}
+            </div>
+          </SettingsSubSection>
+
         </>
       )}
     </div>
   );
 }
 
-// ─── Changelog renderer ───────────────────────────────────────────────────────
-
-function renderInline(text: string): React.ReactNode[] {
-  // Splits on **bold**, *italic*, `code` and renders each part.
-  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith('**') && part.endsWith('**'))
-      return <strong key={i}>{part.slice(2, -2)}</strong>;
-    if (part.startsWith('*') && part.endsWith('*'))
-      return <em key={i}>{part.slice(1, -1)}</em>;
-    if (part.startsWith('`') && part.endsWith('`'))
-      return <code key={i} className="changelog-code">{part.slice(1, -1)}</code>;
-    return part;
-  });
-}
-
 function HomeCustomizer() {
   const { t } = useTranslation();
-  const { sections, toggleSection, reset } = useHomeStore();
+  const { sections, toggleSection } = useHomeStore();
 
   const SECTION_LABELS: Record<HomeSectionId, string> = {
     hero:            t('home.hero'),
@@ -3634,33 +3790,17 @@ function HomeCustomizer() {
   };
 
   return (
-    <section className="settings-section">
-      <div className="settings-section-header">
-        <LayoutGrid size={18} />
-        <h2>{t('settings.homeCustomizerTitle')}</h2>
-      </div>
-      <div style={{ position: 'relative' }}>
-        <button
-          className="btn btn-ghost"
-          style={{ position: 'absolute', top: -22, right: 0, fontSize: 12, color: 'var(--text-muted)', padding: '2px 4px' }}
-          onClick={reset}
-          data-tooltip={t('settings.sidebarReset')}
-        >
-          <RotateCcw size={14} />
-        </button>
-        <div className="settings-card" style={{ padding: '4px 0' }}>
-          {sections.map(sec => (
-            <div key={sec.id} className="settings-toggle-row" style={{ padding: '8px 16px' }}>
-              <span style={{ fontSize: 14 }}>{SECTION_LABELS[sec.id]}</span>
-              <label className="toggle-switch" aria-label={SECTION_LABELS[sec.id]}>
-                <input type="checkbox" checked={sec.visible} onChange={() => toggleSection(sec.id)} />
-                <span className="toggle-track" />
-              </label>
-            </div>
-          ))}
+    <div className="settings-card" style={{ padding: '4px 0' }}>
+      {sections.map(sec => (
+        <div key={sec.id} className="sidebar-customizer-row">
+          <span style={{ flex: 1, fontSize: 14 }}>{SECTION_LABELS[sec.id]}</span>
+          <label className="toggle-switch" aria-label={SECTION_LABELS[sec.id]}>
+            <input type="checkbox" checked={sec.visible} onChange={() => toggleSection(sec.id)} />
+            <span className="toggle-track" />
+          </label>
         </div>
-      </div>
-    </section>
+      ))}
+    </div>
   );
 }
 
@@ -3889,7 +4029,7 @@ type DropTarget = { idx: number; before: boolean; section: 'library' | 'system' 
 
 function SidebarCustomizer() {
   const { t } = useTranslation();
-  const { items, setItems, toggleItem, reset } = useSidebarStore();
+  const { items, setItems, toggleItem } = useSidebarStore();
   const { isDragging: isPsyDragging } = useDragDrop();
   const containerRef = useRef<HTMLDivElement>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget>(null);
@@ -3993,19 +4133,7 @@ function SidebarCustomizer() {
   };
 
   return (
-    <section className="settings-section">
-      <div className="settings-section-header">
-        <PanelLeft size={18} />
-        <h2>{t('settings.sidebarTitle')}</h2>
-        <button
-          className="btn btn-ghost"
-          style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)' }}
-          onClick={reset}
-          data-tooltip={t('settings.sidebarReset')}
-        >
-          <RotateCcw size={14} />
-        </button>
-      </div>
+    <>
       <div className="settings-card" style={{ marginBottom: '1rem' }}>
         <div className="settings-toggle-row">
           <div>
@@ -4037,7 +4165,7 @@ function SidebarCustomizer() {
           </div>
         </div>
       </div>
-    </section>
+    </>
   );
 }
 
@@ -4076,7 +4204,6 @@ function ArtistLayoutCustomizer() {
   const sections = useArtistLayoutStore(s => s.sections);
   const setSections = useArtistLayoutStore(s => s.setSections);
   const toggleSection = useArtistLayoutStore(s => s.toggleSection);
-  const reset = useArtistLayoutStore(s => s.reset);
   const { isDragging: isPsyDragging } = useDragDrop();
   const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
   const [dropTarget, setDropTarget] = useState<ArtistDropTarget>(null);
@@ -4129,19 +4256,7 @@ function ArtistLayoutCustomizer() {
   };
 
   return (
-    <section className="settings-section">
-      <div className="settings-section-header">
-        <Users size={18} />
-        <h2>{t('settings.artistLayoutTitle')}</h2>
-        <button
-          className="btn btn-ghost"
-          style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)' }}
-          onClick={reset}
-          data-tooltip={t('settings.artistLayoutReset')}
-        >
-          <RotateCcw size={14} />
-        </button>
-      </div>
+    <>
       <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: '0.75rem', lineHeight: 1.5 }}>
         {t('settings.artistLayoutDesc')}
       </p>
@@ -4175,7 +4290,7 @@ function ArtistLayoutCustomizer() {
           );
         })}
       </div>
-    </section>
+    </>
   );
 }
 
@@ -4259,68 +4374,3 @@ function BackupSection() {
   );
 }
 
-function ChangelogSection() {
-  const { t } = useTranslation();
-  const showChangelogOnUpdate = useAuthStore(s => s.showChangelogOnUpdate);
-  const setShowChangelogOnUpdate = useAuthStore(s => s.setShowChangelogOnUpdate);
-
-  const versions = useMemo(() => {
-    const blocks = changelogRaw.split(/\n(?=## \[)/).filter(b => b.startsWith('## ['));
-    return blocks.map(block => {
-      const lines = block.split('\n');
-      const headerLine = lines[0]; // e.g. "## [1.5.0] - 2026-03-18"
-      const versionMatch = headerLine.match(/## \[([^\]]+)\]/);
-      const dateMatch = headerLine.match(/- (\d{4}-\d{2}-\d{2})/);
-      const version = versionMatch?.[1] ?? '';
-      const date = dateMatch?.[1] ?? '';
-
-      // Parse the rest into rendered lines
-      const body = lines.slice(1).join('\n').trim();
-      return { version, date, body };
-    });
-  }, []);
-
-  return (
-    <section className="settings-section">
-      <div className="settings-section-header">
-        <Info size={18} />
-        <h2>{t('settings.changelog')}</h2>
-      </div>
-      <div className="settings-toggle-row" style={{ marginBottom: '1rem' }}>
-        <div>
-          <div style={{ fontWeight: 500 }}>{t('settings.showChangelogOnUpdate')}</div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showChangelogOnUpdateDesc')}</div>
-        </div>
-        <label className="toggle-switch" aria-label={t('settings.showChangelogOnUpdate')}>
-          <input type="checkbox" checked={showChangelogOnUpdate} onChange={e => setShowChangelogOnUpdate(e.target.checked)} />
-          <span className="toggle-track" />
-        </label>
-      </div>
-      <div className="changelog-list">
-        {versions.slice(0, 3).map(({ version, date, body }) => (
-          <details key={version} className="changelog-entry" open={version === appVersion}>
-            <summary className="changelog-summary">
-              <span className="changelog-version">v{version}</span>
-              <span className="changelog-date">{date}</span>
-            </summary>
-            <div className="changelog-body">
-              {body.split('\n').map((line, i) => {
-                if (line.startsWith('### ')) {
-                  return <div key={i} className="changelog-h3">{renderInline(line.slice(4))}</div>;
-                }
-                if (line.startsWith('#### ')) {
-                  return <div key={i} className="changelog-h4">{renderInline(line.slice(5))}</div>;
-                }
-                if (line.startsWith('- ')) {
-                  return <div key={i} className="changelog-item">{renderInline(line.slice(2))}</div>;
-                }
-                if (line.trim() === '') return null;
-                return <div key={i} className="changelog-text">{renderInline(line)}</div>;
-              })}
-            </div>
-          </details>
-        ))}
-      </div>
-    </section>
-  );
-}
