@@ -542,6 +542,50 @@ export function computeOrbitDriftMs(state: OrbitState, guestPositionMs: number, 
   return guestPositionMs - hostEstimated;
 }
 
+// ── Host-side moderation ────────────────────────────────────────────────
+
+/**
+ * Host: kick a participant by username.
+ *
+ * Appends the user to `kicked`, removes them from `participants`, deletes
+ * their outbox playlist (so a fresh re-create is recognised as a fresh
+ * attempt the gate blocks), and writes the new state immediately so the
+ * kicked guest notices on their very next poll rather than waiting for
+ * the regular sweep tick.
+ *
+ * Ignored if not the host, or if the session isn't active.
+ */
+export async function kickOrbitParticipant(username: string): Promise<void> {
+  const store = useOrbitStore.getState();
+  if (store.role !== 'host') return;
+  const state = store.state;
+  const sessionPlaylistId = store.sessionPlaylistId;
+  const sid = store.sessionId;
+  if (!state || !sessionPlaylistId || !sid) return;
+  if (username === state.host) return;         // host can't self-kick
+  if (state.kicked.includes(username)) return; // already kicked
+
+  // 1) Delete the victim's outbox, best-effort. Finding it by name avoids
+  // carrying outbox ids in the state blob just for this operation.
+  const outboxName = orbitOutboxPlaylistName(sid, username);
+  try {
+    const all = await getPlaylists();
+    const hit = all.find(p => p.name === outboxName);
+    if (hit) await deletePlaylist(hit.id);
+  } catch { /* best-effort */ }
+
+  // 2) Update state: append kick, drop from participants.
+  const nextState: OrbitState = {
+    ...state,
+    kicked: [...state.kicked, username],
+    participants: state.participants.filter(p => p.user !== username),
+  };
+  useOrbitStore.getState().setState(nextState);
+  try {
+    await writeOrbitState(sessionPlaylistId, nextState);
+  } catch { /* best-effort; next host tick will retry via its normal push */ }
+}
+
 /**
  * Fold sweep results into an updated `OrbitState`.
  *

@@ -11319,3 +11319,127 @@ html[data-app-hidden="true"] *::after {
 
 /* Push the rest of the shell down while the bar is visible. */
 .app-shell:has(.orbit-bar) { padding-top: 32px; }
+
+/* Participant-count button (the "4/10" in the bar) */
+.orbit-bar .orbit-bar__count {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font: inherit;
+  letter-spacing: inherit;
+  padding: 2px 6px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 150ms ease, background 150ms ease;
+}
+.orbit-bar .orbit-bar__count:hover {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+}
+
+/* ── Participants popover ──────────────────────────────────────────── */
+.orbit-participants-pop {
+  min-width: 240px;
+  max-width: 320px;
+  padding: 6px;
+  background: var(--ctp-base, #1e1e2e);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, rgba(255,255,255,0.1));
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+.orbit-participants-pop__head {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 6px 8px 4px;
+}
+
+.orbit-participants-pop__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.orbit-participants-pop__row:hover { background: color-mix(in srgb, var(--text-primary) 5%, transparent); }
+
+.orbit-participants-pop__row--host { color: var(--accent); }
+.orbit-participants-pop__row--host svg { color: var(--accent); }
+
+.orbit-participants-pop__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.orbit-participants-pop__meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.orbit-participants-pop__empty {
+  padding: 10px 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  text-align: center;
+}
+
+.orbit-participants-pop__kick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease, border-color 140ms ease;
+}
+.orbit-participants-pop__kick:hover {
+  color: var(--ctp-red, #f38ba8);
+  background: color-mix(in srgb, var(--ctp-red, #f38ba8) 12%, transparent);
+  border-color: color-mix(in srgb, var(--ctp-red, #f38ba8) 35%, transparent);
+}
+
+/* ── Exit modal ────────────────────────────────────────────────────── */
+.orbit-exit-overlay {
+  align-items: center;
+  justify-content: center;
+}
+
+.orbit-exit-modal {
+  max-width: 400px;
+  padding: 24px 26px 20px;
+  text-align: center;
+}
+
+.orbit-exit-modal__title {
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.orbit-exit-modal__body {
+  margin: 0 0 20px;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.orbit-exit-modal__actions {
+  display: flex;
+  justify-content: center;
+}

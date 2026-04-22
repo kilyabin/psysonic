@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X, RefreshCw } from 'lucide-react';
 import { useOrbitStore } from '../store/orbitStore';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
@@ -10,6 +10,8 @@ import {
 } from '../utils/orbit';
 import { ORBIT_SHUFFLE_INTERVAL_MS } from '../utils/orbit';
 import { estimateLivePosition } from '../api/orbit';
+import OrbitParticipantsPopover from './OrbitParticipantsPopover';
+import OrbitExitModal from './OrbitExitModal';
 
 /**
  * Orbit — top-strip session indicator.
@@ -36,7 +38,10 @@ export default function OrbitSessionBar() {
   const state              = useOrbitStore(s => s.state);
   const role               = useOrbitStore(s => s.role);
   const phase              = useOrbitStore(s => s.phase);
+  const errorMessage       = useOrbitStore(s => s.errorMessage);
   const [nowMs, setNowMs]  = useState(() => Date.now());
+  const [peopleOpen, setPeopleOpen] = useState(false);
+  const peopleBtnRef = useRef<HTMLButtonElement>(null);
 
   // Second-level tick just for the shuffle countdown + drift readout —
   // the store itself only ticks at 2.5 s which is too coarse for a smooth
@@ -47,7 +52,15 @@ export default function OrbitSessionBar() {
     return () => window.clearInterval(id);
   }, [state, phase]);
 
-  if (!state || (phase !== 'active' && phase !== 'ended')) return null;
+  // Bar is visible while active, ended (pre-ack), or explicitly kicked.
+  const shouldShowBar = !!state && (
+    phase === 'active'
+    || phase === 'ended'
+    || (phase === 'error' && errorMessage === 'kicked')
+  );
+  if (!shouldShowBar || !state) return (
+    <OrbitExitModal />
+  );
 
   const untilShuffle = Math.max(0, (state.lastShuffle + ORBIT_SHUFFLE_INTERVAL_MS) - nowMs);
 
@@ -110,7 +123,17 @@ export default function OrbitSessionBar() {
         <span className="orbit-bar__dot" aria-hidden="true" />
         <span className="orbit-bar__name">{state.name}</span>
         <span className="orbit-bar__sep">·</span>
-        <span className="orbit-bar__count">{participantCount}/{state.maxUsers}</span>
+        <button
+          ref={peopleBtnRef}
+          type="button"
+          className="orbit-bar__count"
+          onClick={() => setPeopleOpen(v => !v)}
+          data-tooltip="Participants"
+          aria-haspopup="menu"
+          aria-expanded={peopleOpen || undefined}
+        >
+          {participantCount}/{state.maxUsers}
+        </button>
         <span className="orbit-bar__sep">·</span>
         <span className="orbit-bar__host">host: @{state.host}</span>
       </div>
@@ -143,6 +166,14 @@ export default function OrbitSessionBar() {
           <X size={15} />
         </button>
       </div>
+
+      {peopleOpen && (
+        <OrbitParticipantsPopover
+          anchorRef={peopleBtnRef}
+          onClose={() => setPeopleOpen(false)}
+        />
+      )}
+      <OrbitExitModal />
     </div>
   );
 }
