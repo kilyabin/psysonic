@@ -62,6 +62,9 @@ import GenreDetail from './pages/GenreDetail';
 import ExportPickerModal from './components/ExportPickerModal';
 import AppUpdater from './components/AppUpdater';
 import TitleBar from './components/TitleBar';
+import OrbitSessionBar from './components/OrbitSessionBar';
+import { useOrbitHost } from './hooks/useOrbitHost';
+import { useOrbitGuest } from './hooks/useOrbitGuest';
 import { IS_LINUX, IS_MACOS, IS_WINDOWS } from './utils/platform';
 import { version } from '../package.json';
 import { useConnectionStatus } from './hooks/useConnectionStatus';
@@ -128,6 +131,10 @@ function AppShell() {
   const isMobile = useIsMobile();
   const [isWindowFullscreen, setIsWindowFullscreen] = useState(false);
   const [isTilingWm, setIsTilingWm] = useState(false);
+
+  // Orbit session hooks: idle until the local store marks a role.
+  useOrbitHost();
+  useOrbitGuest();
 
   useEffect(() => {
     if (!IS_LINUX) return;
@@ -407,6 +414,7 @@ function AppShell() {
       onContextMenu={e => e.preventDefault()}
     >
       {IS_LINUX && useCustomTitlebar && !isWindowFullscreen && !isTilingWm && <TitleBar />}
+      <OrbitSessionBar />
       {!isMobile && (
         <Sidebar
           isCollapsed={isSidebarCollapsed}
