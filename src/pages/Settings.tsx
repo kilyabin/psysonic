@@ -21,6 +21,7 @@ import { lastfmGetToken, lastfmAuthUrl, lastfmGetSession, lastfmGetUserInfo, Las
 import LastfmIcon from '../components/LastfmIcon';
 import CustomSelect from '../components/CustomSelect';
 import SettingsSubSection from '../components/SettingsSubSection';
+import { useLuckyMixAvailable } from '../hooks/useLuckyMixAvailable';
 import ThemePicker, { THEME_GROUPS } from '../components/ThemePicker';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore, ServerProfile, MIX_MIN_RATING_FILTER_MAX_STARS, type SeekbarStyle, type LyricsSourceId, type LyricsSourceConfig, type LoggingMode } from '../store/authStore';
@@ -2658,6 +2659,25 @@ export default function Settings() {
 
               <div className="divider" style={{ margin: '1rem 0' }} />
 
+              <div className="settings-toggle-row" style={{ marginBottom: '1rem' }}>
+                <div>
+                  <div style={{ fontWeight: 500 }}>{t('settings.luckyMixMenuTitle')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    {t('settings.luckyMixMenuDesc')}
+                  </div>
+                </div>
+                <label className="toggle-switch" aria-label={t('settings.luckyMixMenuTitle')}>
+                  <input
+                    type="checkbox"
+                    checked={auth.showLuckyMixMenu}
+                    onChange={e => auth.setShowLuckyMixMenu(e.target.checked)}
+                  />
+                  <span className="toggle-track" />
+                </label>
+              </div>
+
+              <div className="divider" style={{ margin: '1rem 0' }} />
+
               <div style={{ fontSize: 13, fontWeight: 500, marginBottom: '0.5rem', color: 'var(--text-muted)' }}>{t('settings.randomMixHardcodedTitle')}</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                 {AUDIOBOOK_GENRES_DISPLAY.map(genre => (
@@ -4394,11 +4414,14 @@ function SidebarCustomizer() {
   itemsRef.current = items;
   const randomNavMode = useAuthStore(s => s.randomNavMode);
   const setRandomNavMode = useAuthStore(s => s.setRandomNavMode);
+  const luckyMixBase = useLuckyMixAvailable();
+  const luckyMixAvailable = luckyMixBase && randomNavMode === 'separate';
 
   const libraryItems = items.filter(cfg => {
     if (!ALL_NAV_ITEMS[cfg.id] || ALL_NAV_ITEMS[cfg.id].section !== 'library') return false;
-    if (randomNavMode === 'hub' && (cfg.id === 'randomMix' || cfg.id === 'randomAlbums')) return false;
+    if (randomNavMode === 'hub' && (cfg.id === 'randomMix' || cfg.id === 'randomAlbums' || cfg.id === 'luckyMix')) return false;
     if (randomNavMode === 'separate' && cfg.id === 'randomPicker') return false;
+    if (cfg.id === 'luckyMix' && !luckyMixAvailable) return false;
     return true;
   });
   const systemItems  = items.filter(cfg => ALL_NAV_ITEMS[cfg.id]?.section === 'system');

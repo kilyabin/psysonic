@@ -11,6 +11,7 @@ import PlayerBar from './components/PlayerBar';
 import BottomNav from './components/BottomNav';
 import MobilePlayerView from './components/MobilePlayerView';
 import { useIsMobile } from './hooks/useIsMobile';
+import { WindowVisibilityProvider } from './hooks/useWindowVisibility';
 import LiveSearch from './components/LiveSearch';
 import NowPlayingDropdown from './components/NowPlayingDropdown';
 import QueuePanel from './components/QueuePanel';
@@ -27,6 +28,7 @@ import Login from './pages/Login';
 import AlbumDetail from './pages/AlbumDetail';
 import MostPlayed from './pages/MostPlayed';
 import RandomAlbums from './pages/RandomAlbums';
+import LuckyMixPage from './pages/LuckyMix';
 import SearchResults from './pages/SearchResults';
 import Playlists from './pages/Playlists';
 import PlaylistDetail from './pages/PlaylistDetail';
@@ -385,11 +387,9 @@ function AppShell() {
     };
   }, []);
 
-  // Pause CSS animations when the window is minimized / hidden.
-  // WebView2 on Windows keeps compositing infinite-loop animations (mesh-aura,
-  // portrait-drift, eq-bounce, …) even when the app is minimized, which shows
-  // up as steady GPU usage. The CSS rule `html[data-app-hidden="true"]` in
-  // components.css pauses all running animations while this flag is set.
+  // Pause CSS animations when the browser tab is hidden (`document.hidden`).
+  // Tauri `win.hide()` is mirrored separately via `data-psy-native-hidden` from
+  // Rust (see components.css). WebView2 can keep compositing without the former.
   useEffect(() => {
     const update = () => {
       document.documentElement.dataset.appHidden = document.hidden ? 'true' : 'false';
@@ -463,6 +463,7 @@ function AppShell() {
                 <Route path="/new-releases" element={<NewReleases />} />
                 <Route path="/favorites" element={<Favorites />} />
                 <Route path="/random/mix" element={<RandomMix />} />
+                <Route path="/lucky-mix" element={<LuckyMixPage />} />
                 <Route path="/label/:name" element={<LabelAlbums />} />
                 <Route path="/search" element={<SearchResults />} />
                 <Route path="/search/advanced" element={<AdvancedSearch />} />
@@ -946,6 +947,7 @@ function TauriEventBridge() {
       // JS decides: minimize to tray or exit, based on user setting.
       const u = await listen('window:close-requested', async () => {
         if (useAuthStore.getState().minimizeToTray) {
+          await invoke('pause_rendering').catch(() => {});
           await getCurrentWindow().hide();
         } else {
           await invoke('exit_app');
@@ -1144,24 +1146,26 @@ export default function App() {
   }, []);
 
   return (
-    <BrowserRouter>
-      <PasteClipboardHandler />
-      <TauriEventBridge />
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route
-          path="/*"
-          element={
-            <RequireAuth>
-              <DragDropProvider>
-                <AppShell />
-              </DragDropProvider>
-            </RequireAuth>
-          }
-        />
-      </Routes>
-      {exportPickerOpen && <ExportPickerModal onConfirm={handleExport} onClose={() => setExportPickerOpen(false)} />}
-      <ZipDownloadOverlay />
-    </BrowserRouter>
+    <WindowVisibilityProvider>
+      <BrowserRouter>
+        <PasteClipboardHandler />
+        <TauriEventBridge />
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route
+            path="/*"
+            element={
+              <RequireAuth>
+                <DragDropProvider>
+                  <AppShell />
+                </DragDropProvider>
+              </RequireAuth>
+            }
+          />
+        </Routes>
+        {exportPickerOpen && <ExportPickerModal onConfirm={handleExport} onClose={() => setExportPickerOpen(false)} />}
+        <ZipDownloadOverlay />
+      </BrowserRouter>
+    </WindowVisibilityProvider>
   );
 }

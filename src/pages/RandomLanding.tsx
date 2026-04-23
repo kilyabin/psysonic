@@ -1,7 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Shuffle, Dices } from 'lucide-react';
+import { Shuffle, Dices, Sparkles } from 'lucide-react';
+import { useLuckyMixAvailable } from '../hooks/useLuckyMixAvailable';
 
 interface MixCard {
   icon: React.ElementType;
@@ -28,11 +29,25 @@ const CARDS: MixCard[] = [
 export default function RandomLanding() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  // RandomLanding is only reachable in "hub" nav mode, so we don't need to
+  // gate on randomNavMode here — availability alone is enough.
+  const luckyMixAvailable = useLuckyMixAvailable();
+  const cards = luckyMixAvailable
+    ? [
+        ...CARDS,
+        {
+          icon: Sparkles,
+          labelKey: 'randomLanding.mixByLucky',
+          descKey: 'randomLanding.mixByLuckyDesc',
+          to: '/lucky-mix',
+        },
+      ]
+    : CARDS;
 
   return (
     <div className="random-landing">
       <div className="random-landing-grid">
-        {CARDS.map(({ icon: Icon, labelKey, descKey, to }) => (
+        {cards.map(({ icon: Icon, labelKey, descKey, to }) => (
           <button
             key={to}
             className="mix-pick-card"

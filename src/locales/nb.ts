@@ -31,6 +31,7 @@ export const nbTranslation = {
     expandPlaylists: 'Utvid spillelister',
     collapsePlaylists: 'Skjul spillelister',
     more: 'Mer',
+    feelingLucky: 'Lykkemiks',
   },
   home: {
     hero: 'Utvalgt',
@@ -283,6 +284,8 @@ export const nbTranslation = {
     mixByTracksDesc: 'Tilfeldig utvalg av spor fra hele biblioteket ditt',
     mixByAlbums: 'Miks etter album',
     mixByAlbumsDesc: 'Tilfeldige album for nye oppdagelser',
+    mixByLucky: 'Lykkemiks',
+    mixByLuckyDesc: 'Smart Instant Mix fra toppartister, album og gode vurderinger',
   },
   randomAlbums: {
     title: 'Tilfeldige album',
@@ -334,6 +337,12 @@ export const nbTranslation = {
     filterPanelTitle: 'Filtre',
     filterPanelDesc: 'Klikk på en sjanger-tag eller på artistnavnet i sporlisten nedenfor, for å blokkere den fra fremtidige mikser.',
     genreClickHint: 'Klikk på en sjanger-tag for å legge den til\nsom et filternøkkelord.\nSamsvarer med sjanger, tittel, album og artist.',
+  },
+  luckyMix: {
+    done: 'Lykkemiks klar: {{count}} spor',
+    failed: 'Kunne ikke lage Lykkemiksen. Prøv igjen.',
+    unavailable: 'Lykkemiks er ikke tilgjengelig for denne serveren.',
+    cancelTooltip: 'Avbryt Lykkemiks-bygging',
   },
   albums: {
     title: 'Alle album',
@@ -706,6 +715,8 @@ export const nbTranslation = {
     showChangelogOnUpdate: "Vis 'Hva er nytt' ved oppdatering til ny versjon",
     showChangelogOnUpdateDesc: "Viser et diskret changelog-banner over Now Playing etter en oppdatering. Klikk åpner versjonsnotatene; X skjuler det.",
     randomMixTitle: 'Svarteliste for tilfeldig miks',
+    luckyMixMenuTitle: 'Vis Lykkemiks i menyen',
+    luckyMixMenuDesc: 'Aktiverer Lykkemiks i "Lag en miks" og som eget menypunkt når delt navigasjon er aktiv. Vises bare når AudioMuse er aktiv på gjeldende server.',
     randomMixBlacklistTitle: 'Egendefinerte filternøkkelord',
     randomMixBlacklistDesc: 'Sanger ekskluderes når et nøkkelord samsvarer med sjanger, tittel, album eller artist (aktiv når avkrysningsboksen ovenfor er på).',
     randomMixBlacklistPlaceholder: 'Legg til nøkkelord…',
@@ -742,7 +753,7 @@ export const nbTranslation = {
     sidebarDrag: 'Dra for å endre rekkefølge',
     sidebarFixed: 'Alltid synlig',
     randomNavSplitTitle: 'Del Mix-navigasjon',
-    randomNavSplitDesc: 'Vis "Tilfeldig miks" og "Tilfeldige album" som separate sidefeltsoppføringer i stedet for "Lag en miks"-huben.',
+    randomNavSplitDesc: 'Vis "Tilfeldig miks", "Tilfeldige album" og "Lykkemiks" som separate sidefeltsoppføringer i stedet for "Lag en miks"-huben.',
     tabShortcuts: 'Snarveier',
     tabUsers: 'Brukere',
     tabSystem: 'System',
