@@ -340,9 +340,10 @@ export const enTranslation = {
     genreClickHint: 'Click a genre tag to add it\nas a filter keyword.\nMatches genre, title, album & artist.',
   },
   luckyMix: {
-    done: 'Lucky mix ready: {{count}} tracks',
-    failed: 'Could not build lucky mix. Try again.',
+    done: 'Lucky Mix ready: {{count}} tracks',
+    failed: 'Could not build Lucky Mix. Try again.',
     unavailable: 'Lucky Mix is unavailable for this server.',
+    cancelTooltip: 'Cancel Lucky Mix build',
   },
   albums: {
     title: 'All Albums',

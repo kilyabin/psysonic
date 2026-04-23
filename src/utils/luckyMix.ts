@@ -11,9 +11,22 @@ import {
 import { invoke } from '@tauri-apps/api/core';
 import i18n from '../i18n';
 import { useAuthStore } from '../store/authStore';
-import { songToTrack, usePlayerStore } from '../store/playerStore';
+import { songToTrack, usePlayerStore, type Track } from '../store/playerStore';
 import { useLuckyMixStore } from '../store/luckyMixStore';
+import { isLuckyMixAvailable } from '../hooks/useLuckyMixAvailable';
 import { showToast } from './toast';
+
+/**
+ * Sentinel thrown inside the build loop when `useLuckyMixStore.cancelRequested`
+ * flips to true. The `catch` handler swallows it silently (no toast, no
+ * queue restore, no error state) — the user already moved on.
+ */
+class LuckyMixCancelled extends Error {
+  constructor() {
+    super('lucky-mix-cancelled');
+    this.name = 'LuckyMixCancelled';
+  }
+}
 
 interface TopArtist {
   id: string;
@@ -141,28 +154,49 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
   const albumDebug = (albums: SubsonicAlbum[]) =>
     albums.map(a => ({ id: a.id, name: a.name, artist: a.artist, playCount: a.playCount ?? 0 }));
   const activeServerId = auth.activeServerId;
-  const audiomuseEnabled = Boolean(activeServerId && auth.audiomuseNavidromeByServer[activeServerId]);
+  const available = isLuckyMixAvailable({
+    activeServerId,
+    audiomuseByServer: auth.audiomuseNavidromeByServer,
+    showLuckyMixMenu:  auth.showLuckyMixMenu,
+  });
   logStep('init', {
     activeServerId,
-    audiomuseEnabled,
+    available,
     showLuckyMixMenu: auth.showLuckyMixMenu,
     libraryFilter: activeServerId ? (auth.musicLibraryFilterByServer[activeServerId] ?? 'all') : 'all',
   });
-  if (!auth.showLuckyMixMenu || !audiomuseEnabled) {
+  if (!available) {
     logStep('abort_unavailable');
     showToast(i18n.t('luckyMix.unavailable'), 4000, 'warning');
     return;
   }
+
+  // Snapshot the current queue *before* we prune — so if the build fails
+  // before we ever play a track, we can put it back the way it was instead
+  // of leaving the user with an empty player.
+  const playerStateBefore = usePlayerStore.getState();
+  const queueSnapshot: { queue: Track[]; queueIndex: number } = {
+    queue: [...playerStateBefore.queue],
+    queueIndex: playerStateBefore.queueIndex,
+  };
 
   // Drop the old "upcoming" tail immediately so the queue UI does not show stale
   // next tracks while the mix is still building (first playTrack may be delayed).
   usePlayerStore.getState().pruneUpcomingToCurrent();
 
   lucky.start();
+  // Per-run handles. Live outside the try so `finally`/`catch` can read
+  // `startedPlayback` (drives the queue-restore decision) and clean up the
+  // player-store subscription unconditionally.
+  let unsubPlayer: (() => void) | null = null;
+  let startedPlayback = false;
   try {
     const queuedIds = new Set<string>();
     let allSeedSongs: SubsonicSong[] = [];
-    let startedPlayback = false;
+
+    const bailIfCancelled = () => {
+      if (useLuckyMixStore.getState().cancelRequested) throw new LuckyMixCancelled();
+    };
     const reachedTarget = () => queuedIds.size >= MIX_TARGET_SIZE;
     const isBlockedByRating = (song: SubsonicSong) => {
       const rating = song.userRating ?? 0;
@@ -180,9 +214,25 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
         song: songDebug([song])[0],
         queuedCount: queuedIds.size,
       });
+
+      // Auto-cancel: once we're playing, watch the player store. If the
+      // current track switches to something the user picked themselves (not
+      // in our queuedIds set), treat that as "user moved on" and cancel the
+      // build so we don't later overwrite their choice with our finalised mix.
+      if (!unsubPlayer) {
+        unsubPlayer = usePlayerStore.subscribe((state, prev) => {
+          const prevId = prev.currentTrack?.id ?? null;
+          const nextId = state.currentTrack?.id ?? null;
+          if (nextId === prevId) return;
+          if (!nextId) return;
+          if (queuedIds.has(nextId)) return;
+          useLuckyMixStore.getState().cancel();
+        });
+      }
     };
 
     const appendSongsToQueue = (songs: SubsonicSong[], reason: string): number => {
+      if (useLuckyMixStore.getState().cancelRequested) return 0;
       if (reachedTarget()) return 0;
       if (!songs.length) return 0;
       const deduped = uniqueBySongId(songs).filter(s => !queuedIds.has(s.id) && !isBlockedByRating(s));
@@ -211,6 +261,7 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
     };
 
     const frequentAlbums = await fetchFrequentAlbumsPool();
+    bailIfCancelled();
     const albumsWithPlays = frequentAlbums.filter(a => (a.playCount ?? 0) > 0);
     logStep('fetch_frequent_albums', {
       fetched: frequentAlbums.length,
@@ -224,6 +275,7 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
     });
 
     for (const artist of pickedArtists) {
+      bailIfCancelled();
       const songs = await pickSongsForArtist(artist, 3);
       allSeedSongs = uniqueAppend(allSeedSongs, songs);
       const firstPlayable = songs.find(s => !isBlockedByRating(s));
@@ -241,6 +293,7 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       pickedAlbums: albumDebug(pickedAlbums),
     });
     for (const album of pickedAlbums) {
+      bailIfCancelled();
       const songs = await pickSongsForAlbum(album.id, 3);
       allSeedSongs = uniqueAppend(allSeedSongs, songs);
       const firstPlayable = songs.find(s => !isBlockedByRating(s));
@@ -252,6 +305,7 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       });
     }
 
+    bailIfCancelled();
     const rated = await pickGoodRatedSongs(new Set(allSeedSongs.map(s => s.id)), 3);
     logStep('pick_rated_songs_4plus_only', {
       ratedPickedCount: rated.length,
@@ -267,6 +321,7 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
     if (seeds.length < SEED_TARGET_SIZE) {
       logStep('seed_fill_start', { target: SEED_TARGET_SIZE, before: seeds.length });
       for (let i = 0; i < 10 && seeds.length < SEED_TARGET_SIZE; i++) {
+        bailIfCancelled();
         const rnd = await filterSongsToActiveLibrary(await getRandomSongs(80));
         const allowedRnd = rnd.filter(s => !isBlockedByRating(s));
         seeds = uniqueAppend(seeds, allowedRnd);
@@ -296,6 +351,7 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
     let similarRaw: SubsonicSong[] = [];
     let similar: SubsonicSong[] = [];
     for (let i = 0; i < seeds.length; i++) {
+      bailIfCancelled();
       const seed = seeds[i];
       const oneRaw = await getSimilarSongs(seed.id, 60).catch(() => [] as SubsonicSong[]);
       const oneScoped = await filterSongsToActiveLibrary(oneRaw);
@@ -317,6 +373,7 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
     });
 
     for (let i = 0; i < 10 && pool.length < MIX_TARGET_SIZE; i++) {
+      bailIfCancelled();
       const rnd = await filterSongsToActiveLibrary(await getRandomSongs(120));
       pool = uniqueAppend(pool, rnd);
       appendSongsToQueue(rnd, `pool-fill-${i + 1}`);
@@ -328,6 +385,7 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       if (reachedTarget()) break;
     }
 
+    bailIfCancelled();
     const finalSongs = sampleRandom(pool, MIX_TARGET_SIZE).filter(s => !queuedIds.has(s.id));
     appendSongsToQueue(finalSongs, 'finalize-randomized');
     logStep('final_queue_state', {
@@ -348,6 +406,18 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       }).catch(() => {});
     }
   } catch (err) {
+    // Cancellation is a user-initiated path, not an error. Silent teardown.
+    if (err instanceof LuckyMixCancelled) {
+      logStep('cancelled');
+      if (debugEnabled) {
+        console.debug('[psysonic][lucky-mix] full-steps', debugSteps);
+        void invoke('frontend_debug_log', {
+          scope: 'lucky-mix',
+          message: JSON.stringify({ step: 'full-steps', details: debugSteps }),
+        }).catch(() => {});
+      }
+      return;
+    }
     console.error('[psysonic] lucky mix failed:', err);
     logStep('failed', { error: String(err) });
     if (debugEnabled) {
@@ -357,8 +427,23 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
         message: JSON.stringify({ step: 'full-steps', details: debugSteps }),
       }).catch(() => {});
     }
+    // If we failed before ever calling playTrack, the queue-prune we did up
+    // front left the user with nothing. Restore the snapshot so they land
+    // back where they were pre-click instead of in an empty player.
+    // If playback did start, leave it alone — their current track plus
+    // whatever we managed to enqueue is more useful than the old queue.
+    if (!startedPlayback) {
+      usePlayerStore.setState({
+        queue: queueSnapshot.queue,
+        queueIndex: queueSnapshot.queueIndex,
+      });
+      logStep('queue_restored_after_failure', {
+        restoredCount: queueSnapshot.queue.length,
+      });
+    }
     showToast(i18n.t('luckyMix.failed'), 5000, 'error');
   } finally {
+    if (unsubPlayer) { try { unsubPlayer(); } catch { /* noop */ } }
     useLuckyMixStore.getState().stop();
   }
 }

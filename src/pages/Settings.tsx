@@ -21,6 +21,7 @@ import { lastfmGetToken, lastfmAuthUrl, lastfmGetSession, lastfmGetUserInfo, Las
 import LastfmIcon from '../components/LastfmIcon';
 import CustomSelect from '../components/CustomSelect';
 import SettingsSubSection from '../components/SettingsSubSection';
+import { useLuckyMixAvailable } from '../hooks/useLuckyMixAvailable';
 import ThemePicker, { THEME_GROUPS } from '../components/ThemePicker';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore, ServerProfile, MIX_MIN_RATING_FILTER_MAX_STARS, type SeekbarStyle, type LyricsSourceId, type LyricsSourceConfig, type LoggingMode } from '../store/authStore';
@@ -4413,10 +4414,8 @@ function SidebarCustomizer() {
   itemsRef.current = items;
   const randomNavMode = useAuthStore(s => s.randomNavMode);
   const setRandomNavMode = useAuthStore(s => s.setRandomNavMode);
-  const activeServerId = useAuthStore(s => s.activeServerId);
-  const audiomuseByServer = useAuthStore(s => s.audiomuseNavidromeByServer);
-  const showLuckyMixMenu = useAuthStore(s => s.showLuckyMixMenu);
-  const luckyMixAvailable = randomNavMode === 'separate' && showLuckyMixMenu && Boolean(activeServerId && audiomuseByServer[activeServerId]);
+  const luckyMixBase = useLuckyMixAvailable();
+  const luckyMixAvailable = luckyMixBase && randomNavMode === 'separate';
 
   const libraryItems = items.filter(cfg => {
     if (!ALL_NAV_ITEMS[cfg.id] || ALL_NAV_ITEMS[cfg.id].section !== 'library') return false;

@@ -27,6 +27,7 @@ import {
   isSidebarNavItemUserHideable,
   type SidebarNavDropTarget,
 } from '../utils/sidebarNavReorder';
+import { useLuckyMixAvailable } from '../hooks/useLuckyMixAvailable';
 
 const SIDEBAR_NAV_LONG_PRESS_MS = 1000;
 const SIDEBAR_NAV_LONG_PRESS_MOVE_CANCEL_PX = 10;
@@ -68,9 +69,10 @@ export default function Sidebar({
   const sidebarItems = useSidebarStore(s => s.items);
   const setSidebarItems = useSidebarStore(s => s.setItems);
   const randomNavMode = useAuthStore(s => s.randomNavMode);
-  const showLuckyMixMenu = useAuthStore(s => s.showLuckyMixMenu);
-  const audiomuseByServer = useAuthStore(s => s.audiomuseNavidromeByServer);
-  const luckyMixAvailable = randomNavMode === 'separate' && showLuckyMixMenu && Boolean(serverId && audiomuseByServer[serverId]);
+  const luckyMixBase = useLuckyMixAvailable();
+  // Sidebar surfaces Lucky Mix as its own entry only in "separate" nav mode —
+  // in hub mode it lives inside the Build-a-Mix landing page instead.
+  const luckyMixAvailable = luckyMixBase && randomNavMode === 'separate';
   const [libraryDropdownOpen, setLibraryDropdownOpen] = useState(false);
   const [playlistsExpanded, setPlaylistsExpanded] = useState(false);
   const playlistsRaw = usePlaylistStore(s => s.playlists);

@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Shuffle, Dices, Sparkles } from 'lucide-react';
-import { useAuthStore } from '../store/authStore';
+import { useLuckyMixAvailable } from '../hooks/useLuckyMixAvailable';
 
 interface MixCard {
   icon: React.ElementType;
@@ -29,10 +29,9 @@ const CARDS: MixCard[] = [
 export default function RandomLanding() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const activeServerId = useAuthStore(s => s.activeServerId);
-  const showLuckyMixMenu = useAuthStore(s => s.showLuckyMixMenu);
-  const audiomuseByServer = useAuthStore(s => s.audiomuseNavidromeByServer);
-  const luckyMixAvailable = showLuckyMixMenu && Boolean(activeServerId && audiomuseByServer[activeServerId]);
+  // RandomLanding is only reachable in "hub" nav mode, so we don't need to
+  // gate on randomNavMode here — availability alone is enough.
+  const luckyMixAvailable = useLuckyMixAvailable();
   const cards = luckyMixAvailable
     ? [
         ...CARDS,

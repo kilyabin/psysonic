@@ -730,7 +730,13 @@ export default function QueuePanel() {
                 </div>
               </div>
               {luckyRolling && isPlaying && (
-                <div className="queue-lucky-loading" aria-hidden>
+                <button
+                  type="button"
+                  className="queue-lucky-loading"
+                  onClick={() => useLuckyMixStore.getState().cancel()}
+                  data-tooltip={t('luckyMix.cancelTooltip')}
+                  aria-label={t('luckyMix.cancelTooltip')}
+                >
                   <div className="queue-lucky-loading__dice">
                     <div className="queue-lucky-cube queue-lucky-cube--a">
                       <span className="lucky-mix-pip lucky-mix-pip--tl" />
@@ -747,7 +753,7 @@ export default function QueuePanel() {
                       <span className="lucky-mix-pip lucky-mix-pip--br" />
                     </div>
                   </div>
-                </div>
+                </button>
               )}
               </React.Fragment>
             );

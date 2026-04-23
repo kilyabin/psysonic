@@ -6,6 +6,7 @@ import { useSidebarStore } from '../store/sidebarStore';
 import { useAuthStore } from '../store/authStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { ALL_NAV_ITEMS } from '../config/navItems';
+import { useLuckyMixAvailable } from '../hooks/useLuckyMixAvailable';
 
 const BOTTOM_NAV_ROUTES = new Set(['/', '/albums', '/now-playing']);
 
@@ -14,11 +15,10 @@ export default function MobileMoreOverlay({ onClose }: { onClose: () => void }) 
   const sidebarItems = useSidebarStore(s => s.items);
   const randomNavMode = useAuthStore(s => s.randomNavMode);
   const serverId = useAuthStore(s => s.activeServerId ?? '');
-  const showLuckyMixMenu = useAuthStore(s => s.showLuckyMixMenu);
-  const audiomuseByServer = useAuthStore(s => s.audiomuseNavidromeByServer);
   const offlineAlbums = useOfflineStore(s => s.albums);
   const hasOfflineContent = Object.values(offlineAlbums).some(a => a.serverId === serverId);
-  const luckyMixAvailable = randomNavMode === 'separate' && showLuckyMixMenu && Boolean(serverId && audiomuseByServer[serverId]);
+  const luckyMixBase = useLuckyMixAvailable();
+  const luckyMixAvailable = luckyMixBase && randomNavMode === 'separate';
 
   const items = sidebarItems
     .filter(cfg => {
