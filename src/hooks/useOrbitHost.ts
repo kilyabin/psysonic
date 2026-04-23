@@ -1,14 +1,25 @@
 import { useEffect, useRef } from 'react';
 import { useOrbitStore } from '../store/orbitStore';
-import { usePlayerStore } from '../store/playerStore';
+import { usePlayerStore, songToTrack } from '../store/playerStore';
+import { getSong } from '../api/subsonic';
 import {
   writeOrbitState,
   writeOrbitHeartbeat,
   sweepGuestOutboxes,
   applyOutboxSnapshotsToState,
   maybeShuffleQueue,
+  ORBIT_SHUFFLE_INTERVAL_MS,
 } from '../utils/orbit';
-import { orbitOutboxPlaylistName, type OrbitState } from '../api/orbit';
+import {
+  orbitOutboxPlaylistName,
+  type OrbitState,
+  type OrbitQueueItem,
+} from '../api/orbit';
+import { showToast } from '../utils/toast';
+import i18n from '../i18n';
+
+/** Stable per-suggestion key — survives reshuffles since all three fields are immutable. */
+const suggestionKey = (q: OrbitQueueItem): string => `${q.addedBy}:${q.addedAt}:${q.trackId}`;
 
 /**
  * Orbit — host-side tick hook.
@@ -42,10 +53,21 @@ export function useOrbitHost(): void {
   // recompute against, no need to subscribe to every playerStore tick.
   const lastPushedAtRef = useRef(0);
 
+  /**
+   * Tracks which guest-submitted queue items we've already appended to the
+   * local playerStore queue. Prevents duplicate enqueues on every tick and
+   * when `maybeShuffleQueue` reorders `state.queue` without adding items.
+   * Reset on session start / end via the `active` effect below.
+   */
+  const mergedSuggestionsRef = useRef<Set<string>>(new Set());
+
   const active = role === 'host' && phase === 'active' && !!sessionPlaylistId;
 
   useEffect(() => {
     if (!active || !sessionPlaylistId) return;
+
+    // Fresh session → nothing has been merged yet.
+    mergedSuggestionsRef.current = new Set();
 
     const snapshotPlayerPatch = (hostUsername: string): Partial<OrbitState> => {
       const p = usePlayerStore.getState();
@@ -80,18 +102,94 @@ export function useOrbitHost(): void {
         afterSweep = applyOutboxSnapshotsToState(base, snaps);
       } catch { /* best-effort; keep old participants and queue */ }
 
-      // 2) Shuffle check — no-op unless >= 15 min since last shuffle.
-      const afterShuffle = maybeShuffleQueue(afterSweep);
+      // 2) Merge newly-suggested items into the host's local play queue so
+      //    guest suggestions actually start playing alongside host-chosen
+      //    tracks. Must happen BEFORE the shuffle step so the merge decision
+      //    tracks `addedAt` (immutable) rather than list position.
+      await mergeNewSuggestionsIntoQueue(afterSweep.queue);
 
-      // 3) Overlay the host's live playback snapshot.
+      // 3) Shuffle check:
+      //    a) `maybeShuffleQueue` handles the OrbitState.queue (guest-facing
+      //       suggestion list). It also bumps `lastShuffle` even when the list
+      //       is too small to reorder — that's the authoritative 15-min marker.
+      //    b) In parallel, we shuffle the *host's* upcoming play queue so the
+      //       mix the guests hear actually changes. `autoShuffle=false` skips
+      //       both.
+      const shouldShuffleNow = afterSweep.settings?.autoShuffle !== false
+        && (Date.now() - afterSweep.lastShuffle >= ORBIT_SHUFFLE_INTERVAL_MS);
+      const afterShuffle = maybeShuffleQueue(afterSweep);
+      if (shouldShuffleNow) {
+        const before = usePlayerStore.getState().queue.length;
+        usePlayerStore.getState().shuffleUpcomingQueue();
+        if (before > 0) showToast(i18n.t('orbit.toastShuffled'), 2500, 'info');
+      }
+
+      // 4) Overlay the host's live playback snapshot.
       const next: OrbitState = { ...afterShuffle, ...snapshotPlayerPatch(base.host) };
 
-      // 4) Commit locally + push remote.
+      // 5) Commit locally + push remote.
       useOrbitStore.getState().setState(next);
       try {
         await writeOrbitState(sessionPlaylistId, next);
         lastPushedAtRef.current = Date.now();
       } catch { /* best-effort; next tick retries */ }
+    };
+
+    /**
+     * Resolve each not-yet-merged suggestion via `getSong` and append to the
+     * player queue. Records a toast per successful append so the host notices
+     * guest activity. Safe to call every tick — the set filter keeps it idempotent.
+     */
+    const mergeNewSuggestionsIntoQueue = async (items: readonly OrbitQueueItem[]) => {
+      // Opt-out: host turned auto-approve off. Items still accumulate in
+      // `OrbitState.queue` and show up in the guest view / approval list —
+      // they just don't flow into the host's actual play queue yet.
+      const settings = useOrbitStore.getState().state?.settings;
+      if (settings && settings.autoApprove === false) return;
+
+      const merged = mergedSuggestionsRef.current;
+      const pending = items.filter(q => !merged.has(suggestionKey(q)));
+      if (pending.length === 0) return;
+
+      // Resolve in parallel — Navidrome is fine with concurrent getSong calls.
+      const resolved = await Promise.all(pending.map(async q => {
+        try {
+          const song = await getSong(q.trackId);
+          return song ? { q, track: songToTrack(song) } : null;
+        } catch {
+          return null;
+        }
+      }));
+
+      const toEnqueue = resolved.filter((r): r is { q: OrbitQueueItem; track: ReturnType<typeof songToTrack> } => r !== null);
+      if (toEnqueue.length === 0) {
+        // Mark the failed lookups as seen anyway so we don't keep retrying
+        // every tick for a track the server can't serve.
+        pending.forEach(q => merged.add(suggestionKey(q)));
+        return;
+      }
+
+      // Sprinkle each track at a random spot inside the upcoming range so
+      // guest suggestions interleave with host-picked tracks rather than
+      // pile up at the end (where they'd never play until the 15-min shuffle).
+      const player = usePlayerStore.getState();
+      for (const { track } of toEnqueue) {
+        const live = usePlayerStore.getState();
+        const from = Math.max(0, live.queueIndex + 1);
+        const to   = live.queue.length;
+        const span = Math.max(1, to - from + 1);
+        const pos  = from + Math.floor(Math.random() * span);
+        player.enqueueAt([track], pos);
+      }
+      pending.forEach(q => merged.add(suggestionKey(q)));
+
+      // Friendly nudge per sweep, not per track — bundled toast if >1.
+      if (toEnqueue.length === 1) {
+        const { q, track } = toEnqueue[0];
+        showToast(i18n.t('orbit.toastSuggested', { user: q.addedBy, title: track.title }), 3000, 'info');
+      } else {
+        showToast(i18n.t('orbit.toastSuggestedMany', { count: toEnqueue.length }), 3000, 'info');
+      }
     };
 
     // Immediate push on mount so guests see fresh state without waiting

@@ -1449,10 +1449,10 @@ export default function ContextMenu() {
               {orbitRole === 'guest' && (
                 <div className="context-menu-item" onClick={() => handleAction(() => {
                   suggestOrbitTrack(song.id)
-                    .then(() => showToast('Suggested to session', 2200, 'info'))
-                    .catch(() => showToast('Couldn\'t suggest — not joined', 3000, 'error'));
+                    .then(() => showToast(t('orbit.ctxSuggestedToast'), 2200, 'info'))
+                    .catch(() => showToast(t('orbit.ctxSuggestFailed'), 3000, 'error'));
                 })}>
-                  <OrbitIcon size={14} /> Add to session
+                  <OrbitIcon size={14} /> {t('orbit.ctxAddToSession')}
                 </div>
               )}
               <div
@@ -1590,10 +1590,10 @@ export default function ContextMenu() {
               {orbitRole === 'guest' && (
                 <div className="context-menu-item" onClick={() => handleAction(() => {
                   suggestOrbitTrack(song.id)
-                    .then(() => showToast('Suggested to session', 2200, 'info'))
-                    .catch(() => showToast('Couldn\'t suggest — not joined', 3000, 'error'));
+                    .then(() => showToast(t('orbit.ctxSuggestedToast'), 2200, 'info'))
+                    .catch(() => showToast(t('orbit.ctxSuggestFailed'), 3000, 'error'));
                 })}>
-                  <OrbitIcon size={14} /> Add to session
+                  <OrbitIcon size={14} /> {t('orbit.ctxAddToSession')}
                 </div>
               )}
               <div

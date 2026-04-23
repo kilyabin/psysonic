@@ -8,6 +8,7 @@ import {
 } from '../api/subsonic';
 import { useAuthStore } from '../store/authStore';
 import { useOrbitStore } from '../store/orbitStore';
+import { usePlayerStore } from '../store/playerStore';
 import {
   makeInitialOrbitState,
   orbitOutboxPlaylistName,
@@ -36,10 +37,25 @@ import {
 // ── ID generation ───────────────────────────────────────────────────────
 
 /** 8 lowercase hex chars — unique enough for concurrent-session collision-free naming. */
-function generateSessionId(): string {
+export function generateSessionId(): string {
   const bytes = new Uint8Array(4);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Turn a human session name into a URL-safe slug. Ignores non-ASCII
+ * characters so the output is stable across locales and safe in a
+ * `psysonic2://` link. Returns an empty string for names that slugify
+ * to nothing — callers should fall back to a slug-less link in that case.
+ */
+export function slugifyOrbitName(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
 }
 
 // ── Serialisation ───────────────────────────────────────────────────────
@@ -125,6 +141,12 @@ export interface StartOrbitArgs {
   name: string;
   /** Max participants (defaults to `ORBIT_DEFAULT_MAX_USERS`). */
   maxUsers?: number;
+  /**
+   * Pre-generated session id. Lets the caller (e.g. the start modal) show a
+   * stable share-link *before* the session is actually created. Falls back
+   * to a fresh id when omitted.
+   */
+  sid?: string;
 }
 
 /**
@@ -151,7 +173,7 @@ export async function startOrbitSession(args: StartOrbitArgs): Promise<OrbitStat
   let sessionPlaylistId: string | null = null;
   let outboxPlaylistId:  string | null = null;
   try {
-    const sid = generateSessionId();
+    const sid = args.sid ?? generateSessionId();
     const sessionName = orbitSessionPlaylistName(sid);
     const outboxName  = orbitOutboxPlaylistName(sid, username);
 
@@ -236,6 +258,51 @@ export function patchOrbitState(patch: Partial<OrbitState>): OrbitState | null {
   return next;
 }
 
+/**
+ * Host-only: update the session settings and immediately push to Navidrome
+ * so guests see the change on their next poll. No-op unless the caller is
+ * the current host with an active session.
+ */
+/**
+ * Host-only: force an immediate shuffle of the upcoming play queue, bump
+ * `lastShuffle` so the automatic 15-min timer resets, and push the new
+ * state to Navidrome. Ignores the `autoShuffle` setting — this is an
+ * explicit user action.
+ */
+export async function triggerOrbitShuffleNow(): Promise<void> {
+  const store = useOrbitStore.getState();
+  if (store.role !== 'host' || !store.state || !store.sessionPlaylistId) return;
+
+  // 1) Shuffle the host's real play queue (upcoming only).
+  usePlayerStore.getState().shuffleUpcomingQueue();
+
+  // 2) Shuffle the OrbitState.queue (guest-facing suggestion history) +
+  //    bump lastShuffle so the auto-shuffle timer restarts.
+  const now = Date.now();
+  const shuffled = store.state.queue.slice();
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  const next: OrbitState = { ...store.state, queue: shuffled, lastShuffle: now };
+  store.setState(next);
+  try { await writeOrbitState(store.sessionPlaylistId, next); }
+  catch { /* best-effort; next host-tick will push */ }
+}
+
+export async function updateOrbitSettings(patch: Partial<import('../api/orbit').OrbitSettings>): Promise<void> {
+  const store = useOrbitStore.getState();
+  if (store.role !== 'host' || !store.state || !store.sessionPlaylistId) return;
+  const mergedSettings: import('../api/orbit').OrbitSettings = {
+    ...(store.state.settings ?? { autoApprove: true, autoShuffle: true }),
+    ...patch,
+  };
+  const next: OrbitState = { ...store.state, settings: mergedSettings };
+  store.setState(next);
+  try { await writeOrbitState(store.sessionPlaylistId, next); }
+  catch { /* best-effort; next host-tick will push the current state anyway */ }
+}
+
 // ── Share link ──────────────────────────────────────────────────────────
 
 export const ORBIT_SHARE_SCHEME = 'psysonic2://orbit/';
@@ -262,8 +329,12 @@ export function parseOrbitShareLink(url: string): OrbitShareLink | null {
   const slash = stripped.indexOf('/');
   if (slash <= 0) return null;
   const serverB64 = stripped.slice(0, slash);
-  const sid       = stripped.slice(slash + 1).replace(/\/+$/, '');
-  if (!/^[0-9a-f]{8}$/i.test(sid)) return null;
+  const tail      = stripped.slice(slash + 1).replace(/\/+$/, '');
+  // Tail is either `<sid>` or `<slug>-<sid>` — the SID is always the
+  // terminal 8-hex group. The slug is purely cosmetic for the sender.
+  const m = tail.match(/(?:^|-)([0-9a-f]{8})$/i);
+  if (!m) return null;
+  const sid = m[1].toLowerCase();
   let serverBase: string;
   try {
     serverBase = atob(serverB64);
@@ -272,9 +343,14 @@ export function parseOrbitShareLink(url: string): OrbitShareLink | null {
   return { serverBase, sid };
 }
 
-/** Build a share link for a live session. */
-export function buildOrbitShareLink(serverBase: string, sid: string): string {
-  return `${ORBIT_SHARE_SCHEME}${btoa(serverBase)}/${sid}`;
+/**
+ * Build a share link for a live session. When `slug` is provided (and
+ * non-empty) it is prepended to the SID for a friendlier-looking URL
+ * — the parser strips it on the receiving side.
+ */
+export function buildOrbitShareLink(serverBase: string, sid: string, slug?: string): string {
+  const tail = slug && slug.length > 0 ? `${slug}-${sid}` : sid;
+  return `${ORBIT_SHARE_SCHEME}${btoa(serverBase)}/${tail}`;
 }
 
 // ── Playlist lookup ─────────────────────────────────────────────────────
@@ -522,6 +598,7 @@ export const ORBIT_SHUFFLE_INTERVAL_MS = 15 * 60_000;
  * `currentTrack` is never touched.
  */
 export function maybeShuffleQueue(state: OrbitState, nowMs: number = Date.now()): OrbitState {
+  if (state.settings?.autoShuffle === false) return state;
   if (nowMs - state.lastShuffle < ORBIT_SHUFFLE_INTERVAL_MS) return state;
   if (state.queue.length < 2) {
     // Still bump `lastShuffle` so the next eligible shuffle is 15 min away,

@@ -37,31 +37,32 @@ export default function PasteClipboardHandler() {
       if (orbit) {
         e.preventDefault();
         e.stopPropagation();
-        if (!isLoggedIn) { showToast('Log in before joining a session', 4000, 'info'); return; }
+        if (!isLoggedIn) { showToast(t('orbit.toastLoginFirst'), 4000, 'info'); return; }
         const active = useAuthStore.getState().getActiveServer();
         const activeUrl = (active?.url ?? '').replace(/\/+$/, '');
         const wantUrl   = orbit.serverBase.replace(/\/+$/, '');
         if (activeUrl !== wantUrl) {
-          showToast(`Switch to ${wantUrl} first, then paste again`, 5000, 'info');
+          showToast(t('orbit.toastSwitchServer', { url: wantUrl }), 5000, 'info');
           return;
         }
         if (busy.current) return;
         busy.current = true;
         joinOrbitSession(orbit.sid)
-          .then(() => showToast('Joined session', 2500, 'info'))
+          .then(() => showToast(t('orbit.toastJoined'), 2500, 'info'))
           .catch(err => {
             if (err instanceof OrbitJoinError) {
-              const msg: Record<string, string> = {
-                'not-found': 'Session not found',
-                'ended':     'Session has ended',
-                'full':      'Session is full',
-                'kicked':    'You can\'t rejoin this session',
-                'no-user':   'No active server',
-                'server-error': 'Couldn\'t join',
+              const key: Record<string, string> = {
+                'not-found':    'orbit.joinErrNotFound',
+                'ended':        'orbit.joinErrEnded',
+                'full':         'orbit.joinErrFull',
+                'kicked':       'orbit.joinErrKicked',
+                'no-user':      'orbit.joinErrNoUser',
+                'server-error': 'orbit.joinErrServerError',
               };
-              showToast(msg[err.reason] ?? err.message, 4000, 'error');
+              const i18nKey = key[err.reason];
+              showToast(i18nKey ? t(i18nKey) : err.message, 4000, 'error');
             } else {
-              showToast('Couldn\'t join session', 4000, 'error');
+              showToast(t('orbit.toastJoinFail'), 4000, 'error');
             }
           })
           .finally(() => { busy.current = false; });

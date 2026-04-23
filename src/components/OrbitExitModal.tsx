@@ -1,4 +1,5 @@
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { useOrbitStore } from '../store/orbitStore';
 import { leaveOrbitSession } from '../utils/orbit';
 
@@ -12,6 +13,7 @@ import { leaveOrbitSession } from '../utils/orbit';
  * "OK" cleans up the guest-side outbox + resets the local store.
  */
 export default function OrbitExitModal() {
+  const { t } = useTranslation();
   const phase        = useOrbitStore(s => s.phase);
   const errorMessage = useOrbitStore(s => s.errorMessage);
   const role         = useOrbitStore(s => s.role);
@@ -22,12 +24,10 @@ export default function OrbitExitModal() {
   const isKicked = phase === 'error' && errorMessage === 'kicked';
   if (!isEnded && !isKicked) return null;
 
-  const title = isKicked
-    ? 'You were removed from the session'
-    : 'The host ended the session';
-  const body = isKicked
-    ? `@${hostName ?? 'host'} removed you from "${sessionName ?? 'the session'}".`
-    : `"${sessionName ?? 'The session'}" has ended. Hope you had fun.`;
+  const title = isKicked ? t('orbit.exitKickedTitle') : t('orbit.exitEndedTitle');
+  const body  = isKicked
+    ? t('orbit.exitKickedBody', { host: hostName ?? '', name: sessionName ?? '' })
+    : t('orbit.exitEndedBody',  { name: sessionName ?? '' });
 
   const onOk = async () => {
     try {
@@ -50,7 +50,7 @@ export default function OrbitExitModal() {
         <h3 id="orbit-exit-title" className="orbit-exit-modal__title">{title}</h3>
         <p className="orbit-exit-modal__body">{body}</p>
         <div className="orbit-exit-modal__actions">
-          <button type="button" className="btn btn-primary" onClick={onOk}>OK</button>
+          <button type="button" className="btn btn-primary" onClick={onOk}>{t('orbit.exitOk')}</button>
         </div>
       </div>
     </div>,

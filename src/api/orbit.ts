@@ -78,7 +78,25 @@ export interface OrbitState {
   kicked: string[];
   /** Set when the host has ended the session; guests should exit on next poll. */
   ended?: boolean;
+  /** Host-settable session rules; absent on older clients — treat missing as all-defaults. */
+  settings?: OrbitSettings;
 }
+
+/**
+ * Host-configurable rules. All default to `true`, i.e. the feature runs
+ * "all on" for new sessions. Toggled via the Orbit-bar settings popover.
+ */
+export interface OrbitSettings {
+  /** Guest suggestions go straight into the host's play queue. */
+  autoApprove: boolean;
+  /** Queue is reshuffled every `ORBIT_SHUFFLE_INTERVAL_MS`. */
+  autoShuffle: boolean;
+}
+
+export const ORBIT_DEFAULT_SETTINGS: OrbitSettings = {
+  autoApprove: true,
+  autoShuffle: true,
+};
 
 /** What the guest's outbox-playlist comment holds (heartbeat only, for now). */
 export interface OrbitOutboxMeta {
@@ -117,6 +135,7 @@ export function makeInitialOrbitState(args: {
     lastShuffle: now,
     participants: [],
     kicked: [],
+    settings: { ...ORBIT_DEFAULT_SETTINGS },
   };
 }
 

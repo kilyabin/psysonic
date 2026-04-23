@@ -212,6 +212,8 @@ interface PlayerState {
   reorderQueue: (startIndex: number, endIndex: number) => void;
   removeTrack: (index: number) => void;
   shuffleQueue: () => void;
+  /** Shuffle only the tracks after the current one — leaves played history intact. */
+  shuffleUpcomingQueue: () => void;
 
   toggleLastfmLove: () => void;
   setLastfmLoved: (v: boolean) => void;
@@ -1823,6 +1825,22 @@ export const usePlayerStore = create<PlayerState>()(
           : others;
         const newIndex = currentIdx >= 0 ? 0 : -1;
         set({ queue: result, queueIndex: Math.max(0, newIndex) });
+        syncQueueToServer(result, currentTrack, get().currentTime);
+      },
+
+      shuffleUpcomingQueue: () => {
+        const { queue, queueIndex, currentTrack } = get();
+        const upcomingStart = queueIndex + 1;
+        const upcomingCount = queue.length - upcomingStart;
+        if (upcomingCount < 2) return;
+        const head     = queue.slice(0, upcomingStart);
+        const upcoming = queue.slice(upcomingStart);
+        for (let i = upcoming.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [upcoming[i], upcoming[j]] = [upcoming[j], upcoming[i]];
+        }
+        const result = [...head, ...upcoming];
+        set({ queue: result });
         syncQueueToServer(result, currentTrack, get().currentTime);
       },
 

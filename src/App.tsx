@@ -63,6 +63,7 @@ import ExportPickerModal from './components/ExportPickerModal';
 import AppUpdater from './components/AppUpdater';
 import TitleBar from './components/TitleBar';
 import OrbitSessionBar from './components/OrbitSessionBar';
+import OrbitStartTrigger from './components/OrbitStartTrigger';
 import { useOrbitHost } from './hooks/useOrbitHost';
 import { useOrbitGuest } from './hooks/useOrbitGuest';
 import { IS_LINUX, IS_MACOS, IS_WINDOWS } from './utils/platform';
@@ -414,7 +415,6 @@ function AppShell() {
       onContextMenu={e => e.preventDefault()}
     >
       {IS_LINUX && useCustomTitlebar && !isWindowFullscreen && !isTilingWm && <TitleBar />}
-      <OrbitSessionBar />
       {!isMobile && (
         <Sidebar
           isCollapsed={isSidebarCollapsed}
@@ -429,6 +429,7 @@ function AppShell() {
           <ConnectionIndicator status={connStatus} isLan={isLan} serverName={serverName} />
           <LastfmIndicator />
           <NowPlayingDropdown />
+          <OrbitStartTrigger />
           <button
             className="queue-toggle-btn"
             onClick={toggleQueue}
@@ -438,6 +439,7 @@ function AppShell() {
             {isQueueVisible ? <PanelRightClose size={18} /> : <PanelRight size={18} />}
           </button>
         </header>
+        <OrbitSessionBar />
         {connStatus === 'disconnected' && (
           <OfflineBanner onRetry={connRetry} isChecking={connRetrying} showSettingsLink={!hasOfflineContent} serverName={serverName} />
         )}

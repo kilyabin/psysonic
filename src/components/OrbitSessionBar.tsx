@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { X, RefreshCw } from 'lucide-react';
+import { X, RefreshCw, Shuffle, Settings2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useOrbitStore } from '../store/orbitStore';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { getSong } from '../api/subsonic';
@@ -12,6 +13,7 @@ import { ORBIT_SHUFFLE_INTERVAL_MS } from '../utils/orbit';
 import { estimateLivePosition } from '../api/orbit';
 import OrbitParticipantsPopover from './OrbitParticipantsPopover';
 import OrbitExitModal from './OrbitExitModal';
+import OrbitSettingsPopover from './OrbitSettingsPopover';
 
 /**
  * Orbit — top-strip session indicator.
@@ -35,13 +37,16 @@ function formatCountdown(ms: number): string {
 }
 
 export default function OrbitSessionBar() {
+  const { t } = useTranslation();
   const state              = useOrbitStore(s => s.state);
   const role               = useOrbitStore(s => s.role);
   const phase              = useOrbitStore(s => s.phase);
   const errorMessage       = useOrbitStore(s => s.errorMessage);
   const [nowMs, setNowMs]  = useState(() => Date.now());
   const [peopleOpen, setPeopleOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const peopleBtnRef = useRef<HTMLButtonElement>(null);
+  const settingsBtnRef = useRef<HTMLButtonElement>(null);
 
   // Second-level tick just for the shuffle countdown + drift readout —
   // the store itself only ticks at 2.5 s which is too coarse for a smooth
@@ -128,40 +133,55 @@ export default function OrbitSessionBar() {
           type="button"
           className="orbit-bar__count"
           onClick={() => setPeopleOpen(v => !v)}
-          data-tooltip="Participants"
+          data-tooltip={t('orbit.participantsTooltip')}
           aria-haspopup="menu"
           aria-expanded={peopleOpen || undefined}
         >
           {participantCount}/{state.maxUsers}
         </button>
         <span className="orbit-bar__sep">·</span>
-        <span className="orbit-bar__host">host: @{state.host}</span>
+        <span className="orbit-bar__host">{t('orbit.hostLabel', { name: state.host })}</span>
       </div>
 
       <div className="orbit-bar__center">
-        <span className="orbit-bar__shuffle" data-tooltip="Queue reshuffles on this timer">
-          🔀 {formatCountdown(untilShuffle)}
+        <span className="orbit-bar__shuffle">
+          <Shuffle size={13} className="orbit-bar__shuffle-icon" />
+          <span>{t('orbit.shuffleLabel')}</span>
+          <strong className="orbit-bar__shuffle-time">{formatCountdown(untilShuffle)}</strong>
         </span>
       </div>
 
       <div className="orbit-bar__right">
+        {role === 'host' && (
+          <button
+            ref={settingsBtnRef}
+            type="button"
+            className="orbit-bar__settings"
+            onClick={() => setSettingsOpen(v => !v)}
+            data-tooltip={t('orbit.settingsTooltip')}
+            aria-haspopup="menu"
+            aria-expanded={settingsOpen || undefined}
+          >
+            <Settings2 size={14} />
+          </button>
+        )}
         {showCatchUp && (
           <button
             type="button"
             className="orbit-bar__catchup"
             onClick={onCatchUp}
-            data-tooltip="Jump to the host's current position"
+            data-tooltip={t('orbit.catchUpTooltip')}
           >
             <RefreshCw size={13} />
-            <span>catch up</span>
+            <span>{t('orbit.catchUpLabel')}</span>
           </button>
         )}
         <button
           type="button"
           className="orbit-bar__exit"
           onClick={onExit}
-          data-tooltip={role === 'host' ? 'End session' : 'Leave session'}
-          aria-label={role === 'host' ? 'End session' : 'Leave session'}
+          data-tooltip={role === 'host' ? t('orbit.endTooltip') : t('orbit.leaveTooltip')}
+          aria-label={role === 'host' ? t('orbit.endTooltip') : t('orbit.leaveTooltip')}
         >
           <X size={15} />
         </button>
@@ -171,6 +191,12 @@ export default function OrbitSessionBar() {
         <OrbitParticipantsPopover
           anchorRef={peopleBtnRef}
           onClose={() => setPeopleOpen(false)}
+        />
+      )}
+      {settingsOpen && (
+        <OrbitSettingsPopover
+          anchorRef={settingsBtnRef}
+          onClose={() => setSettingsOpen(false)}
         />
       )}
       <OrbitExitModal />
