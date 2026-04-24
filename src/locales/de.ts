@@ -1552,7 +1552,6 @@ export const deTranslation = {
     guestUpNext: 'Als Nächstes',
     guestUpNextEmpty: 'Nichts in der Warteschlange. Öffne bei einem Song das Kontextmenü und wähle „Zur Orbit-Session hinzufügen", um etwas vorzuschlagen.',
     guestUpNextMore: '+ {{count}} weitere in der Host-Warteschlange',
-    guestHost: 'Gastgeber: {{name}}',
     guestSubmitter: 'von {{user}}',
     guestEmpty: 'Noch keine Vorschläge. Öffne bei einem Song das Kontextmenü und wähle „Zur Orbit-Session hinzufügen".',
     guestFooter: 'Die Wiedergabe wird vom Gastgeber gesteuert — du kannst die Liste nicht ändern.',

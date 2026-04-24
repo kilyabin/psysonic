@@ -1555,7 +1555,6 @@ export const enTranslation = {
     guestUpNext: 'Up next',
     guestUpNextEmpty: 'Nothing queued. Open a track\'s context menu and pick "Add to Orbit session" to suggest one.',
     guestUpNextMore: '+ {{count}} more in the host\'s queue',
-    guestHost: 'Host: {{name}}',
     guestSubmitter: 'by {{user}}',
     guestEmpty: 'No suggestions yet. Open a track\'s context menu and pick "Add to Orbit session".',
     guestFooter: "The host controls playback — you can't change the list.",

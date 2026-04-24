@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Radio, Users } from 'lucide-react';
+import { Radio } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useOrbitStore } from '../store/orbitStore';
 import {
@@ -9,6 +9,7 @@ import {
   type SubsonicSong,
 } from '../api/subsonic';
 import CachedImage from './CachedImage';
+import OrbitQueueHead from './OrbitQueueHead';
 
 /**
  * Orbit — guest-side queue view.
@@ -67,12 +68,7 @@ export default function OrbitGuestQueue() {
 
   return (
     <div className="orbit-guest-queue">
-      <div className="orbit-guest-queue__head">
-        <h2 className="orbit-guest-queue__title">{state.name}</h2>
-        <div className="orbit-guest-queue__meta">
-          <Users size={11} /> {state.participants.length + 1} · {t('orbit.guestHost', { name: state.host })}
-        </div>
-      </div>
+      <OrbitQueueHead state={state} />
 
       {currentTrack && (
         <div className="orbit-guest-queue__current">

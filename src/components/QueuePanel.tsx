@@ -2,6 +2,7 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Track, usePlayerStore, songToTrack } from '../store/playerStore';
 import { useOrbitStore } from '../store/orbitStore';
 import OrbitGuestQueue from './OrbitGuestQueue';
+import OrbitQueueHead from './OrbitQueueHead';
 import { Play, Music, Star, X, Trash2, Save, FolderOpen, Shuffle, Infinity, Waves, MicVocal, ListMusic, Check, ListPlus, MoveRight, Radio, HardDrive, ChevronDown, Info, Share2 } from 'lucide-react';
 import { buildCoverArtUrl, coverArtCacheKey, getAlbum, getPlaylists, getPlaylist, updatePlaylist, deletePlaylist, SubsonicPlaylist } from '../api/subsonic';
 import { usePlaylistStore } from '../store/playlistStore';
@@ -247,6 +248,8 @@ export default function QueuePanel() {
 function QueuePanelHostOrSolo() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const orbitRole = useOrbitStore(s => s.role);
+  const orbitState = useOrbitStore(s => s.state);
   const queue = usePlayerStore(s => s.queue);
   const queueIndex = usePlayerStore(s => s.queueIndex);
   const currentTrack = usePlayerStore(s => s.currentTrack);
@@ -465,6 +468,9 @@ function QueuePanelHostOrSolo() {
         borderLeftWidth: isQueueVisible ? 1 : 0,
       }}
     >
+      {orbitRole === 'host' && orbitState && (
+        <OrbitQueueHead state={orbitState} />
+      )}
       <QueueHeader
         queue={queue}
         queueIndex={queueIndex}

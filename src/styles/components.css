@@ -12267,12 +12267,12 @@ html[data-psy-native-hidden="true"] *::after {
   flex: 1;
 }
 
-.orbit-guest-queue__head {
+.orbit-queue-head {
   padding: 14px 14px 10px;
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
 }
-.orbit-guest-queue__title {
+.orbit-queue-head__title {
   margin: 0 0 4px;
   font-size: 15px;
   font-weight: 700;
@@ -12281,14 +12281,21 @@ html[data-psy-native-hidden="true"] *::after {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.orbit-guest-queue__meta {
-  display: inline-flex;
+.orbit-queue-head__meta {
+  display: flex;
   align-items: center;
   gap: 5px;
   font-size: 11px;
   color: var(--text-muted);
+  min-width: 0;
 }
-.orbit-guest-queue__meta svg { color: var(--accent); }
+.orbit-queue-head__meta svg { color: var(--accent); flex-shrink: 0; }
+.orbit-queue-head__names {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
 
 .orbit-guest-queue__current {
   position: relative;
