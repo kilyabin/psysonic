@@ -11876,7 +11876,7 @@ html[data-psy-native-hidden="true"] *::after {
 .orbit-start-modal {
   max-width: 480px;
   width: min(480px, calc(100vw - 32px));
-  padding: 22px 26px 20px;
+  padding: 18px 26px 16px;
   position: relative;
 }
 
@@ -11885,8 +11885,8 @@ html[data-psy-native-hidden="true"] *::after {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 4px 0 14px;
-  margin-bottom: 14px;
+  padding: 0 0 10px;
+  margin-bottom: 12px;
   border-bottom: 1px solid color-mix(in srgb, var(--text-primary) 8%, transparent);
 }
 
@@ -11894,13 +11894,13 @@ html[data-psy-native-hidden="true"] *::after {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 60px;
-  height: 60px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
   color: var(--accent);
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   box-shadow: 0 0 24px -6px color-mix(in srgb, var(--accent) 50%, transparent);
 }
 .orbit-start-modal__hero-icon--live {
@@ -11977,34 +11977,11 @@ html[data-psy-native-hidden="true"] *::after {
   color: var(--ctp-yellow, #f9e2af);
 }
 
-.orbit-start-modal__facts {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.orbit-start-modal__fact {
-  display: grid;
-  grid-template-columns: 18px 1fr;
-  align-items: start;
-  gap: 10px;
-  font-size: 12.5px;
-  color: var(--text-secondary, var(--text-primary));
-  line-height: 1.5;
-}
-.orbit-start-modal__fact svg {
-  margin-top: 2px;
-  color: var(--accent);
-  flex-shrink: 0;
-}
-
 .orbit-start-modal__field {
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
 .orbit-start-modal__field:last-of-type {
-  margin-bottom: 22px;
+  margin-bottom: 16px;
 }
 
 .orbit-start-modal__label {

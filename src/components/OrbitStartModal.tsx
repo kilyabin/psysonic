@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import {
   X, Check, Copy, Orbit as OrbitIcon,
-  Users, Music2, Shuffle, Dices, AlertTriangle, Globe2,
+  Dices, AlertTriangle, Globe2,
 } from 'lucide-react';
 import {
   startOrbitSession,
@@ -105,7 +105,7 @@ export default function OrbitStartModal({ onClose }: Props) {
 
         <div className="orbit-start-modal__hero">
           <div className="orbit-start-modal__hero-icon">
-            <OrbitIcon size={30} />
+            <OrbitIcon size={24} />
           </div>
           <h3 id="orbit-start-title" className="orbit-start-modal__title">
             {t('orbit.heroTitlePrefix')}{' '}
@@ -125,21 +125,6 @@ export default function OrbitStartModal({ onClose }: Props) {
           {onLan ? <AlertTriangle size={15} /> : <Globe2 size={15} />}
           <span>{onLan ? t('orbit.tipLan') : t('orbit.tipRemote')}</span>
         </div>
-
-        <ul className="orbit-start-modal__facts">
-          <li className="orbit-start-modal__fact">
-            <Users size={15} />
-            <span>{t('orbit.factSameServer')}</span>
-          </li>
-          <li className="orbit-start-modal__fact">
-            <Music2 size={15} />
-            <span>{t('orbit.factHost')}</span>
-          </li>
-          <li className="orbit-start-modal__fact">
-            <Shuffle size={15} />
-            <span>{t('orbit.factShuffle')}</span>
-          </li>
-        </ul>
 
         <div className="orbit-start-modal__field">
           <label className="orbit-start-modal__label" htmlFor="orbit-name">
