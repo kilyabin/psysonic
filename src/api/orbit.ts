@@ -106,6 +106,14 @@ export interface OrbitState {
    * before they reach the approval list. Symmetric — host can re-enable.
    */
   suggestionBlocked?: string[];
+  /**
+   * Authoritative count of suggestions actually waiting on host action right
+   * now (`state.queue` minus host-authored, merged, declined). The host
+   * rewrites it every tick — guests can't compute it themselves because the
+   * merged/declined sets live in the host's local store. Older clients that
+   * don't write the field fall back to a `state.queue` count in the UI.
+   */
+  pendingApprovalCount?: number;
 }
 
 /**

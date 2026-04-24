@@ -480,9 +480,14 @@ export function evaluateOrbitSuggestGate(): { allowed: boolean; reason: OrbitSug
   }
   const cap = state.settings?.maxPending ?? 0;
   if (cap > 0) {
-    const inState = state.queue.filter(q => q.addedBy !== state.host).length;
-    const total = inState + pendingSuggestions.length;
-    if (total >= cap) return { allowed: false, reason: 'cap-reached' };
+    // Prefer the host-pushed authoritative count when present; fall back to a
+    // raw queue scan for older hosts. Add the local guest's pending list on
+    // top — those are tracks the host hasn't swept in yet.
+    const knownPending = state.pendingApprovalCount
+      ?? state.queue.filter(q => q.addedBy !== state.host).length;
+    if (knownPending + pendingSuggestions.length >= cap) {
+      return { allowed: false, reason: 'cap-reached' };
+    }
   }
   return { allowed: true, reason: null };
 }

@@ -37,13 +37,13 @@ export default function OrbitQueueHead({ state }: Props) {
   const showPresence = role === 'guest' && state.positionAt > 0;
   const hostAway = showPresence && (nowMs - state.positionAt) > HOST_AWAY_THRESHOLD_MS;
   const cap = state.settings?.maxPending ?? 0;
-  // Approximate visible-pending count — same heuristic as evaluateOrbitSuggestGate.
-  // Conservative for guests (over-counts declined entries) but the host's
-  // own queue view sees the exact number because it has the merged/declined
-  // sets locally; we don't bother surfacing the exact count here either way
-  // since guests just need to know if they're near the cap.
+  // Authoritative count comes from the host's own tick (state.pendingApprovalCount).
+  // Older clients that predate that field fall back to the raw queue length
+  // — that one over-counts because merged/declined items stay in state.queue
+  // as history, but it's the best a non-host client can do.
   const pendingCount = cap > 0
-    ? state.queue.filter(q => q.addedBy !== state.host).length
+    ? (state.pendingApprovalCount
+      ?? state.queue.filter(q => q.addedBy !== state.host).length)
     : 0;
 
   return (
