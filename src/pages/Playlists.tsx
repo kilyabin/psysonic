@@ -191,6 +191,8 @@ export default function Playlists() {
   const [editingSmartId, setEditingSmartId] = useState<string | null>(null);
   const [pendingSmart, setPendingSmart] = useState<PendingSmartPlaylist[]>([]);
   const [smartCoverIdsByPlaylist, setSmartCoverIdsByPlaylist] = useState<Record<string, string[]>>({});
+  const [filteredSongCountByPlaylist, setFilteredSongCountByPlaylist] = useState<Record<string, number>>({});
+  const [filteredDurationByPlaylist, setFilteredDurationByPlaylist] = useState<Record<string, number>>({});
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -266,6 +268,48 @@ export default function Playlists() {
       const next: Record<string, string[]> = {};
       for (const [id, ids] of rows) next[id] = ids;
       setSmartCoverIdsByPlaylist(next);
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [playlists, musicLibraryFilterVersion]);
+
+  // Playlist list should reflect active library scope for song counts.
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      if (playlists.length === 0) {
+        if (!cancelled) {
+          setFilteredSongCountByPlaylist({});
+          setFilteredDurationByPlaylist({});
+        }
+        return;
+      }
+      const ids = playlists.map((pl) => pl.id);
+      const next: Record<string, number> = {};
+      const nextDuration: Record<string, number> = {};
+      for (let i = 0; i < ids.length; i += 4) {
+        const chunk = ids.slice(i, i + 4);
+        const rows = await Promise.all(
+          chunk.map(async (id) => {
+            try {
+              const { songs } = await getPlaylist(id);
+              const filtered = await filterSongsToActiveLibrary(songs);
+              const duration = filtered.reduce((acc, s) => acc + (s.duration ?? 0), 0);
+              return [id, filtered.length, duration] as const;
+            } catch {
+              return [id, -1, -1] as const;
+            }
+          }),
+        );
+        for (const [id, count, duration] of rows) {
+          if (count >= 0) next[id] = count;
+          if (duration >= 0) nextDuration[id] = duration;
+        }
+      }
+      if (!cancelled) {
+        setFilteredSongCountByPlaylist(next);
+        setFilteredDurationByPlaylist(nextDuration);
+      }
     };
     run();
     return () => { cancelled = true; };
@@ -503,7 +547,8 @@ export default function Playlists() {
     setPlayingId(pl.id);
     try {
       const data = await getPlaylist(pl.id);
-      const tracks = data.songs.map(songToTrack);
+      const filteredSongs = await filterSongsToActiveLibrary(data.songs);
+      const tracks = filteredSongs.map(songToTrack);
       if (tracks.length > 0) {
         touchPlaylist(pl.id);
         playTrack(tracks[0], tracks);
@@ -948,8 +993,10 @@ export default function Playlists() {
                   <span>{displayPlaylistName(pl.name)}</span>
                 </div>
                 <div className="album-card-artist">
-                  {t('playlists.songs', { n: pl.songCount })}
-                  {pl.duration > 0 && <> · {formatDuration(pl.duration)}</>}
+                  {t('playlists.songs', { n: filteredSongCountByPlaylist[pl.id] ?? pl.songCount })}
+                  {(filteredDurationByPlaylist[pl.id] ?? pl.duration) > 0 && (
+                    <> · {formatDuration(filteredDurationByPlaylist[pl.id] ?? pl.duration)}</>
+                  )}
                 </div>
               </div>
             </div>
