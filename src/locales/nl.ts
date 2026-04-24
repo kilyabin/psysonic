@@ -659,6 +659,8 @@ export const nlTranslation = {
     hiResDesc: "Beperkt de uitvoer standaard tot 44,1 kHz voor maximale stabiliteit. Alleen inschakelen als hardware en netwerk hoge samplerates (88,2 kHz+) ondersteunen.",
     showArtistImages: 'Artiestafbeeldingen weergeven',
     showArtistImagesDesc: 'Laadt en toont artiestafbeeldingen in het artiestenoverzicht. Standaard uitgeschakeld om server-I/O en netwerkbelasting bij grote bibliotheken te beperken.',
+    showOrbitTrigger: '"Psy Orbit" in de kop tonen',
+    showOrbitTriggerDesc: 'De knop in de kop voor starten of deelnemen aan een gedeelde luistersessie. Verberg hem als je Orbit niet gebruikt — je kunt hem hier weer aanzetten.',
     showTrayIcon: 'Tray-pictogram weergeven',
     showTrayIconDesc: 'Toont het Psysonic-pictogram in het systeemvak / de menubalk.',
     minimizeToTray: 'Minimaliseren naar systeemvak',

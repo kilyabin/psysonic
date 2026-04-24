@@ -670,6 +670,8 @@ export const deTranslation = {
     hiResDesc: "Standardmäßig wird auf 44,1 kHz begrenzt (maximale Stabilität). Nur aktivieren, wenn Hardware und Netzwerk zuverlässig hohe Abtastraten (88,2 kHz+) unterstützen.",
     showArtistImages: 'Künstlerbilder anzeigen',
     showArtistImagesDesc: 'Lädt und zeigt Künstlerbilder in der Künstlerübersicht. Standardmäßig deaktiviert, um Server-I/O und Netzwerklast bei großen Bibliotheken zu reduzieren.',
+    showOrbitTrigger: '„Psy Orbit" im Header zeigen',
+    showOrbitTriggerDesc: 'Der Kopfzeilen-Button zum Starten oder Beitreten einer gemeinsamen Hör-Session. Ausblenden, wenn du Orbit nicht nutzt — hier lässt er sich jederzeit wieder einschalten.',
     showTrayIcon: 'Tray-Icon anzeigen',
     showTrayIconDesc: 'Psysonic-Icon im System-Tray / in der Menüleiste anzeigen.',
     minimizeToTray: 'Im Tray minimieren',

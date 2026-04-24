@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Orbit as OrbitIcon, Plus, LogIn, HelpCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useOrbitStore } from '../store/orbitStore';
+import { useAuthStore } from '../store/authStore';
 import { useHelpModalStore } from '../store/helpModalStore';
 import OrbitStartModal from './OrbitStartModal';
 import OrbitJoinModal from './OrbitJoinModal';
@@ -16,6 +17,7 @@ import OrbitJoinModal from './OrbitJoinModal';
 export default function OrbitStartTrigger() {
   const { t } = useTranslation();
   const role = useOrbitStore(s => s.role);
+  const visible = useAuthStore(s => s.showOrbitTrigger);
 
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [startOpen, setStartOpen] = useState(false);
@@ -42,6 +44,7 @@ export default function OrbitStartTrigger() {
   }, [popoverOpen]);
 
   if (role !== null) return null;
+  if (!visible) return null;
 
   const anchor = btnRef.current?.getBoundingClientRect();
   const popoverStyle: React.CSSProperties = anchor

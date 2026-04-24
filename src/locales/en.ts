@@ -672,6 +672,8 @@ export const enTranslation = {
     hiResDesc: "Forces 44.1 kHz output by default for maximum stability. Enable only if your hardware and network reliably support high sample rates (88.2 kHz+).",
     showArtistImages: 'Show Artist Images',
     showArtistImagesDesc: 'Load and display artist images in the Artists overview. Disabled by default to reduce server disk I/O and network load on large libraries.',
+    showOrbitTrigger: 'Show "Psy Orbit" in the header',
+    showOrbitTriggerDesc: 'The top-bar trigger for starting or joining a shared listening session. Hide it if you don\'t use Orbit — you can turn it back on here.',
     showTrayIcon: 'Show Tray Icon',
     showTrayIconDesc: 'Display the Psysonic icon in the system notification area / menu bar.',
     minimizeToTray: 'Minimize to Tray',

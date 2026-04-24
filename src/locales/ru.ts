@@ -692,6 +692,8 @@ export const ruTranslation = {
     showArtistImages: 'Фото исполнителей',
     showArtistImagesDesc:
       'Показывать обложки в разделе «Исполнители». По умолчанию выключено — меньше нагрузки на диск и сеть.',
+    showOrbitTrigger: 'Показывать «Psy Orbit» в шапке',
+    showOrbitTriggerDesc: 'Кнопка в шапке для запуска или присоединения к совместной сессии. Скрой, если не используешь Orbit — здесь же можно включить обратно.',
     showTrayIcon: 'Иконка в трее',
     showTrayIconDesc: 'Показывать Psysonic в области уведомлений / строке меню.',
     minimizeToTray: 'Сворачивать в трей',

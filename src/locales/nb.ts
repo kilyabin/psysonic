@@ -661,6 +661,8 @@ export const nbTranslation = {
     hiResDesc: "Begrenser utdata til 44,1 kHz som standard for maksimal stabilitet. Aktiver kun hvis maskinvare og nettverk støtter høye samplingsrater (88,2 kHz+) pålitelig.",
     showArtistImages: 'Vis artistbilder',
     showArtistImagesDesc: 'Last inn og vis artistbilder i artistoversikten. Denne er deaktivert som standard, for å redusere disk-I/O og nettverksbelastningen på store biblioteker.',
+    showOrbitTrigger: 'Vis «Psy Orbit» i toppen',
+    showOrbitTriggerDesc: 'Knappen i toppen for å starte eller bli med i en delt lytteøkt. Skjul den hvis du ikke bruker Orbit — du kan slå den på igjen her.',
     minimizeToTray: 'Minimer til oppgavelinjen',
     minimizeToTrayDesc: 'Når vinduet lukkes, vil Psysonic bli kjørende i oppgavelinjen fremfor å bli avsluttet.',
     preloadMiniPlayer: 'Forhåndslast miniavspiller',

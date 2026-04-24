@@ -663,6 +663,8 @@ export const esTranslation = {
     hiResDesc: "Fuerza 44.1 kHz de salida por defecto para máxima estabilidad. Habilita solo si tu hardware y red soportan confiablemente altas tasas de muestreo (88.2 kHz+).",
     showArtistImages: 'Mostrar Imágenes de Artistas',
     showArtistImagesDesc: 'Carga y muestra imágenes de artistas en el resumen de Artistas. Desactivado por defecto para reducir I/O de disco del servidor y carga de red en bibliotecas grandes.',
+    showOrbitTrigger: 'Mostrar "Psy Orbit" en la cabecera',
+    showOrbitTriggerDesc: 'El botón en la cabecera para iniciar o unirse a una sesión de escucha compartida. Ocúltalo si no usas Orbit — puedes volver a activarlo aquí.',
     showTrayIcon: 'Mostrar Icono en Bandeja',
     showTrayIconDesc: 'Muestra el icono de Psysonic en el área de notificación / barra de menú.',
     minimizeToTray: 'Minimizar a Bandeja',

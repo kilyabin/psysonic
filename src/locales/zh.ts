@@ -654,6 +654,8 @@ export const zhTranslation = {
     hiResDesc: "默认强制 44.1 kHz 输出以获得最大稳定性。仅在硬件和网络可靠支持高采样率（88.2 kHz+）时启用。",
     showArtistImages: '显示艺术家图片',
     showArtistImagesDesc: '在艺术家概览中加载并显示艺术家图片。默认关闭以减少大型音乐库的服务器磁盘I/O和网络负载。',
+    showOrbitTrigger: '在顶栏显示"Psy Orbit"',
+    showOrbitTriggerDesc: '用于启动或加入共享收听会话的顶栏按钮。如果不使用 Orbit，可以隐藏 — 随时可在此重新开启。',
     showTrayIcon: '显示托盘图标',
     showTrayIconDesc: '在系统通知区域 / 菜单栏显示 Psysonic 图标。',
     minimizeToTray: '最小化到托盘',

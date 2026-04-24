@@ -660,6 +660,8 @@ export const frTranslation = {
     hiResDesc: "Force une sortie à 44,1 kHz par défaut pour une stabilité maximale. N'activer que si le matériel et le réseau prennent en charge les hautes fréquences d'échantillonnage (88,2 kHz+).",
     showArtistImages: 'Afficher les images d\'artistes',
     showArtistImagesDesc: 'Charge et affiche les images d\'artistes dans la vue d\'ensemble. Désactivé par défaut pour réduire les E/S disque serveur et la charge réseau sur les grandes bibliothèques.',
+    showOrbitTrigger: 'Afficher « Psy Orbit » dans l\'en-tête',
+    showOrbitTriggerDesc: 'Le bouton d\'en-tête pour démarrer ou rejoindre une session d\'écoute partagée. Masque-le si tu n\'utilises pas Orbit — tu peux le réactiver ici.',
     showTrayIcon: 'Afficher l\'icône dans la barre système',
     showTrayIconDesc: 'Affiche l\'icône Psysonic dans la zone de notification / barre des menus.',
     minimizeToTray: 'Réduire dans la barre système',
