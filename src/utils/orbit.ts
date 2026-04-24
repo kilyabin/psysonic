@@ -870,9 +870,24 @@ export function applyOutboxSnapshotsToState(
   nowMs: number = Date.now(),
 ): OrbitState {
   // ── Queue additions ──
+  // Guest outboxes are append-only from the host's POV — the host reads the
+  // same playlist every sweep, so we must dedupe against anything already in
+  // `state.queue` (or currently playing) by (user, trackId). Without this,
+  // every host tick re-adds every outbox entry and the pending-approval list
+  // balloons indefinitely. A user re-suggesting the same track after it
+  // lands/plays is a rare enough case to live with for now.
+  const existingKeys = new Set<string>(
+    state.queue.map(q => `${q.addedBy} ${q.trackId}`),
+  );
+  if (state.currentTrack) {
+    existingKeys.add(`${state.currentTrack.addedBy} ${state.currentTrack.trackId}`);
+  }
   const newItems: OrbitQueueItem[] = [];
   for (const snap of snapshots) {
     for (const trackId of snap.trackIds) {
+      const key = `${snap.user} ${trackId}`;
+      if (existingKeys.has(key)) continue;
+      existingKeys.add(key);
       newItems.push({ trackId, addedBy: snap.user, addedAt: nowMs });
     }
   }
