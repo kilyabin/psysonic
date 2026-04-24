@@ -1549,6 +1549,8 @@ export const enTranslation = {
     toastJoined: 'Joined session',
     toastLoginFirst: 'Log in before joining a session',
     toastSwitchServer: 'Switch to {{url}} first, then paste again',
+    toastNoAccountForServer: "You don't have access to {{url}}. Ask the host for an invite.",
+    toastSwitchFailed: "Couldn't switch to {{url}}",
     toastJoinFail: "Couldn't join session",
     joinErrNotFound: 'Session not found',
     joinErrEnded: 'Session has ended',

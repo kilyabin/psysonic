@@ -9,6 +9,7 @@ import {
   readOrbitState,
   joinOrbitSession,
 } from '../utils/orbit';
+import { switchActiveServer } from '../utils/switchActiveServer';
 import { showToast } from '../utils/toast';
 
 interface Props {
@@ -44,13 +45,25 @@ export default function OrbitJoinModal({ onClose }: Props) {
     const active = useAuthStore.getState().getActiveServer();
     const activeUrl = (active?.url ?? '').replace(/\/+$/, '');
     const wantUrl   = parsed.serverBase.replace(/\/+$/, '');
-    if (activeUrl !== wantUrl) {
-      setError(t('orbit.toastSwitchServer', { url: wantUrl }));
-      return;
-    }
 
     setBusy(true);
     try {
+      // Auto-switch to the link's server if the user has an account for it.
+      // switch itself tears down any lingering orbit session.
+      if (activeUrl !== wantUrl) {
+        const targetServer = useAuthStore.getState().servers
+          .find(s => s.url.replace(/\/+$/, '') === wantUrl);
+        if (!targetServer) {
+          setError(t('orbit.toastNoAccountForServer', { url: wantUrl }));
+          return;
+        }
+        const switched = await switchActiveServer(targetServer);
+        if (!switched) {
+          setError(t('orbit.toastSwitchFailed', { url: wantUrl }));
+          return;
+        }
+      }
+
       const playlistId = await findSessionPlaylistId(parsed.sid);
       if (!playlistId) { setError(t('orbit.joinErrNotFound')); return; }
       const state = await readOrbitState(playlistId);

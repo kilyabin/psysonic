@@ -1546,6 +1546,8 @@ export const deTranslation = {
     toastJoined: 'Session beigetreten',
     toastLoginFirst: 'Erst anmelden, um einer Session beizutreten',
     toastSwitchServer: 'Wechsle erst zu {{url}} und füge den Link dann erneut ein',
+    toastNoAccountForServer: 'Du hast keinen Zugang zu {{url}}. Bitte den Host um einen Einladungslink.',
+    toastSwitchFailed: 'Wechsel zu {{url}} fehlgeschlagen',
     toastJoinFail: 'Session konnte nicht beigetreten werden',
     joinErrNotFound: 'Session nicht gefunden',
     joinErrEnded: 'Session wurde beendet',

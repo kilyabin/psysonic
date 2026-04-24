@@ -13,6 +13,7 @@ import {
   readOrbitState,
   OrbitJoinError,
 } from '../utils/orbit';
+import { switchActiveServer } from '../utils/switchActiveServer';
 import ConfirmModal from './ConfirmModal';
 
 const ORBIT_JOIN_ERROR_KEYS: Record<string, string> = {
@@ -81,21 +82,35 @@ export default function PasteClipboardHandler() {
         e.preventDefault();
         e.stopPropagation();
         if (!isLoggedIn) { showToast(t('orbit.toastLoginFirst'), 4000, 'info'); return; }
-        const active = useAuthStore.getState().getActiveServer();
-        const activeUrl = (active?.url ?? '').replace(/\/+$/, '');
-        const wantUrl   = orbit.serverBase.replace(/\/+$/, '');
-        if (activeUrl !== wantUrl) {
-          showToast(t('orbit.toastSwitchServer', { url: wantUrl }), 5000, 'info');
-          return;
-        }
         if (busy.current) return;
-
-        // Preview the session state so the confirm dialog can show the host
-        // and session name. Failures (session vanished / ended / unreachable)
-        // surface the same error toasts the join would, without ever showing
-        // the confirm.
         busy.current = true;
+
         (async () => {
+          const active = useAuthStore.getState().getActiveServer();
+          const activeUrl = (active?.url ?? '').replace(/\/+$/, '');
+          const wantUrl   = orbit.serverBase.replace(/\/+$/, '');
+
+          // Auto-switch to the link's target server if the user has an
+          // account registered for it. No account → clear error. switch
+          // itself tears down any lingering orbit session (see
+          // switchActiveServer) so the join below starts clean.
+          if (activeUrl !== wantUrl) {
+            const targetServer = useAuthStore.getState().servers
+              .find(s => s.url.replace(/\/+$/, '') === wantUrl);
+            if (!targetServer) {
+              showToast(t('orbit.toastNoAccountForServer', { url: wantUrl }), 5000, 'warning');
+              return;
+            }
+            const switched = await switchActiveServer(targetServer);
+            if (!switched) {
+              showToast(t('orbit.toastSwitchFailed', { url: wantUrl }), 5000, 'error');
+              return;
+            }
+          }
+
+          // Preview the session state so the confirm dialog can show the
+          // host and session name. Failures surface the same error toasts
+          // the join would, without ever showing the confirm.
           const playlistId = await findSessionPlaylistId(orbit.sid);
           if (!playlistId) { handleJoinError('not-found'); return; }
           const state = await readOrbitState(playlistId);
