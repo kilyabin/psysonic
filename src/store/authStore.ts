@@ -61,7 +61,7 @@ interface AuthState {
   showArtistImages: boolean;
   showTrayIcon: boolean;
   minimizeToTray: boolean;
-  /** Whether the "Psy Orbit" topbar trigger is rendered. Users who never
+  /** Whether the "Orbit" topbar trigger is rendered. Users who never
    *  touch Orbit can hide it so the header stays uncluttered. */
   showOrbitTrigger: boolean;
   discordRichPresence: boolean;
