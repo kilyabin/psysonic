@@ -1551,6 +1551,8 @@ export const enTranslation = {
     toastSwitchServer: 'Switch to {{url}} first, then paste again',
     toastNoAccountForServer: "You don't have access to {{url}}. Ask the host for an invite.",
     toastSwitchFailed: "Couldn't switch to {{url}}",
+    accountPickerTitle: 'Which account?',
+    accountPickerSub: 'You have more than one account for {{url}}. Pick the one to join the session as.',
     toastJoinFail: "Couldn't join session",
     joinErrNotFound: 'Session not found',
     joinErrEnded: 'Session has ended',

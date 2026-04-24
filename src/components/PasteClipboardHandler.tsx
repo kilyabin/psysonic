@@ -14,6 +14,7 @@ import {
   OrbitJoinError,
 } from '../utils/orbit';
 import { switchActiveServer } from '../utils/switchActiveServer';
+import { useOrbitAccountPickerStore } from '../store/orbitAccountPickerStore';
 import ConfirmModal from './ConfirmModal';
 
 const ORBIT_JOIN_ERROR_KEYS: Record<string, string> = {
@@ -91,17 +92,22 @@ export default function PasteClipboardHandler() {
           const wantUrl   = orbit.serverBase.replace(/\/+$/, '');
 
           // Auto-switch to the link's target server if the user has an
-          // account registered for it. No account → clear error. switch
-          // itself tears down any lingering orbit session (see
+          // account registered for it. No account → clear error. Multiple
+          // accounts for the same URL → picker lets the user choose. The
+          // switch itself tears down any lingering orbit session (see
           // switchActiveServer) so the join below starts clean.
           if (activeUrl !== wantUrl) {
-            const targetServer = useAuthStore.getState().servers
-              .find(s => s.url.replace(/\/+$/, '') === wantUrl);
-            if (!targetServer) {
+            const candidates = useAuthStore.getState().servers
+              .filter(s => s.url.replace(/\/+$/, '') === wantUrl);
+            if (candidates.length === 0) {
               showToast(t('orbit.toastNoAccountForServer', { url: wantUrl }), 5000, 'warning');
               return;
             }
-            const switched = await switchActiveServer(targetServer);
+            const target = candidates.length === 1
+              ? candidates[0]
+              : await useOrbitAccountPickerStore.getState().request(candidates);
+            if (!target) return; // cancelled
+            const switched = await switchActiveServer(target);
             if (!switched) {
               showToast(t('orbit.toastSwitchFailed', { url: wantUrl }), 5000, 'error');
               return;

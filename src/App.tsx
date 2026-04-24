@@ -53,6 +53,7 @@ import ContextMenu from './components/ContextMenu';
 import SongInfoModal from './components/SongInfoModal';
 import DownloadFolderModal from './components/DownloadFolderModal';
 import GlobalConfirmModal from './components/GlobalConfirmModal';
+import OrbitAccountPicker from './components/OrbitAccountPicker';
 import { DragDropProvider } from './contexts/DragDropContext';
 import TooltipPortal from './components/TooltipPortal';
 import OverlayScrollArea from './components/OverlayScrollArea';
@@ -520,6 +521,7 @@ function AppShell() {
       <SongInfoModal />
       <DownloadFolderModal />
       <GlobalConfirmModal />
+      <OrbitAccountPicker />
       <TooltipPortal />
       <AppUpdater />
     </div>

@@ -1548,6 +1548,8 @@ export const deTranslation = {
     toastSwitchServer: 'Wechsle erst zu {{url}} und füge den Link dann erneut ein',
     toastNoAccountForServer: 'Du hast keinen Zugang zu {{url}}. Bitte den Host um einen Einladungslink.',
     toastSwitchFailed: 'Wechsel zu {{url}} fehlgeschlagen',
+    accountPickerTitle: 'Welcher Account?',
+    accountPickerSub: 'Du hast mehrere Accounts für {{url}}. Wähle aus, mit welchem du der Session beitreten willst.',
     toastJoinFail: 'Session konnte nicht beigetreten werden',
     joinErrNotFound: 'Session nicht gefunden',
     joinErrEnded: 'Session wurde beendet',

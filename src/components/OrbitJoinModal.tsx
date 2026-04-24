@@ -10,6 +10,7 @@ import {
   joinOrbitSession,
 } from '../utils/orbit';
 import { switchActiveServer } from '../utils/switchActiveServer';
+import { useOrbitAccountPickerStore } from '../store/orbitAccountPickerStore';
 import { showToast } from '../utils/toast';
 
 interface Props {
@@ -49,15 +50,20 @@ export default function OrbitJoinModal({ onClose }: Props) {
     setBusy(true);
     try {
       // Auto-switch to the link's server if the user has an account for it.
-      // switch itself tears down any lingering orbit session.
+      // Multiple candidates → picker modal. switch tears down any lingering
+      // orbit session.
       if (activeUrl !== wantUrl) {
-        const targetServer = useAuthStore.getState().servers
-          .find(s => s.url.replace(/\/+$/, '') === wantUrl);
-        if (!targetServer) {
+        const candidates = useAuthStore.getState().servers
+          .filter(s => s.url.replace(/\/+$/, '') === wantUrl);
+        if (candidates.length === 0) {
           setError(t('orbit.toastNoAccountForServer', { url: wantUrl }));
           return;
         }
-        const switched = await switchActiveServer(targetServer);
+        const target = candidates.length === 1
+          ? candidates[0]
+          : await useOrbitAccountPickerStore.getState().request(candidates);
+        if (!target) { setBusy(false); return; }
+        const switched = await switchActiveServer(target);
         if (!switched) {
           setError(t('orbit.toastSwitchFailed', { url: wantUrl }));
           return;
