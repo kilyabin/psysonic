@@ -52,6 +52,7 @@ import FullscreenPlayer from './components/FullscreenPlayer';
 import ContextMenu from './components/ContextMenu';
 import SongInfoModal from './components/SongInfoModal';
 import DownloadFolderModal from './components/DownloadFolderModal';
+import GlobalConfirmModal from './components/GlobalConfirmModal';
 import { DragDropProvider } from './contexts/DragDropContext';
 import TooltipPortal from './components/TooltipPortal';
 import OverlayScrollArea from './components/OverlayScrollArea';
@@ -508,6 +509,7 @@ function AppShell() {
       <ContextMenu />
       <SongInfoModal />
       <DownloadFolderModal />
+      <GlobalConfirmModal />
       <TooltipPortal />
       <AppUpdater />
     </div>
@@ -1076,6 +1078,7 @@ export default function App() {
     return (
       <DragDropProvider>
         <MiniPlayer />
+        <GlobalConfirmModal />
         <TooltipPortal />
       </DragDropProvider>
     );

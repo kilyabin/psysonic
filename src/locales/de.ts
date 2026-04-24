@@ -177,6 +177,7 @@ export const deTranslation = {
   },
   albumDetail: {
     back: 'Zurück',
+    orbitDoubleClickHint: 'Doppelklick fügt diesen Titel zur Orbit-Queue hinzu',
     playAll: 'Alle abspielen',
     shareAlbum: 'Album teilen',
     enqueue: 'Einreihen',
@@ -1537,6 +1538,10 @@ export const deTranslation = {
     ctxAddToSessionHost: 'Zur Orbit-Session hinzufügen',
     ctxAddedHostToast: 'Zur Session hinzugefügt',
     ctxAddHostFailed: 'Hinzufügen fehlgeschlagen',
+    bulkConfirmTitle: 'Wirklich alles in die Orbit-Queue?',
+    bulkConfirmBody: 'Das würde {{count}} Titel auf einmal in die geteilte Queue werfen. Für deine Gäste ist das eine Menge. Trotzdem hinzufügen?',
+    bulkConfirmYes: 'Alle hinzufügen',
+    bulkConfirmNo: 'Abbrechen',
     guestLive: 'Live',
     guestPlaying: 'Läuft gerade',
     guestPaused: 'Pausiert',

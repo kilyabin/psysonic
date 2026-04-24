@@ -10,6 +10,7 @@ import { lastfmScrobble, lastfmUpdateNowPlaying, lastfmLoveTrack, lastfmUnloveTr
 import { useAuthStore } from './authStore';
 import { useOfflineStore } from './offlineStore';
 import { useHotCacheStore } from './hotCacheStore';
+import { orbitBulkGuard } from '../utils/orbitBulkGuard';
 
 export interface Track {
   id: string;
@@ -168,7 +169,9 @@ interface PlayerState {
   setUserRatingOverride: (id: string, rating: number) => void;
 
   playRadio: (station: InternetRadioStation) => void;
-  playTrack: (track: Track, queue?: Track[], manual?: boolean) => void;
+  /** `_orbitConfirmed` is an internal bypass flag — callers outside the
+   *  orbit bulk-gate should leave it `undefined`. */
+  playTrack: (track: Track, queue?: Track[], manual?: boolean, _orbitConfirmed?: boolean) => void;
   /** Queue becomes `[track]` only; if already on this track, does not restart `audio_play`. */
   reseedQueueForInstantMix: (track: Track) => void;
   pause: () => void;
@@ -193,8 +196,8 @@ interface PlayerState {
   setVolume: (v: number) => void;
    updateReplayGainForCurrentTrack: () => void;
    setProgress: (t: number, duration: number) => void;
-  enqueue: (tracks: Track[]) => void;
-  enqueueAt: (tracks: Track[], insertIndex: number) => void;
+  enqueue: (tracks: Track[], _orbitConfirmed?: boolean) => void;
+  enqueueAt: (tracks: Track[], insertIndex: number, _orbitConfirmed?: boolean) => void;
   enqueueRadio: (tracks: Track[], artistId?: string) => void;
   setRadioArtistId: (artistId: string) => void;
   /** For Lucky Mix: drop upcoming tail; keep the currently playing item only. */
@@ -1206,7 +1209,17 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       // ── playTrack ────────────────────────────────────────────────────────────
-      playTrack: (track, queue, manual = true) => {
+      playTrack: (track, queue, manual = true, _orbitConfirmed = false) => {
+        // Orbit bulk-gate: a >1-track queue inside an active session is
+        // a "Play All / Play Album"-style action — confirm with the user
+        // before it lands on every guest's player.
+        if (!_orbitConfirmed && queue && queue.length > 1) {
+          void orbitBulkGuard(queue.length).then(ok => {
+            if (ok) get().playTrack(track, queue, manual, true);
+          });
+          return;
+        }
+
         // Ghost-command guard: if a gapless switch happened within 500 ms,
         // this playTrack call is likely a stale IPC echo — suppress it.
         if (Date.now() - lastGaplessSwitchTime < 500) {
@@ -1753,7 +1766,13 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       // ── queue management ─────────────────────────────────────────────────────
-      enqueue: (tracks) => {
+      enqueue: (tracks, _orbitConfirmed = false) => {
+        if (!_orbitConfirmed && tracks.length > 1) {
+          void orbitBulkGuard(tracks.length).then(ok => {
+            if (ok) get().enqueue(tracks, true);
+          });
+          return;
+        }
         set(state => {
           // Insert before the first upcoming auto-added track so the
           // "Added automatically" separator always stays at the boundary.
@@ -1796,7 +1815,13 @@ export const usePlayerStore = create<PlayerState>()(
         });
       },
 
-      enqueueAt: (tracks, insertIndex) => {
+      enqueueAt: (tracks, insertIndex, _orbitConfirmed = false) => {
+        if (!_orbitConfirmed && tracks.length > 1) {
+          void orbitBulkGuard(tracks.length).then(ok => {
+            if (ok) get().enqueueAt(tracks, insertIndex, true);
+          });
+          return;
+        }
         set(state => {
           const idx = Math.max(0, Math.min(insertIndex, state.queue.length));
           const newQueue = [

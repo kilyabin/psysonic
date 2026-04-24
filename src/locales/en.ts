@@ -178,6 +178,7 @@ export const enTranslation = {
   },
   albumDetail: {
     back: 'Back',
+    orbitDoubleClickHint: 'Double-click to add this track to the Orbit queue',
     playAll: 'Play All',
     shareAlbum: 'Share album',
     enqueue: 'Enqueue',
@@ -1540,6 +1541,10 @@ export const enTranslation = {
     ctxAddToSessionHost: 'Add to Orbit session',
     ctxAddedHostToast: 'Added to the session',
     ctxAddHostFailed: "Couldn't add to session",
+    bulkConfirmTitle: 'Add all of this to the Orbit queue?',
+    bulkConfirmBody: "This would drop {{count}} tracks into the shared queue in one go. That's a lot for your guests to notice. Go ahead?",
+    bulkConfirmYes: 'Add them all',
+    bulkConfirmNo: 'Cancel',
     guestLive: 'Live',
     guestPlaying: 'Playing now',
     guestPaused: 'Paused',

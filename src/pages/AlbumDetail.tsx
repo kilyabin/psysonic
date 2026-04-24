@@ -1,10 +1,12 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Search, X } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { getAlbum, getArtist, getArtistInfo, setRating, buildCoverArtUrl, coverArtCacheKey, buildDownloadUrl, star, unstar, SubsonicSong, SubsonicAlbum } from '../api/subsonic';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
+import { useOrbitStore } from '../store/orbitStore';
+import { suggestOrbitTrack, hostEnqueueToOrbit } from '../utils/orbit';
 import { useDownloadModalStore } from '../store/downloadModalStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useOfflineJobStore } from '../store/offlineJobStore';
@@ -153,7 +155,24 @@ const handleShuffleAll = () => {
      if (shuffled[0]) playTrack(shuffled[0], shuffled);
    };
 
+   const orbitRole = useOrbitStore(s => s.role);
+   const orbitActive = orbitRole === 'host' || orbitRole === 'guest';
+   const orbitClickTimerRef = useRef<number | null>(null);
+
    const handlePlaySong = (song: SubsonicSong) => {
+     // Orbit-Modus: ein Single-Click würde das ganze Album in die geteilte
+     // Queue schaufeln — für eine kollaborative Session zu destruktiv.
+     // Wir schlucken den Click und blenden einen Hint ein; ein folgender
+     // Doppelklick cancelt den Timer und fügt stattdessen nur diesen Song
+     // via handleDoubleClickSong hinzu.
+     if (orbitActive) {
+       if (orbitClickTimerRef.current !== null) return;
+       orbitClickTimerRef.current = window.setTimeout(() => {
+         orbitClickTimerRef.current = null;
+         showToast(t('albumDetail.orbitDoubleClickHint'), 2400, 'info');
+       }, 220);
+       return;
+     }
      if (!album) return;
      const albumGenre = album.album.genre;
      const tracks = album.songs.map(s => {
@@ -163,6 +182,23 @@ const handleShuffleAll = () => {
      });
      const track = tracks.find(t => t.id === song.id) || songToTrack(song);
      playTrack(track, tracks);
+   };
+
+   const handleDoubleClickSong = (song: SubsonicSong) => {
+     if (!orbitActive) return;
+     if (orbitClickTimerRef.current !== null) {
+       clearTimeout(orbitClickTimerRef.current);
+       orbitClickTimerRef.current = null;
+     }
+     if (orbitRole === 'guest') {
+       suggestOrbitTrack(song.id)
+         .then(() => showToast(t('orbit.ctxSuggestedToast'), 2200, 'info'))
+         .catch(() => showToast(t('orbit.ctxSuggestFailed'), 3000, 'error'));
+     } else {
+       hostEnqueueToOrbit(song.id)
+         .then(() => showToast(t('orbit.ctxAddedHostToast'), 2200, 'info'))
+         .catch(() => showToast(t('orbit.ctxAddHostFailed'), 3000, 'error'));
+     }
    };
 
   const handleRate = async (songId: string, rating: number) => {
@@ -427,6 +463,7 @@ const handleShuffleAll = () => {
         userRatingOverrides={userRatingOverrides}
         starredSongs={mergedStarredSongs}
         onPlaySong={handlePlaySong}
+        onDoubleClickSong={orbitActive ? handleDoubleClickSong : undefined}
         onRate={handleRate}
         onToggleSongStar={toggleSongStar}
         onContextMenu={openContextMenu}
