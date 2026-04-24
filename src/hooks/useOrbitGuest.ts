@@ -57,33 +57,58 @@ export function useOrbitGuest(): void {
 
     /**
      * Load `trackId` into the local player and seek to the host's live
-     * position. Mirrors the host's `isPlaying` (so a guest joining a paused
-     * host doesn't auto-start the music). Best-effort; silent on miss.
+     * position. Mirrors the host's `isPlaying` state — a guest joining a
+     * paused host doesn't auto-start, a guest joining a playing host must
+     * start. Best-effort; silent on miss.
+     *
+     * Seek + state-mirror is applied once the engine reports the target
+     * track as `isPlaying` (polled up to 2 s), with a final fallback apply
+     * past the deadline so a loading error doesn't leave the guest stuck
+     * on a silent pause.
      */
     const syncToHost = async (trackId: string, hostState: OrbitState) => {
       try {
         const song = await getSong(trackId);
         if (!song || cancelled) return;
         const track = songToTrack(song);
-        const targetMs  = estimateLivePosition(hostState, Date.now());
-        const targetSec = Math.max(0, targetMs / 1000);
+        // Clamp fraction to [0, 0.99] — if the host's positionAt is unusually
+        // stale, estimateLivePosition can overshoot the track duration and a
+        // seek past the end would immediately trigger audio:ended.
+        const calcFraction = () => {
+          const targetMs = estimateLivePosition(hostState, Date.now());
+          const targetSec = Math.max(0, targetMs / 1000);
+          return Math.max(0, Math.min(0.99, targetSec / Math.max(1, track.duration)));
+        };
+        const applyMirror = () => {
+          const p = usePlayerStore.getState();
+          if (cancelled || p.currentTrack?.id !== trackId) return;
+          p.seek(calcFraction());
+          if (hostState.isPlaying && !p.isPlaying) p.resume();
+          else if (!hostState.isPlaying && p.isPlaying) p.pause();
+        };
+
         const player = usePlayerStore.getState();
-        const fraction = targetSec / Math.max(1, track.duration);
         if (player.currentTrack?.id === trackId) {
-          player.seek(fraction);
-          if (hostState.isPlaying && !player.isPlaying) player.resume();
-          else if (!hostState.isPlaying && player.isPlaying) player.pause();
-        } else {
-          player.playTrack(track, [track]);
-          // Defer seek + state-match until the engine has actually loaded.
-          window.setTimeout(() => {
-            if (cancelled) return;
-            const p = usePlayerStore.getState();
-            if (p.currentTrack?.id !== trackId) return;
-            p.seek(fraction);
-            if (!hostState.isPlaying && p.isPlaying) p.pause();
-          }, 400);
+          applyMirror();
+          return;
         }
+
+        player.playTrack(track, [track]);
+
+        // Poll until the engine has the track loaded AND matches host play
+        // state; fall back to a blind apply after 2 s so a stuck load (audio
+        // error reverts isPlaying → false) doesn't leave the guest silent.
+        const deadline = Date.now() + 2000;
+        const poll = () => {
+          if (cancelled) return;
+          const p = usePlayerStore.getState();
+          const trackReady = p.currentTrack?.id === trackId;
+          const stateMatches = p.isPlaying === hostState.isPlaying;
+          if (trackReady && (stateMatches || p.isPlaying)) { applyMirror(); return; }
+          if (Date.now() >= deadline) { applyMirror(); return; }
+          window.setTimeout(poll, 100);
+        };
+        window.setTimeout(poll, 100);
       } catch { /* silent */ }
     };
 
