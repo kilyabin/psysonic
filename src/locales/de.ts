@@ -1501,7 +1501,7 @@ export const deTranslation = {
     joinModalTitle: 'Einer Orbit-Session beitreten',
     joinModalSub: 'Füge den Einladungslink ein, den dir der Host geschickt hat.',
     joinModalLinkLabel: 'Einladungslink',
-    joinModalLinkPlaceholder: 'psysonic2://orbit/…',
+    joinModalLinkPlaceholder: 'psysonic2-…',
     joinModalLinkHelper: 'Akzeptiert jeden gültigen Orbit-Link. Der Link muss zu dem Server gehören, auf dem du gerade angemeldet bist.',
     joinModalPasteTooltip: 'Aus Zwischenablage einfügen',
     joinModalSubmit: 'Beitreten',

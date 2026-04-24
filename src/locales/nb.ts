@@ -1482,7 +1482,7 @@ export const nbTranslation = {
     joinModalTitle: 'Bli med i en Orbit-økt',
     joinModalSub: 'Lim inn invitasjonslenken verten sendte deg.',
     joinModalLinkLabel: 'Invitasjonslenke',
-    joinModalLinkPlaceholder: 'psysonic2://orbit/…',
+    joinModalLinkPlaceholder: 'psysonic2-…',
     joinModalLinkHelper: 'Fungerer med enhver gyldig Orbit-lenke. Må peke til serveren du er innlogget på.',
     joinModalPasteTooltip: 'Lim inn fra utklippstavlen',
     joinModalSubmit: 'Bli med',

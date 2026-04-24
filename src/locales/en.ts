@@ -1505,7 +1505,7 @@ export const enTranslation = {
     joinModalTitle: 'Join an Orbit session',
     joinModalSub: 'Paste the invite link your host sent you.',
     joinModalLinkLabel: 'Invite link',
-    joinModalLinkPlaceholder: 'psysonic2://orbit/…',
+    joinModalLinkPlaceholder: 'psysonic2-…',
     joinModalLinkHelper: 'Works with any valid Orbit link. Must point to the server you\'re currently signed into.',
     joinModalPasteTooltip: 'Paste from clipboard',
     joinModalSubmit: 'Join',

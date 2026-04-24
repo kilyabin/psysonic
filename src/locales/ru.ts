@@ -1562,7 +1562,7 @@ export const ruTranslation = {
     joinModalTitle: 'Присоединиться к сессии Orbit',
     joinModalSub: 'Вставь ссылку-приглашение от хоста.',
     joinModalLinkLabel: 'Ссылка-приглашение',
-    joinModalLinkPlaceholder: 'psysonic2://orbit/…',
+    joinModalLinkPlaceholder: 'psysonic2-…',
     joinModalLinkHelper: 'Работает с любой действительной ссылкой Orbit. Должна указывать на сервер, на котором ты сейчас авторизован.',
     joinModalPasteTooltip: 'Вставить из буфера обмена',
     joinModalSubmit: 'Присоединиться',

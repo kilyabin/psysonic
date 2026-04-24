@@ -1488,7 +1488,7 @@ export const esTranslation = {
     joinModalTitle: 'Unirse a una sesión Orbit',
     joinModalSub: 'Pega el enlace de invitación que te envió tu anfitrión.',
     joinModalLinkLabel: 'Enlace de invitación',
-    joinModalLinkPlaceholder: 'psysonic2://orbit/…',
+    joinModalLinkPlaceholder: 'psysonic2-…',
     joinModalLinkHelper: 'Funciona con cualquier enlace Orbit válido. Debe apuntar al servidor al que estás conectado actualmente.',
     joinModalPasteTooltip: 'Pegar desde el portapapeles',
     joinModalSubmit: 'Unirse',

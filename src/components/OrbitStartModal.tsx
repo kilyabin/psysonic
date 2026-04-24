@@ -9,7 +9,6 @@ import {
   startOrbitSession,
   buildOrbitShareLink,
   generateSessionId,
-  slugifyOrbitName,
 } from '../utils/orbit';
 import { randomOrbitSessionName } from '../utils/orbitNames';
 import { useAuthStore } from '../store/authStore';
@@ -44,8 +43,8 @@ export default function OrbitStartModal({ onClose }: Props) {
   const onLan      = isLanUrl(serverBase);
 
   const shareLink = useMemo(
-    () => buildOrbitShareLink(serverBase, sid, slugifyOrbitName(name)),
-    [serverBase, sid, name],
+    () => buildOrbitShareLink(serverBase, sid),
+    [serverBase, sid],
   );
 
   const writeLinkToClipboard = async (): Promise<boolean> => {

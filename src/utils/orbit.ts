@@ -10,6 +10,7 @@ import {
 import { useAuthStore } from '../store/authStore';
 import { useOrbitStore } from '../store/orbitStore';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
+import { encodeSharePayload, decodeOrbitSharePayloadFromText } from './shareLink';
 import {
   makeInitialOrbitState,
   orbitOutboxPlaylistName,
@@ -42,21 +43,6 @@ export function generateSessionId(): string {
   const bytes = new Uint8Array(4);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
-}
-
-/**
- * Turn a human session name into a URL-safe slug. Ignores non-ASCII
- * characters so the output is stable across locales and safe in a
- * `psysonic2://` link. Returns an empty string for names that slugify
- * to nothing — callers should fall back to a slug-less link in that case.
- */
-export function slugifyOrbitName(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 40);
 }
 
 // ── Serialisation ───────────────────────────────────────────────────────
@@ -307,8 +293,6 @@ export async function updateOrbitSettings(patch: Partial<import('../api/orbit').
 
 // ── Share link ──────────────────────────────────────────────────────────
 
-export const ORBIT_SHARE_SCHEME = 'psysonic2://orbit/';
-
 export interface OrbitShareLink {
   /** Base URL of the Navidrome server (decoded). */
   serverBase: string;
@@ -317,42 +301,21 @@ export interface OrbitShareLink {
 }
 
 /**
- * Parse a `psysonic2://orbit/<server-b64>/<sid>` link. Returns null on any
- * shape mismatch — the caller decides what to do (show error toast etc.).
- * Accepts both the `psysonic2://` prefix and a bare string if the OS-level
- * handler has already stripped the scheme.
+ * Parse an orbit invite from pasted text. Accepts the magic-string format
+ * `psysonic2-<base64url-json>` (same prefix family as library shares and
+ * server invites). The caller decides what to do on null (show toast, etc.).
  */
-export function parseOrbitShareLink(url: string): OrbitShareLink | null {
-  if (!url) return null;
-  const stripped = url.startsWith(ORBIT_SHARE_SCHEME)
-    ? url.slice(ORBIT_SHARE_SCHEME.length)
-    : url.startsWith('orbit/') ? url.slice('orbit/'.length) : null;
-  if (stripped == null) return null;
-  const slash = stripped.indexOf('/');
-  if (slash <= 0) return null;
-  const serverB64 = stripped.slice(0, slash);
-  const tail      = stripped.slice(slash + 1).replace(/\/+$/, '');
-  // Tail is either `<sid>` or `<slug>-<sid>` — the SID is always the
-  // terminal 8-hex group. The slug is purely cosmetic for the sender.
-  const m = tail.match(/(?:^|-)([0-9a-f]{8})$/i);
-  if (!m) return null;
-  const sid = m[1].toLowerCase();
-  let serverBase: string;
-  try {
-    serverBase = atob(serverB64);
-  } catch { return null; }
-  try { new URL(serverBase); } catch { return null; }
-  return { serverBase, sid };
+export function parseOrbitShareLink(text: string): OrbitShareLink | null {
+  if (!text) return null;
+  const payload = decodeOrbitSharePayloadFromText(text);
+  if (!payload) return null;
+  try { new URL(payload.srv); } catch { return null; }
+  return { serverBase: payload.srv, sid: payload.sid };
 }
 
-/**
- * Build a share link for a live session. When `slug` is provided (and
- * non-empty) it is prepended to the SID for a friendlier-looking URL
- * — the parser strips it on the receiving side.
- */
-export function buildOrbitShareLink(serverBase: string, sid: string, slug?: string): string {
-  const tail = slug && slug.length > 0 ? `${slug}-${sid}` : sid;
-  return `${ORBIT_SHARE_SCHEME}${btoa(serverBase)}/${tail}`;
+/** Build an orbit invite magic string for a live session. */
+export function buildOrbitShareLink(serverBase: string, sid: string): string {
+  return encodeSharePayload({ srv: serverBase, k: 'orbit', sid });
 }
 
 // ── Playlist lookup ─────────────────────────────────────────────────────

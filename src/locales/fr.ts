@@ -1483,7 +1483,7 @@ export const frTranslation = {
     joinModalTitle: 'Rejoindre une session Orbit',
     joinModalSub: 'Colle le lien d\'invitation que ton hôte t\'a envoyé.',
     joinModalLinkLabel: 'Lien d\'invitation',
-    joinModalLinkPlaceholder: 'psysonic2://orbit/…',
+    joinModalLinkPlaceholder: 'psysonic2-…',
     joinModalLinkHelper: 'Fonctionne avec tout lien Orbit valide. Doit pointer vers le serveur auquel tu es actuellement connecté.',
     joinModalPasteTooltip: 'Coller depuis le presse-papiers',
     joinModalSubmit: 'Rejoindre',

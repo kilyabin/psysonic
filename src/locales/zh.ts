@@ -1475,7 +1475,7 @@ export const zhTranslation = {
     joinModalTitle: '加入 Orbit 会话',
     joinModalSub: '粘贴主持人发给你的邀请链接。',
     joinModalLinkLabel: '邀请链接',
-    joinModalLinkPlaceholder: 'psysonic2://orbit/…',
+    joinModalLinkPlaceholder: 'psysonic2-…',
     joinModalLinkHelper: '适用于任何有效的 Orbit 链接。必须指向你当前登录的服务器。',
     joinModalPasteTooltip: '从剪贴板粘贴',
     joinModalSubmit: '加入',

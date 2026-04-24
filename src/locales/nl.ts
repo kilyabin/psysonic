@@ -1482,7 +1482,7 @@ export const nlTranslation = {
     joinModalTitle: 'Deelnemen aan een Orbit-sessie',
     joinModalSub: 'Plak de uitnodigingslink die je host je gestuurd heeft.',
     joinModalLinkLabel: 'Uitnodigingslink',
-    joinModalLinkPlaceholder: 'psysonic2://orbit/…',
+    joinModalLinkPlaceholder: 'psysonic2-…',
     joinModalLinkHelper: 'Werkt met elke geldige Orbit-link. Moet verwijzen naar de server waarop je nu bent aangemeld.',
     joinModalPasteTooltip: 'Plakken vanaf klembord',
     joinModalSubmit: 'Deelnemen',
