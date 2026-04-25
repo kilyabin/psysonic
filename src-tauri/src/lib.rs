@@ -1251,6 +1251,14 @@ fn analysis_get_loudness_for_track(
 }
 
 #[tauri::command]
+fn analysis_delete_loudness_for_track(
+    track_id: String,
+    cache: tauri::State<'_, analysis_cache::AnalysisCache>,
+) -> Result<u64, String> {
+    cache.delete_loudness_for_track_id(&track_id)
+}
+
+#[tauri::command]
 fn analysis_enqueue_seed_from_url(
     track_id: String,
     url: String,
@@ -4099,6 +4107,7 @@ pub fn run() {
             analysis_get_waveform,
             analysis_get_waveform_for_track,
             analysis_get_loudness_for_track,
+            analysis_delete_loudness_for_track,
             analysis_enqueue_seed_from_url,
             download_track_offline,
             delete_offline_track,

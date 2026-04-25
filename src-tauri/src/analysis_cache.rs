@@ -83,6 +83,25 @@ impl AnalysisCache {
         Ok(Self { conn: Mutex::new(conn) })
     }
 
+    /// Remove all `loudness_cache` rows for this logical track (bare id and `stream:` variant).
+    pub fn delete_loudness_for_track_id(&self, track_id: &str) -> Result<u64, String> {
+        if track_id.trim().is_empty() {
+            return Ok(0);
+        }
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let mut total: u64 = 0;
+        for tid in track_id_cache_variants(track_id) {
+            let n = conn
+                .execute("DELETE FROM loudness_cache WHERE track_id = ?1", params![tid])
+                .map_err(|e| e.to_string())?;
+            total = total.saturating_add(n as u64);
+        }
+        Ok(total)
+    }
+
     pub fn touch_track_status(&self, key: &TrackKey, status: &str) -> Result<(), String> {
         let now = now_unix_ts();
         let conn = self.conn.lock().map_err(|_| "analysis_cache lock poisoned".to_string())?;

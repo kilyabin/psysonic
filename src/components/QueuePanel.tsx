@@ -1,4 +1,5 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Track, usePlayerStore, songToTrack } from '../store/playerStore';
 import { useOrbitStore } from '../store/orbitStore';
 import OrbitGuestQueue from './OrbitGuestQueue';
@@ -319,10 +320,17 @@ function QueuePanelHostOrSolo() {
 
   const [showRemainingTime, setShowRemainingTime] = useState(false);
   const [showCrossfadePopover, setShowCrossfadePopover] = useState(false);
+  const [lufsTgtOpen, setLufsTgtOpen] = useState(false);
+  const [lufsTgtPopStyle, setLufsTgtPopStyle] = useState<React.CSSProperties>({});
+  const lufsTgtBtnRef = useRef<HTMLButtonElement>(null);
+  const lufsTgtMenuRef = useRef<HTMLDivElement>(null);
   const expandReplayGain = useThemeStore(s => s.expandReplayGain);
   const setExpandReplayGain = useThemeStore(s => s.setExpandReplayGain);
   const crossfadeBtnRef = useRef<HTMLButtonElement>(null);
   const crossfadePopoverRef = useRef<HTMLDivElement>(null);
+  const reanalyzeLoudnessForTrack = usePlayerStore(s => s.reanalyzeLoudnessForTrack);
+  const authLoudnessTargetLufs = useAuthStore(s => s.loudnessTargetLufs);
+  const setLoudnessTargetLufs = useAuthStore(s => s.setLoudnessTargetLufs);
 
   useEffect(() => {
     if (!showCrossfadePopover) return;
@@ -336,6 +344,64 @@ function QueuePanelHostOrSolo() {
     document.addEventListener('mousedown', handle);
     return () => document.removeEventListener('mousedown', handle);
   }, [showCrossfadePopover]);
+
+  useEffect(() => {
+    if (!lufsTgtOpen) return;
+    const handle = (e: MouseEvent) => {
+      if (
+        lufsTgtBtnRef.current?.contains(e.target as Node) ||
+        lufsTgtMenuRef.current?.contains(e.target as Node)
+      ) return;
+      setLufsTgtOpen(false);
+    };
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [lufsTgtOpen]);
+
+  const updateLufsTgtPopStyle = () => {
+    if (!lufsTgtBtnRef.current) return;
+    const rect = lufsTgtBtnRef.current.getBoundingClientRect();
+    const MARGIN = 6;
+    const WIDTH = 160;
+    const MAX_H = 220;
+    const spaceBelow = window.innerHeight - rect.bottom - MARGIN;
+    const spaceAbove = rect.top - MARGIN;
+    const useAbove = spaceBelow < 120 && spaceAbove > spaceBelow;
+    const left = Math.min(
+      Math.max(rect.right - WIDTH, 8),
+      window.innerWidth - WIDTH - 8,
+    );
+    setLufsTgtPopStyle({
+      position: 'fixed',
+      left,
+      width: WIDTH,
+      ...(useAbove
+        ? { bottom: window.innerHeight - rect.top + MARGIN }
+        : { top: rect.bottom + MARGIN }),
+      maxHeight: Math.min(MAX_H, useAbove ? spaceAbove : spaceBelow),
+      zIndex: 99998,
+    });
+  };
+
+  useLayoutEffect(() => {
+    if (!lufsTgtOpen) return;
+    updateLufsTgtPopStyle();
+  }, [lufsTgtOpen]);
+
+  useEffect(() => {
+    if (!lufsTgtOpen) return;
+    const onResize = () => updateLufsTgtPopStyle();
+    window.addEventListener('resize', onResize);
+    window.addEventListener('scroll', onResize, true);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('scroll', onResize, true);
+    };
+  }, [lufsTgtOpen]);
+
+  useEffect(() => {
+    if (!expandReplayGain) setLufsTgtOpen(false);
+  }, [expandReplayGain]);
 
   // Tracks which queue index is being psy-dragged for opacity visual feedback
   const psyDragFromIdxRef = useRef<number | null>(null);
@@ -533,9 +599,8 @@ function QueuePanelHostOrSolo() {
             const liveGainLabel = normalizationNowDb != null
               ? `${normalizationNowDb >= 0 ? '+' : ''}${normalizationNowDb.toFixed(2)} dB`
               : '—';
-            const targetLabel = normalizationTargetLufs != null
-              ? `${normalizationTargetLufs} LUFS`
-              : '-16 LUFS';
+            const tgtNum = normalizationTargetLufs ?? authLoudnessTargetLufs;
+            const targetLabel = `${tgtNum} LUFS`;
             if (!baseLine && !rgLine && !playbackSource) return null;
             const showRgLine = !isLoudnessActive && expandReplayGain && !!rgLine;
             const showLufsLine = isLoudnessActive && expandReplayGain;
@@ -597,10 +662,85 @@ function QueuePanelHostOrSolo() {
                   {showLufsLine && (
                     <span className="queue-current-tech-rg">
                       <span className="queue-current-tech-rg-label">Loudness</span>
-                      {' · '}{liveGainLabel}
+                      {' · '}
+                      <button
+                        type="button"
+                        className="queue-current-tech-metric"
+                        onClick={e => {
+                          e.stopPropagation();
+                          setLufsTgtOpen(false);
+                          void reanalyzeLoudnessForTrack(currentTrack.id);
+                        }}
+                        data-tooltip="Clear cached loudness and re-analyze this track"
+                      >
+                        {liveGainLabel}
+                      </button>
                       {' · '}
                       <span className="queue-current-tech-rg-label">TGT</span>
-                      {' · '}{targetLabel}
+                      {' · '}
+                      <button
+                        type="button"
+                        ref={lufsTgtBtnRef}
+                        className="queue-current-tech-metric"
+                        onClick={e => {
+                          e.stopPropagation();
+                          setLufsTgtOpen(v => !v);
+                        }}
+                        data-tooltip="Change target integrated loudness"
+                        aria-haspopup="listbox"
+                        aria-expanded={lufsTgtOpen}
+                      >
+                        {targetLabel}
+                      </button>
+                      {lufsTgtOpen &&
+                        createPortal(
+                          <div
+                            ref={lufsTgtMenuRef}
+                            className="queue-lufs-tgt-menu"
+                            style={{
+                              ...lufsTgtPopStyle,
+                              background: 'var(--bg-card)',
+                              border: '1px solid var(--border, rgba(255,255,255,0.12))',
+                              borderRadius: 8,
+                              boxShadow: '0 6px 24px rgba(0,0,0,0.35)',
+                              padding: 6,
+                              overflow: 'auto',
+                            }}
+                            role="listbox"
+                            aria-label="LUFS target"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            {([-10, -12, -14, -16] as const).map((v) => (
+                              <button
+                                key={v}
+                                type="button"
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  if (v !== authLoudnessTargetLufs) {
+                                    setLoudnessTargetLufs(v);
+                                    void reanalyzeLoudnessForTrack(currentTrack.id);
+                                  }
+                                  setLufsTgtOpen(false);
+                                }}
+                                style={{
+                                  display: 'block',
+                                  width: '100%',
+                                  textAlign: 'left',
+                                  padding: '6px 8px',
+                                  borderRadius: 6,
+                                  border: 'none',
+                                  background: v === authLoudnessTargetLufs ? 'color-mix(in srgb, var(--accent) 18%, transparent)' : 'transparent',
+                                  color: 'var(--text-primary)',
+                                  cursor: 'pointer',
+                                  font: 'inherit',
+                                }}
+                              >
+                                {v} LUFS
+                              </button>
+                            ))}
+                          </div>,
+                          document.body,
+                        )}
                     </span>
                   )}
                 </div>

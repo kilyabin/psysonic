@@ -4053,9 +4053,13 @@ pub fn audio_update_replay_gain(
     } else {
         None
     };
+    // If `current_playback_url` is not pinned yet, still honour JS `loudness_gain_db`
+    // so `loudness_ui_current_gain_db` can show a number (otherwise `and_then`
+    // drops the requested gain entirely).
     let resolved_loudness_gain_db = url_for_loudness
         .as_deref()
-        .and_then(|u| resolve_loudness_gain_from_cache(&app, u, target_lufs, loudness_gain_db));
+        .and_then(|u| resolve_loudness_gain_from_cache(&app, u, target_lufs, loudness_gain_db))
+        .or(loudness_gain_db);
     let effective_loudness_db = if norm_mode == 2 {
         match url_for_loudness.as_deref() {
             Some(u) => loudness_gain_db_or_startup(&app, u, target_lufs, loudness_gain_db),

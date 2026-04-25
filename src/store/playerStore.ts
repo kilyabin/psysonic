@@ -209,8 +209,9 @@ interface PlayerState {
   next: (manual?: boolean) => void;
   previous: () => void;
   seek: (progress: number) => void;
-  setVolume: (v: number) => void;
+   setVolume: (v: number) => void;
    updateReplayGainForCurrentTrack: () => void;
+   reanalyzeLoudnessForTrack: (trackId: string) => Promise<void>;
    setProgress: (t: number, duration: number) => void;
   enqueue: (tracks: Track[], _orbitConfirmed?: boolean) => void;
   enqueueAt: (tracks: Track[], insertIndex: number, _orbitConfirmed?: boolean) => void;
@@ -591,6 +592,59 @@ function touchHotCacheOnPlayback(trackId: string, serverId: string) {
 function isReplayGainActive() {
   const a = useAuthStore.getState();
   return a.normalizationEngine === 'replaygain' && a.replayGainEnabled;
+}
+
+function loudnessCacheStateKeysForTrackId(trackId: string): string[] {
+  if (!trackId) return [];
+  const out: string[] = [trackId];
+  if (trackId.startsWith('stream:')) {
+    const bare = trackId.slice('stream:'.length);
+    if (bare) out.push(bare);
+  } else {
+    out.push(`stream:${trackId}`);
+  }
+  return out;
+}
+
+function clearLoudnessCacheStateForTrackId(trackId: string) {
+  for (const k of loudnessCacheStateKeysForTrackId(trackId)) {
+    delete cachedLoudnessGainByTrackId[k];
+    delete stableLoudnessGainByTrackId[k];
+  }
+}
+
+function resetLoudnessBackfillStateForTrackId(trackId: string) {
+  for (const k of loudnessCacheStateKeysForTrackId(trackId)) {
+    delete analysisBackfillInFlightByTrackId[k];
+    analysisBackfillAttemptsByTrackId[k] = 0;
+  }
+}
+
+async function reseedLoudnessForTrackId(trackId: string) {
+  if (!trackId) return;
+  const auth = useAuthStore.getState();
+  if (auth.normalizationEngine !== 'loudness') return;
+  clearLoudnessCacheStateForTrackId(trackId);
+  resetLoudnessBackfillStateForTrackId(trackId);
+  if (auth.normalizationEngine === 'loudness') {
+    usePlayerStore.setState({
+      normalizationNowDb: null,
+      normalizationTargetLufs: auth.loudnessTargetLufs,
+      normalizationEngineLive: 'loudness',
+    });
+  }
+  try {
+    await invoke('analysis_delete_loudness_for_track', { trackId });
+  } catch (e) {
+    console.error('[psysonic] analysis_delete_loudness_for_track failed:', e);
+  }
+  usePlayerStore.getState().updateReplayGainForCurrentTrack();
+  const url = buildStreamUrl(trackId);
+  try {
+    await invoke('analysis_enqueue_seed_from_url', { trackId, url });
+  } catch (e) {
+    console.error('[psysonic] analysis_enqueue_seed_from_url (reseed) failed:', e);
+  }
 }
 
 async function refreshWaveformForTrack(trackId: string) {
@@ -1128,7 +1182,15 @@ export function initAudioListeners(): () => void {
         return;
       }
       const nowMs = Date.now();
-      if (nowMs - lastNormalizationUiUpdateAtMs < 120 && engine === prev.normalizationEngineLive) {
+      const isFirstNumericGain =
+        engine === 'loudness'
+        && nowDb != null
+        && prev.normalizationNowDb == null;
+      if (
+        !isFirstNumericGain
+        && nowMs - lastNormalizationUiUpdateAtMs < 120
+        && engine === prev.normalizationEngineLive
+      ) {
         return;
       }
       lastNormalizationUiUpdateAtMs = nowMs;
@@ -2418,6 +2480,15 @@ export const usePlayerStore = create<PlayerState>()(
          }
        },
 
+      reanalyzeLoudnessForTrack: async (trackId: string) => {
+        try {
+          showToast('Recalculating loudness for this track…', 2000, 'info');
+        } catch {
+          // no-op
+        }
+        await reseedLoudnessForTrackId(trackId);
+      },
+
        updateReplayGainForCurrentTrack: () => {
          const { currentTrack, queue, queueIndex, volume } = get();
          if (!currentTrack || !currentTrack.id) return;
@@ -2433,10 +2504,12 @@ export const usePlayerStore = create<PlayerState>()(
            : null;
          
         const normalization = deriveNormalizationSnapshot(currentTrack, queue, queueIndex);
+        const cachedLoud = cachedLoudnessGainByTrackId[currentTrack.id];
+        const cachedLoudDb = Number.isFinite(cachedLoud) ? cachedLoud : null;
         set(prevState => ({
           normalizationNowDb:
             normalization.normalizationEngineLive === 'loudness'
-              ? prevState.normalizationNowDb
+              ? (prevState.normalizationNowDb ?? cachedLoudDb)
               : normalization.normalizationNowDb,
           normalizationTargetLufs: normalization.normalizationTargetLufs,
           normalizationEngineLive: normalization.normalizationEngineLive,
