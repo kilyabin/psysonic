@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::io::Cursor;
 use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use ebur128::{EbuR128, Mode as Ebur128Mode};
 use rusqlite::{params, Connection, OptionalExtension};
@@ -315,51 +315,122 @@ pub fn recommended_gain_for_target(integrated_lufs: f64, true_peak: f64, target_
     recommended_gain_db.clamp(-24.0, 24.0)
 }
 
-pub fn seed_from_bytes(app: &tauri::AppHandle, track_id: &str, bytes: &[u8]) -> Result<(), String> {
+/// Result of [`seed_from_bytes`]: callers use it to avoid redundant UI events.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SeedFromBytesOutcome {
+    /// Wrote waveform (and loudness when PCM decode succeeded).
+    Upserted,
+    /// Same `track_id` + `md5_16kb` already had a non-empty waveform for this algo version.
+    SkippedWaveformCacheHit,
+    /// `AnalysisCache` was not registered on the app handle.
+    SkippedNoAnalysisCache,
+}
+
+pub fn seed_from_bytes(
+    app: &tauri::AppHandle,
+    track_id: &str,
+    bytes: &[u8],
+) -> Result<SeedFromBytesOutcome, String> {
+    let started = Instant::now();
     let Some(cache) = app.try_state::<AnalysisCache>() else {
-        return Ok(());
+        crate::app_deprintln!(
+            "[analysis][waveform] build skip track_id={} reason=no_analysis_cache bytes={}",
+            track_id,
+            bytes.len()
+        );
+        return Ok(SeedFromBytesOutcome::SkippedNoAnalysisCache);
     };
     let key = TrackKey {
         track_id: track_id.to_string(),
         md5_16kb: md5_first_16kb(bytes),
     };
-    cache.touch_track_status(&key, "queued")?;
-
-    let wf_bins: Vec<u8>;
-    let loudness_opt: Option<(f64, f64, f64, f64)>;
-    match analyze_loudness_and_waveform(bytes, -16.0, 500) {
-        Some((integrated_lufs, true_peak, recommended_gain_db, target_lufs, bins)) => {
-            wf_bins = bins;
-            loudness_opt = Some((integrated_lufs, true_peak, recommended_gain_db, target_lufs));
-        }
-        None => {
-            wf_bins = derive_waveform_bins(bytes, 500);
-            loudness_opt = None;
+    if let Some(existing) = cache.get_waveform(&key)? {
+        if !existing.bins.is_empty() {
+            crate::app_deprintln!(
+                "[analysis][waveform] build skip track_id={} reason=waveform_cache_hit md5_16kb={} bins_len={} elapsed_ms={}",
+                track_id,
+                key.md5_16kb,
+                existing.bins.len(),
+                started.elapsed().as_millis()
+            );
+            return Ok(SeedFromBytesOutcome::SkippedWaveformCacheHit);
         }
     }
-    let waveform = WaveformEntry {
-        bins: wf_bins,
-        bin_count: 500,
-        is_partial: false,
-        known_until_sec: 0.0,
-        duration_sec: 0.0,
-        updated_at: now_unix_ts(),
-    };
-    cache.upsert_waveform(&key, &waveform)?;
+    crate::app_deprintln!(
+        "[analysis][waveform] build start track_id={} bytes={} md5_16kb={}",
+        track_id,
+        bytes.len(),
+        key.md5_16kb
+    );
 
-    if let Some((integrated_lufs, true_peak, recommended_gain_db, target_lufs)) = loudness_opt {
-        let loudness = LoudnessEntry {
-            integrated_lufs,
-            true_peak,
-            recommended_gain_db,
-            target_lufs,
+    let build = (|| -> Result<(bool, usize), String> {
+        cache.touch_track_status(&key, "queued")?;
+
+        let (wf_bins, loudness_opt, used_pcm_decode) = match analyze_loudness_and_waveform(bytes, -16.0, 500) {
+            Some((integrated_lufs, true_peak, recommended_gain_db, target_lufs, bins)) => {
+                (
+                    bins,
+                    Some((integrated_lufs, true_peak, recommended_gain_db, target_lufs)),
+                    true,
+                )
+            }
+            None => (derive_waveform_bins(bytes, 500), None, false),
+        };
+        let bins_len = wf_bins.len();
+        let waveform = WaveformEntry {
+            bins: wf_bins,
+            bin_count: 500,
+            is_partial: false,
+            known_until_sec: 0.0,
+            duration_sec: 0.0,
             updated_at: now_unix_ts(),
         };
-        cache.upsert_loudness(&key, &loudness)?;
+        cache.upsert_waveform(&key, &waveform)?;
+
+        if let Some((integrated_lufs, true_peak, recommended_gain_db, target_lufs)) = loudness_opt {
+            let loudness = LoudnessEntry {
+                integrated_lufs,
+                true_peak,
+                recommended_gain_db,
+                target_lufs,
+                updated_at: now_unix_ts(),
+            };
+            cache.upsert_loudness(&key, &loudness)?;
+        }
+
+        cache.touch_track_status(&key, "ready")?;
+        Ok((used_pcm_decode, bins_len))
+    })();
+
+    let elapsed_ms = started.elapsed().as_millis();
+    match &build {
+        Ok((used_pcm_decode, bins_len)) => {
+            crate::app_deprintln!(
+                "[analysis][waveform] build done track_id={} elapsed_ms={} path={} bins_len={}",
+                track_id,
+                elapsed_ms,
+                if *used_pcm_decode {
+                    "pcm_ebur128"
+                } else {
+                    "byte_envelope"
+                },
+                bins_len
+            );
+        }
+        Err(e) => {
+            crate::app_deprintln!(
+                "[analysis][waveform] build failed track_id={} elapsed_ms={} err={}",
+                track_id,
+                elapsed_ms,
+                e
+            );
+        }
     }
 
-    cache.touch_track_status(&key, "ready")?;
-    Ok(())
+    match build {
+        Ok(_) => Ok(SeedFromBytesOutcome::Upserted),
+        Err(e) => Err(e),
+    }
 }
 
 fn now_unix_ts() -> i64 {
@@ -397,20 +468,6 @@ fn derive_waveform_bins(bytes: &[u8], bin_count: usize) -> Vec<u8> {
 struct PcmScanResult {
     bins: Vec<u8>,
     loudness: Option<(f64, f64, f64, f64)>,
-}
-
-/// Decoded PCM peak envelope (mono mix) → `bin_count` bars, for seekbar display.
-/// Two decode passes: count frames, then fill bins. Returns `None` if probing/decoding fails.
-pub fn derive_waveform_bins_from_audio_bytes(bytes: &[u8], bin_count: usize) -> Option<Vec<u8>> {
-    if bytes.is_empty() || bin_count == 0 {
-        return None;
-    }
-    let (decoded_frames, timeline_hint) = count_mono_frames_from_audio_bytes(bytes)?;
-    if decoded_frames == 0 {
-        return None;
-    }
-    let scanned = decode_scan_pcm(bytes, bin_count, decoded_frames, timeline_hint, None)?;
-    Some(scanned.bins)
 }
 
 /// Loudness (EBU R128) plus PCM waveform bins in one decode pass after a frame count.

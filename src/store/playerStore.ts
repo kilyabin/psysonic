@@ -148,9 +148,6 @@ async function buildInfiniteQueueCandidates(
 interface PlayerState {
   currentTrack: Track | null;
   waveformBins: number[] | null;
-  waveformIsPartial: boolean;
-  waveformKnownUntilSec: number;
-  waveformDurationSec: number;
   normalizationNowDb: number | null;
   normalizationTargetLufs: number | null;
   normalizationEngineLive: 'off' | 'replaygain' | 'loudness';
@@ -264,13 +261,35 @@ interface PlayerState {
 }
 
 type WaveformCachePayload = {
-  bins: number[];
+  /** May be `number[]` or `Uint8Array` depending on Tauri IPC / serde path. */
+  bins: number[] | Uint8Array;
   binCount: number;
   isPartial: boolean;
   knownUntilSec: number;
   durationSec: number;
   updatedAt: number;
 };
+
+/** `Vec<u8>` from Rust often arrives as `Uint8Array`, not `Array.isArray`. */
+function coerceWaveformBins(bins: unknown): number[] | null {
+  if (bins == null) return null;
+  if (Array.isArray(bins)) {
+    return bins.length > 0 ? bins.map(x => Number(x) & 255) : null;
+  }
+  if (bins instanceof Uint8Array) {
+    return bins.length > 0 ? Array.from(bins) : null;
+  }
+  if (typeof bins === 'object' && 'length' in bins && typeof (bins as { length: unknown }).length === 'number') {
+    const len = (bins as { length: number }).length;
+    if (len === 0) return null;
+    try {
+      return Array.from(bins as ArrayLike<number>).map(x => Number(x) & 255);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
 
 type LoudnessCachePayload = {
   integratedLufs: number;
@@ -613,6 +632,14 @@ function clearLoudnessCacheStateForTrackId(trackId: string) {
   }
 }
 
+/** Pass to `audio_play` / `audio_chain_preload` only — DB-backed gain. Omit partial hints so Rust uses pre-trim until `analysis:loudness-partial` + `audio_update_replay_gain`. */
+function loudnessGainDbForEngineBind(trackId: string | undefined | null): number | null {
+  if (!trackId) return null;
+  if (!stableLoudnessGainByTrackId[trackId]) return null;
+  const v = cachedLoudnessGainByTrackId[trackId];
+  return Number.isFinite(v) ? v : null;
+}
+
 function resetLoudnessBackfillStateForTrackId(trackId: string) {
   for (const k of loudnessCacheStateKeysForTrackId(trackId)) {
     delete analysisBackfillInFlightByTrackId[k];
@@ -651,20 +678,15 @@ async function refreshWaveformForTrack(trackId: string) {
   if (!trackId) return;
   try {
     const row = await invoke<WaveformCachePayload | null>('analysis_get_waveform_for_track', { trackId });
-    if (!row || !Array.isArray(row.bins) || row.bins.length === 0) {
+    const bins = row ? coerceWaveformBins(row.bins) : null;
+    if (!bins || bins.length === 0) {
       usePlayerStore.setState({
         waveformBins: null,
-        waveformIsPartial: false,
-        waveformKnownUntilSec: 0,
-        waveformDurationSec: 0,
       });
       return;
     }
     usePlayerStore.setState({
-      waveformBins: row.bins,
-      waveformIsPartial: !!row.isPartial,
-      waveformKnownUntilSec: Number.isFinite(row.knownUntilSec) ? row.knownUntilSec : 0,
-      waveformDurationSec: Number.isFinite(row.durationSec) ? row.durationSec : 0,
+      waveformBins: bins,
     });
   } catch {
     // best-effort; seekbar falls back to placeholder waveform
@@ -735,6 +757,31 @@ async function refreshLoudnessForTrack(
     delete stableLoudnessGainByTrackId[trackId];
     emitNormalizationDebug('refresh:error', { trackId });
     usePlayerStore.setState({ normalizationDbgSource: 'refresh:error', normalizationDbgTrackId: trackId });
+  }
+}
+
+/** After bulk enqueue, warm loudness cache so gapless `audio_chain_preload` sees real gain, not only startup trim. */
+const LOUDNESS_PREFETCH_MAX_ENQUEUED_IDS = 40;
+
+function prefetchLoudnessForEnqueuedTracks(
+  incoming: Track[],
+  mergedQueue: Track[],
+  queueIndex: number,
+) {
+  if (useAuthStore.getState().normalizationEngine !== 'loudness') return;
+  const ids = new Set<string>();
+  const next = mergedQueue[queueIndex + 1];
+  if (next?.id) ids.add(next.id);
+  let n = 0;
+  for (const t of incoming) {
+    if (n >= LOUDNESS_PREFETCH_MAX_ENQUEUED_IDS) break;
+    if (t?.id) {
+      ids.add(t.id);
+      n++;
+    }
+  }
+  for (const id of ids) {
+    void refreshLoudnessForTrack(id, { syncPlayingEngine: false });
   }
 }
 
@@ -824,10 +871,6 @@ function handleAudioProgress(current_time: number, duration: number) {
   const dur = duration > 0 ? duration : track.duration;
   if (dur <= 0) return;
   const progress = displayTime / dur;
-  // Do not couple `waveformKnownUntilSec` to playhead: for partial streams it
-  // must track **download/analysis progress** (emitted in `analysis:waveform-partial`).
-  // Using `displayTime` here broke the seekbar after seeks — bins only cover the
-  // buffered prefix of the file while `knownUntil` jumped with the seek position.
   usePlayerStore.setState({ currentTime: displayTime, progress, buffered: 0 });
 
   // Scrobble at 50%: Last.fm + Navidrome (updates play_date / recently played)
@@ -915,7 +958,11 @@ function handleAudioProgress(current_time: number, duration: number) {
           gaplessEnabled,
         });
       }
-      invoke('audio_preload', { url: nextUrl, durationHint: nextTrack.duration }).catch(() => {});
+      invoke('audio_preload', {
+        url: nextUrl,
+        durationHint: nextTrack.duration,
+        analysisTrackId: nextTrack.id,
+      }).catch(() => {});
     }
 
     // Gapless chain — decode + chain into Sink 30s before track boundary.
@@ -942,10 +989,11 @@ function handleAudioProgress(current_time: number, duration: number) {
         durationHint: nextTrack.duration,
         replayGainDb,
         replayGainPeak,
-        loudnessGainDb: cachedLoudnessGainByTrackId[nextTrack.id] ?? null,
+        loudnessGainDb: loudnessGainDbForEngineBind(nextTrack.id),
         preGainDb: authState.replayGainPreGainDb,
         fallbackDb: authState.replayGainFallbackDb,
         hiResEnabled: authState.enableHiRes,
+        analysisTrackId: nextTrack.id,
       }).catch(() => {});
     }
   }
@@ -972,8 +1020,6 @@ function handleAudioEnded() {
     progress: 0,
     currentTime: 0,
     buffered: 0,
-    waveformIsPartial: false,
-    waveformKnownUntilSec: 0,
   });
   setTimeout(() => {
     if (repeatMode === 'one' && currentTrack) {
@@ -1019,9 +1065,6 @@ function handleAudioTrackSwitched(duration: number) {
   usePlayerStore.setState({
     currentTrack: nextTrack,
     waveformBins: null,
-    waveformIsPartial: false,
-    waveformKnownUntilSec: 0,
-    waveformDurationSec: 0,
     ...deriveNormalizationSnapshot(nextTrack, queue, newIndex),
     normalizationDbgSource: 'track-switched',
     normalizationDbgTrackId: nextTrack.id,
@@ -1106,48 +1149,6 @@ export function initAudioListeners(): () => void {
     listen<void>('audio:ended', () => handleAudioEnded()),
     listen<string>('audio:error', ({ payload }) => handleAudioError(payload)),
     listen<number>('audio:track_switched', ({ payload }) => handleAudioTrackSwitched(payload)),
-    listen<{ trackId?: string | null; bins: number[]; knownUntilSec: number; durationSec: number; isPartial: boolean }>('analysis:waveform-partial', ({ payload }) => {
-      const current = usePlayerStore.getState().currentTrack;
-      if (!current || !payload) return;
-      const payloadTrackId = normalizeAnalysisTrackId(payload.trackId);
-      if (payloadTrackId && payloadTrackId !== current.id) return;
-      if (!payload.isPartial || !payload?.bins?.length) {
-        usePlayerStore.setState({ waveformIsPartial: false, waveformKnownUntilSec: 0 });
-        return;
-      }
-      const nextKnownUntilSec = Number.isFinite(payload.knownUntilSec) ? payload.knownUntilSec : 0;
-      const nextDurationSec = Number.isFinite(payload.durationSec) ? payload.durationSec : (current.duration || 0);
-      usePlayerStore.setState((prev) => {
-        const prevBins = prev.waveformBins;
-        const prevKnownUntilSec = Number.isFinite(prev.waveformKnownUntilSec) ? prev.waveformKnownUntilSec : 0;
-        if (!prevBins || prevBins.length === 0 || prevKnownUntilSec <= 0 || nextDurationSec <= 0) {
-          return {
-            waveformBins: payload.bins,
-            waveformIsPartial: true,
-            waveformKnownUntilSec: nextKnownUntilSec,
-            waveformDurationSec: nextDurationSec,
-          };
-        }
-        const len = Math.max(prevBins.length, payload.bins.length);
-        const merged = new Array<number>(len);
-        for (let i = 0; i < len; i++) {
-          merged[i] = i < prevBins.length ? prevBins[i] : 0;
-        }
-        const prevKnownBars = Math.max(0, Math.min(len, Math.floor((prevKnownUntilSec / nextDurationSec) * len)));
-        const nextKnownBars = Math.max(0, Math.min(len, Math.floor((nextKnownUntilSec / nextDurationSec) * len)));
-        if (nextKnownBars > prevKnownBars) {
-          for (let i = prevKnownBars; i < nextKnownBars; i++) {
-            if (i < payload.bins.length) merged[i] = payload.bins[i];
-          }
-        }
-        return {
-          waveformBins: merged,
-          waveformIsPartial: true,
-          waveformKnownUntilSec: Math.max(prevKnownUntilSec, nextKnownUntilSec),
-          waveformDurationSec: nextDurationSec,
-        };
-      });
-    }),
     listen<{ trackId?: string | null; gainDb: number; targetLufs: number; isPartial: boolean }>('analysis:loudness-partial', ({ payload }) => {
       const current = usePlayerStore.getState().currentTrack;
       if (!current || !payload) return;
@@ -1167,12 +1168,10 @@ export function initAudioListeners(): () => void {
       if (!payload?.trackId) return;
       const payloadTrackId = normalizeAnalysisTrackId(payload.trackId);
       if (!payloadTrackId) return;
-      const currentId = usePlayerStore.getState().currentTrack?.id;
+      const currentRaw = usePlayerStore.getState().currentTrack?.id;
+      const currentId = currentRaw ? normalizeAnalysisTrackId(currentRaw) : null;
       if (currentId && payloadTrackId === currentId) {
-        if (!payload.isPartial) {
-          usePlayerStore.setState({ waveformIsPartial: false });
-        }
-        void refreshWaveformForTrack(currentId);
+        void refreshWaveformForTrack(currentRaw!);
         void refreshLoudnessForTrack(currentId);
         emitNormalizationDebug('backfill:applied', { trackId: currentId });
         return;
@@ -1265,7 +1264,12 @@ export function initAudioListeners(): () => void {
   invoke('audio_set_normalization', {
     engine: normCfg.normalizationEngine,
     targetLufs: normCfg.loudnessTargetLufs,
+    preAnalysisAttenuationDb: normCfg.loudnessPreAnalysisAttenuationDb,
   }).catch(() => {});
+  const bootTrackId = usePlayerStore.getState().currentTrack?.id;
+  if (bootTrackId) {
+    void refreshWaveformForTrack(bootTrackId);
+  }
   if (normCfg.normalizationEngine === 'loudness') {
     const currentId = usePlayerStore.getState().currentTrack?.id;
     if (currentId) {
@@ -1281,6 +1285,7 @@ export function initAudioListeners(): () => void {
   // Keep audio settings in sync whenever auth store changes.
   let prevNormEngine = normCfg.normalizationEngine;
   let prevNormTarget = normCfg.loudnessTargetLufs;
+  let prevPreAnalysis = normCfg.loudnessPreAnalysisAttenuationDb;
   const unsubAuth = useAuthStore.subscribe((state) => {
     invoke('audio_set_crossfade', {
       enabled: state.crossfadeEnabled,
@@ -1289,10 +1294,16 @@ export function initAudioListeners(): () => void {
     invoke('audio_set_gapless', { enabled: state.gaplessEnabled }).catch(() => {});
     const normChanged =
       state.normalizationEngine !== prevNormEngine
-      || state.loudnessTargetLufs !== prevNormTarget;
+      || state.loudnessTargetLufs !== prevNormTarget
+      || state.loudnessPreAnalysisAttenuationDb !== prevPreAnalysis;
     if (!normChanged) return;
+    const onlyPreAnalysisChanged =
+      state.normalizationEngine === prevNormEngine
+      && state.loudnessTargetLufs === prevNormTarget
+      && state.loudnessPreAnalysisAttenuationDb !== prevPreAnalysis;
     prevNormEngine = state.normalizationEngine;
     prevNormTarget = state.loudnessTargetLufs;
+    prevPreAnalysis = state.loudnessPreAnalysisAttenuationDb;
     usePlayerStore.setState({
       normalizationEngineLive: state.normalizationEngine,
       normalizationTargetLufs: state.normalizationEngine === 'loudness' ? state.loudnessTargetLufs : null,
@@ -1309,10 +1320,13 @@ export function initAudioListeners(): () => void {
     invoke('audio_set_normalization', {
       engine: state.normalizationEngine,
       targetLufs: state.loudnessTargetLufs,
+      preAnalysisAttenuationDb: state.loudnessPreAnalysisAttenuationDb,
     }).catch(() => {});
     if (state.normalizationEngine === 'loudness') {
       const currentId = usePlayerStore.getState().currentTrack?.id;
-      if (currentId) {
+      if (onlyPreAnalysisChanged) {
+        usePlayerStore.getState().updateReplayGainForCurrentTrack();
+      } else if (currentId) {
         void refreshLoudnessForTrack(currentId).finally(() => {
           usePlayerStore.getState().updateReplayGainForCurrentTrack();
         });
@@ -1504,9 +1518,6 @@ export const usePlayerStore = create<PlayerState>()(
     (set, get) => ({
       currentTrack: null,
       waveformBins: null,
-      waveformIsPartial: false,
-      waveformKnownUntilSec: 0,
-      waveformDurationSec: 0,
       normalizationNowDb: null,
       normalizationTargetLufs: null,
       normalizationEngineLive: 'off',
@@ -1643,9 +1654,6 @@ export const usePlayerStore = create<PlayerState>()(
           currentTime: 0,
           currentRadio: null,
           waveformBins: null,
-          waveformIsPartial: false,
-          waveformKnownUntilSec: 0,
-          waveformDurationSec: 0,
           normalizationNowDb: null,
           normalizationTargetLufs: null,
           normalizationEngineLive: 'off',
@@ -1690,9 +1698,6 @@ export const usePlayerStore = create<PlayerState>()(
           currentRadio: station,
           currentTrack: null,
           waveformBins: null,
-          waveformIsPartial: false,
-          waveformKnownUntilSec: 0,
-          waveformDurationSec: 0,
           normalizationNowDb: null,
           normalizationTargetLufs: null,
           normalizationEngineLive: 'off',
@@ -1804,9 +1809,6 @@ export const usePlayerStore = create<PlayerState>()(
           currentTrack: track,
           currentRadio: null,
           waveformBins: null,
-          waveformIsPartial: false,
-          waveformKnownUntilSec: 0,
-          waveformDurationSec: 0,
           ...deriveNormalizationSnapshot(track, newQueue, idx >= 0 ? idx : 0),
           queue: newQueue,
           queueIndex: idx >= 0 ? idx : 0,
@@ -1848,11 +1850,12 @@ export const usePlayerStore = create<PlayerState>()(
           durationHint: track.duration,
           replayGainDb,
           replayGainPeak,
-          loudnessGainDb: cachedLoudnessGainByTrackId[track.id] ?? null,
+          loudnessGainDb: loudnessGainDbForEngineBind(track.id),
           preGainDb: authState.replayGainPreGainDb,
           fallbackDb: authState.replayGainFallbackDb,
           manual,
           hiResEnabled: authState.enableHiRes,
+          analysisTrackId: track.id,
         })
           .then(() => {
             if (playGeneration !== gen) return;
@@ -2029,11 +2032,12 @@ export const usePlayerStore = create<PlayerState>()(
               durationHint: trackToPlay.duration,
               replayGainDb: replayGainDbCold,
               replayGainPeak: replayGainPeakCold,
-              loudnessGainDb: cachedLoudnessGainByTrackId[trackToPlay.id] ?? null,
+              loudnessGainDb: loudnessGainDbForEngineBind(trackToPlay.id),
               preGainDb: authStateCold.replayGainPreGainDb,
               fallbackDb: authStateCold.replayGainFallbackDb,
               manual: false,
               hiResEnabled: useAuthStore.getState().enableHiRes,
+              analysisTrackId: trackToPlay.id,
             }).then(() => {
               if (playGeneration === gen && currentTime > 1) {
                 invoke('audio_seek', { seconds: currentTime }).catch(console.error);
@@ -2064,11 +2068,12 @@ export const usePlayerStore = create<PlayerState>()(
                durationHint: currentTrack.duration,
                replayGainDb: replayGainDbCold,
                replayGainPeak: replayGainPeakCold,
-               loudnessGainDb: cachedLoudnessGainByTrackId[currentTrack.id] ?? null,
+               loudnessGainDb: loudnessGainDbForEngineBind(currentTrack.id),
                preGainDb: authStateCold.replayGainPreGainDb,
                fallbackDb: authStateCold.replayGainFallbackDb,
                manual: false,
                hiResEnabled: useAuthStore.getState().enableHiRes,
+               analysisTrackId: currentTrack.id,
              }).catch((err: unknown) => {
                if (playGeneration !== gen) return;
                setDeferHotCachePrefetch(false);
@@ -2358,6 +2363,7 @@ export const usePlayerStore = create<PlayerState>()(
                 ...state.queue.slice(firstAutoIdx),
               ];
           syncQueueToServer(newQueue, state.currentTrack, state.currentTime);
+          prefetchLoudnessForEnqueuedTracks(tracks, newQueue, state.queueIndex);
           return { queue: newQueue };
         });
       },
@@ -2404,6 +2410,7 @@ export const usePlayerStore = create<PlayerState>()(
             ? state.queueIndex + tracks.length
             : state.queueIndex;
           syncQueueToServer(newQueue, state.currentTrack, state.currentTime);
+          prefetchLoudnessForEnqueuedTracks(tracks, newQueue, newQueueIndex);
           return { queue: newQueue, queueIndex: newQueueIndex };
         });
       },
@@ -2495,6 +2502,7 @@ export const usePlayerStore = create<PlayerState>()(
                currentTrack,
                currentTime: serverTime > 0 ? serverTime : localTime,
              });
+             void refreshWaveformForTrack(currentTrack.id);
            }
          } catch (e) {
            console.error('Failed to initialize queue from server', e);

@@ -886,6 +886,12 @@ export const ruTranslation = {
     replayGainAlbum: 'По альбому',
     replayGainPreGain: 'Предусиление (файлы с тегами)',
     replayGainFallback: 'Резерв (без тегов / радио)',
+    normalization: 'Нормализация',
+    loudnessTargetLufs: 'Целевой LUFS',
+    loudnessPreAnalysisAttenuation: 'Ослабление до измерения (dB)',
+    loudnessPreAnalysisAttenuationDesc:
+      'Насколько приглушить звук, пока для трека нет сохранённого измерения громкости. При стриме дальше идут лишь грубые оценки, не полный LUFS. 0 dB — без дополнительного приглушения; ниже — тише.',
+    loudnessPreAnalysisAttenuationReset: 'По умолчанию',
     crossfade: 'Кроссфейд',
     crossfadeDesc: 'Плавный переход между треками',
     crossfadeSecs: '{{n}} с',

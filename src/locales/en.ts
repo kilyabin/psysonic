@@ -853,6 +853,12 @@ export const enTranslation = {
     replayGainAlbum: 'Album',
     replayGainPreGain: 'Pre-Gain (tagged files)',
     replayGainFallback: 'Fallback (untagged / radio)',
+    normalization: 'Normalization',
+    loudnessTargetLufs: 'Target LUFS',
+    loudnessPreAnalysisAttenuation: 'Trim before measurement (dB)',
+    loudnessPreAnalysisAttenuationDesc:
+      'Extra quieting until loudness for this track is saved. Streaming then uses rough guesses, not a full measurement. 0 dB = off; lower = quieter.',
+    loudnessPreAnalysisAttenuationReset: 'Reset to default',
     crossfade: 'Crossfade',
     crossfadeDesc: 'Fade between tracks',
     crossfadeSecs: '{{n}} s',

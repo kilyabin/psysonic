@@ -109,6 +109,24 @@ function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - x, 3);
 }
 
+function binsToHeights(src: number[]): Float32Array {
+  const h = new Float32Array(BAR_COUNT);
+  for (let i = 0; i < BAR_COUNT; i++) {
+    const idx = Math.min(src.length - 1, Math.floor((i / BAR_COUNT) * src.length));
+    const v = src[idx];
+    h[i] = Math.max(0.08, Math.min(1, (Number(v) / 255)));
+  }
+  return h;
+}
+
+function heightsNearlyEqual(a: Float32Array, b: Float32Array, eps: number): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (Math.abs(a[i] - b[i]) > eps) return false;
+  }
+  return true;
+}
+
 function waveformBarThickness(logicalH: number, norm: number): number {
   const safeNorm = Math.max(FLAT_WAVE_NORM, norm);
   return Math.max(1, safeNorm * logicalH);
@@ -865,9 +883,6 @@ export default function WaveformSeek({ trackId }: Props) {
 
   const seek         = usePlayerStore(s => s.seek);
   const waveformBins = usePlayerStore(s => s.waveformBins);
-  const waveformIsPartial = usePlayerStore(s => s.waveformIsPartial);
-  const waveformKnownUntilSec = usePlayerStore(s => s.waveformKnownUntilSec);
-  const waveformDurationSec = usePlayerStore(s => s.waveformDurationSec);
   const duration     = usePlayerStore(s => s.currentTrack?.duration ?? 0);
   const seekbarStyle = useAuthStore(s => s.seekbarStyle);
 
@@ -882,15 +897,13 @@ export default function WaveformSeek({ trackId }: Props) {
       return;
     }
     if (waveformBins && waveformBins.length > 0) {
-      const src = waveformBins;
-      const h = new Float32Array(BAR_COUNT);
-      for (let i = 0; i < BAR_COUNT; i++) {
-        const idx = Math.min(src.length - 1, Math.floor((i / BAR_COUNT) * src.length));
-        const v = src[idx];
-        h[i] = Math.max(0.08, Math.min(1, (Number(v) / 255)));
-      }
+      const h = binsToHeights(waveformBins);
       const prev = heightsRef.current;
       if (!prev || prev.length !== BAR_COUNT) {
+        heightsRef.current = h;
+        return;
+      }
+      if (heightsNearlyEqual(prev, h, 0.02)) {
         heightsRef.current = h;
         return;
       }
@@ -946,7 +959,7 @@ export default function WaveformSeek({ trackId }: Props) {
     }
     // No analysis bins yet: render 500 flat bars immediately.
     heightsRef.current = makeFlatWaveHeights();
-  }, [trackId, waveformBins, waveformIsPartial, waveformKnownUntilSec, waveformDurationSec, duration]);
+  }, [trackId, waveformBins]);
 
   // Imperative subscription — no React re-renders from progress changes.
   // Static styles draw here; animated styles only update refs.
@@ -983,9 +996,6 @@ export default function WaveformSeek({ trackId }: Props) {
     seekbarStyle,
     trackId,
     waveformBins,
-    waveformIsPartial,
-    waveformKnownUntilSec,
-    waveformDurationSec,
     duration,
   ]);
 

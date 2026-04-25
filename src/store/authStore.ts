@@ -22,6 +22,27 @@ export type SeekbarStyle = 'waveform' | 'linedot' | 'bar' | 'thick' | 'segmented
 export type LoggingMode = 'off' | 'normal' | 'debug';
 export type NormalizationEngine = 'off' | 'replaygain' | 'loudness';
 
+/** Integrated-loudness target presets (Settings + analysis). */
+export type LoudnessLufsPreset = -16 | -14 | -12 | -10;
+
+const LOUDNESS_LUFS_PRESETS: LoudnessLufsPreset[] = [-16, -14, -12, -10];
+
+/** Settings default + Rust engine cold default until `audio_set_normalization` runs. */
+export const DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB = -4.5;
+
+function sanitizeLoudnessLufsPreset(v: unknown, fallback: LoudnessLufsPreset): LoudnessLufsPreset {
+  return (LOUDNESS_LUFS_PRESETS as readonly number[]).includes(v as number)
+    ? (v as LoudnessLufsPreset)
+    : fallback;
+}
+
+function clampLoudnessPreAnalysisAttenuationDb(v: unknown): number {
+  const n = typeof v === 'number' ? v : Number(v);
+  if (!Number.isFinite(n)) return DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB;
+  const stepped = Math.round(n * 2) / 2;
+  return Math.max(-24, Math.min(0, stepped));
+}
+
 export type LyricsSourceId = 'server' | 'lrclib' | 'netease';
 export interface LyricsSourceConfig { id: LyricsSourceId; enabled: boolean; }
 
@@ -51,7 +72,9 @@ interface AuthState {
   customGenreBlacklist: string[];
   replayGainEnabled: boolean;
   normalizationEngine: NormalizationEngine;
-  loudnessTargetLufs: -16 | -14 | -12 | -10;
+  loudnessTargetLufs: LoudnessLufsPreset;
+  /** dB: extra quieting until loudness is saved; also seeds streaming rough-guess ramp. */
+  loudnessPreAnalysisAttenuationDb: number;
   replayGainMode: 'track' | 'album' | 'auto';
   replayGainPreGainDb: number;   // added to RG gain for tagged files (0…+6 dB)
   replayGainFallbackDb: number;  // gain for untagged files / radio (-6…0 dB)
@@ -212,7 +235,9 @@ interface AuthState {
   setCustomGenreBlacklist: (v: string[]) => void;
   setReplayGainEnabled: (v: boolean) => void;
   setNormalizationEngine: (v: NormalizationEngine) => void;
-  setLoudnessTargetLufs: (v: -16 | -14 | -12 | -10) => void;
+  setLoudnessTargetLufs: (v: LoudnessLufsPreset) => void;
+  setLoudnessPreAnalysisAttenuationDb: (v: number) => void;
+  resetLoudnessPreAnalysisAttenuationDbDefault: () => void;
   setReplayGainMode: (v: 'track' | 'album' | 'auto') => void;
   setReplayGainPreGainDb: (v: number) => void;
   setReplayGainFallbackDb: (v: number) => void;
@@ -326,6 +351,7 @@ export const useAuthStore = create<AuthState>()(
       replayGainEnabled: false,
       normalizationEngine: 'off',
       loudnessTargetLufs: -12,
+      loudnessPreAnalysisAttenuationDb: DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB,
       replayGainMode: 'auto',
       replayGainPreGainDb: 0,
       replayGainFallbackDb: 0,
@@ -460,6 +486,13 @@ export const useAuthStore = create<AuthState>()(
       },
       setLoudnessTargetLufs: (v) => {
         set({ loudnessTargetLufs: v });
+        usePlayerStore.getState().updateReplayGainForCurrentTrack();
+      },
+      setLoudnessPreAnalysisAttenuationDb: (v) => {
+        set({ loudnessPreAnalysisAttenuationDb: clampLoudnessPreAnalysisAttenuationDb(v) });
+      },
+      resetLoudnessPreAnalysisAttenuationDbDefault: () => {
+        set({ loudnessPreAnalysisAttenuationDb: DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB });
         usePlayerStore.getState().updateReplayGainForCurrentTrack();
       },
       setReplayGainMode: (v) => {
@@ -696,6 +729,10 @@ export const useAuthStore = create<AuthState>()(
           } catch { /* ignore */ }
         }
 
+        const st = state as { loudnessTargetLufs?: unknown; loudnessPreAnalysisAttenuationDb?: unknown };
+        const targetSan = sanitizeLoudnessLufsPreset(st.loudnessTargetLufs, -12);
+        const preSan = clampLoudnessPreAnalysisAttenuationDb(st.loudnessPreAnalysisAttenuationDb);
+
         useAuthStore.setState({
           mixMinRatingSong: clampMixFilterMinStars(state.mixMinRatingSong as number),
           mixMinRatingAlbum: clampMixFilterMinStars(state.mixMinRatingAlbum as number),
@@ -703,6 +740,8 @@ export const useAuthStore = create<AuthState>()(
           skipStarManualSkipCountsByKey: sanitizeSkipStarCounts(
             (state as { skipStarManualSkipCountsByKey?: unknown }).skipStarManualSkipCountsByKey,
           ),
+          loudnessTargetLufs: targetSan,
+          loudnessPreAnalysisAttenuationDb: preSan,
           ...conflictingLegacyState,
           ...lyricsSourcesMigrated,
           ...wheelSmoothOneTime,

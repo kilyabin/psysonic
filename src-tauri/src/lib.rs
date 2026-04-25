@@ -1199,8 +1199,30 @@ fn analysis_get_waveform(
     md5_16kb: String,
     cache: tauri::State<'_, analysis_cache::AnalysisCache>,
 ) -> Result<Option<WaveformCachePayload>, String> {
-    let key = analysis_cache::TrackKey { track_id, md5_16kb };
+    let key = analysis_cache::TrackKey {
+        track_id: track_id.clone(),
+        md5_16kb: md5_16kb.clone(),
+    };
     let row = cache.get_waveform(&key)?;
+    match &row {
+        Some(v) => {
+            crate::app_deprintln!(
+                "[analysis][waveform] db hit (exact key) track_id={} md5_16kb={} bins_len={} bin_count={} updated_at={}",
+                track_id,
+                md5_16kb,
+                v.bins.len(),
+                v.bin_count,
+                v.updated_at
+            );
+        }
+        None => {
+            crate::app_deprintln!(
+                "[analysis][waveform] db miss (exact key) track_id={} md5_16kb={}",
+                track_id,
+                md5_16kb
+            );
+        }
+    }
     Ok(row.map(|v| WaveformCachePayload {
         bins: v.bins,
         bin_count: v.bin_count,
@@ -1217,6 +1239,23 @@ fn analysis_get_waveform_for_track(
     cache: tauri::State<'_, analysis_cache::AnalysisCache>,
 ) -> Result<Option<WaveformCachePayload>, String> {
     let row = cache.get_latest_waveform_for_track(&track_id)?;
+    match &row {
+        Some(v) => {
+            crate::app_deprintln!(
+                "[analysis][waveform] db hit track_id={} bins_len={} bin_count={} updated_at={}",
+                track_id,
+                v.bins.len(),
+                v.bin_count,
+                v.updated_at
+            );
+        }
+        None => {
+            crate::app_deprintln!(
+                "[analysis][waveform] db miss track_id={}",
+                track_id
+            );
+        }
+    }
     Ok(row.map(|v| WaveformCachePayload {
         bins: v.bins,
         bin_count: v.bin_count,
@@ -1349,18 +1388,19 @@ async fn stream_to_file(response: reqwest::Response, dest_path: &std::path::Path
 }
 
 fn enqueue_analysis_seed(app: &tauri::AppHandle, track_id: &str, bytes: &[u8]) -> Result<bool, String> {
-    analysis_cache::seed_from_bytes(app, track_id, bytes)
-        .map_err(|e| {
-            crate::app_eprintln!("[analysis] failed to seed {}: {}", track_id, e);
-            e
-        })?;
-    let _ = app.emit(
-        "analysis:waveform-updated",
-        WaveformUpdatedPayload {
-            track_id: track_id.to_string(),
-            is_partial: false,
-        },
-    );
+    let outcome = analysis_cache::seed_from_bytes(app, track_id, bytes).map_err(|e| {
+        crate::app_eprintln!("[analysis] failed to seed {}: {}", track_id, e);
+        e
+    })?;
+    if outcome == analysis_cache::SeedFromBytesOutcome::Upserted {
+        let _ = app.emit(
+            "analysis:waveform-updated",
+            WaveformUpdatedPayload {
+                track_id: track_id.to_string(),
+                is_partial: false,
+            },
+        );
+    }
     let has_loudness = app
         .try_state::<analysis_cache::AnalysisCache>()
         .and_then(|cache| cache.get_latest_loudness_for_track(track_id).ok().flatten())

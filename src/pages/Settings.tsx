@@ -26,7 +26,17 @@ import { AboutPsysonicBrandHeader } from '../components/AboutPsysonicLol';
 import { useLuckyMixAvailable } from '../hooks/useLuckyMixAvailable';
 import ThemePicker, { THEME_GROUPS } from '../components/ThemePicker';
 import { useShallow } from 'zustand/react/shallow';
-import { useAuthStore, ServerProfile, MIX_MIN_RATING_FILTER_MAX_STARS, type SeekbarStyle, type LyricsSourceId, type LyricsSourceConfig, type LoggingMode } from '../store/authStore';
+import {
+  useAuthStore,
+  DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB,
+  ServerProfile,
+  MIX_MIN_RATING_FILTER_MAX_STARS,
+  type SeekbarStyle,
+  type LyricsSourceId,
+  type LyricsSourceConfig,
+  type LoggingMode,
+  type LoudnessLufsPreset,
+} from '../store/authStore';
 import { SeekbarPreview } from '../components/WaveformSeek';
 import { IS_LINUX, IS_MACOS, IS_WINDOWS } from '../utils/platform';
 import { useThemeStore } from '../store/themeStore';
@@ -64,6 +74,29 @@ import { shortHostFromServerUrl, serverListDisplayLabel } from '../utils/serverD
 const AUDIOBOOK_GENRES_DISPLAY = ['Hörbuch', 'Hoerbuch', 'Hörspiel', 'Hoerspiel', 'Audiobook', 'Audio Book', 'Spoken Word', 'Spokenword', 'Podcast', 'Kapitel', 'Thriller', 'Krimi', 'Speech', 'Fantasy', 'Comedy', 'Literature'];
 
 const AUDIOMUSE_NV_PLUGIN_URL = 'https://github.com/NeptuneHub/AudioMuse-AI-NV-plugin';
+
+const LOUDNESS_LUFS_BUTTON_ORDER: LoudnessLufsPreset[] = [-10, -12, -14, -16];
+
+function LoudnessLufsButtonGroup(props: {
+  value: LoudnessLufsPreset;
+  onSelect: (v: LoudnessLufsPreset) => void;
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+      {LOUDNESS_LUFS_BUTTON_ORDER.map(v => (
+        <button
+          key={v}
+          type="button"
+          className={`btn ${props.value === v ? 'btn-primary' : 'btn-ghost'}`}
+          style={{ fontSize: 12, padding: '3px 12px' }}
+          onClick={() => props.onSelect(v)}
+        >
+          {v}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 const CONTRIBUTORS = [
   {
@@ -1795,9 +1828,6 @@ export default function Settings() {
       const deleted = await invoke<number>('analysis_delete_all_waveforms');
       usePlayerStore.setState({
         waveformBins: null,
-        waveformIsPartial: false,
-        waveformKnownUntilSec: 0,
-        waveformDurationSec: 0,
       });
       showToast(
         t('settings.waveformCacheCleared', { count: deleted }),
@@ -2243,12 +2273,7 @@ export default function Settings() {
             <div className="settings-card">
               {/* Normalization */}
               <div className="settings-toggle-row">
-                <div>
-                  <div style={{ fontWeight: 500 }}>{t('settings.normalization', { defaultValue: 'Normalization' })}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                    {t('settings.normalizationDesc', { defaultValue: 'Choose one normalization mode: ReplayGain or Loudness (LUFS).' })}
-                  </div>
-                </div>
+                <div style={{ fontWeight: 500 }}>{t('settings.normalization', { defaultValue: 'Normalization' })}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <button
                     className={`btn ${auth.normalizationEngine === 'off' ? 'btn-primary' : 'btn-ghost'}`}
@@ -2283,43 +2308,51 @@ export default function Settings() {
                   </button>
                 </div>
               </div>
+              {auth.normalizationEngine === 'loudness' && (
+                <div style={{ paddingLeft: '1rem', marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.75rem' }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 140 }}>
+                      {t('settings.loudnessTargetLufs')}
+                    </span>
+                    <LoudnessLufsButtonGroup value={auth.loudnessTargetLufs} onSelect={auth.setLoudnessTargetLufs} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 140 }}>
+                      {t('settings.loudnessPreAnalysisAttenuation')}
+                    </span>
+                    <input
+                      type="range"
+                      min={-24}
+                      max={0}
+                      step={0.5}
+                      value={auth.loudnessPreAnalysisAttenuationDb}
+                      onChange={e => auth.setLoudnessPreAnalysisAttenuationDb(Number(e.target.value))}
+                      style={{ flex: 1, minWidth: 80, maxWidth: 200 }}
+                    />
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)', minWidth: 44, textAlign: 'right' }}>
+                      {auth.loudnessPreAnalysisAttenuationDb} dB
+                    </span>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      style={{ flexShrink: 0 }}
+                      disabled={
+                        auth.loudnessPreAnalysisAttenuationDb === DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB
+                      }
+                      onClick={() => auth.resetLoudnessPreAnalysisAttenuationDbDefault()}
+                      data-tooltip={t('settings.loudnessPreAnalysisAttenuationReset')}
+                      aria-label={t('settings.loudnessPreAnalysisAttenuationReset')}
+                    >
+                      <RotateCcw size={15} />
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.35, maxWidth: 520 }}>
+                    {t('settings.loudnessPreAnalysisAttenuationDesc')}
+                  </div>
+                </div>
+              )}
               {auth.normalizationEngine !== 'off' && (
                 <div style={{ paddingLeft: '1rem', marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  {auth.normalizationEngine === 'loudness' && (
-                    <>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Target LUFS:</span>
-                        <button
-                          className={`btn ${auth.loudnessTargetLufs === -10 ? 'btn-primary' : 'btn-ghost'}`}
-                          style={{ fontSize: 12, padding: '3px 12px' }}
-                          onClick={() => auth.setLoudnessTargetLufs(-10)}
-                        >
-                          -10
-                        </button>
-                        <button
-                          className={`btn ${auth.loudnessTargetLufs === -12 ? 'btn-primary' : 'btn-ghost'}`}
-                          style={{ fontSize: 12, padding: '3px 12px' }}
-                          onClick={() => auth.setLoudnessTargetLufs(-12)}
-                        >
-                          -12
-                        </button>
-                        <button
-                          className={`btn ${auth.loudnessTargetLufs === -14 ? 'btn-primary' : 'btn-ghost'}`}
-                          style={{ fontSize: 12, padding: '3px 12px' }}
-                          onClick={() => auth.setLoudnessTargetLufs(-14)}
-                        >
-                          -14
-                        </button>
-                        <button
-                          className={`btn ${auth.loudnessTargetLufs === -16 ? 'btn-primary' : 'btn-ghost'}`}
-                          style={{ fontSize: 12, padding: '3px 12px' }}
-                          onClick={() => auth.setLoudnessTargetLufs(-16)}
-                        >
-                          -16
-                        </button>
-                      </div>
-                    </>
-                  )}
                   {auth.normalizationEngine === 'replaygain' && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t('settings.replayGainMode')}:</span>
