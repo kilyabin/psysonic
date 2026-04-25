@@ -51,7 +51,7 @@ interface AuthState {
   customGenreBlacklist: string[];
   replayGainEnabled: boolean;
   normalizationEngine: NormalizationEngine;
-  loudnessTargetLufs: -16 | -14 | -12;
+  loudnessTargetLufs: -16 | -14 | -12 | -10;
   replayGainMode: 'track' | 'album' | 'auto';
   replayGainPreGainDb: number;   // added to RG gain for tagged files (0…+6 dB)
   replayGainFallbackDb: number;  // gain for untagged files / radio (-6…0 dB)
@@ -209,7 +209,7 @@ interface AuthState {
   setCustomGenreBlacklist: (v: string[]) => void;
   setReplayGainEnabled: (v: boolean) => void;
   setNormalizationEngine: (v: NormalizationEngine) => void;
-  setLoudnessTargetLufs: (v: -16 | -14 | -12) => void;
+  setLoudnessTargetLufs: (v: -16 | -14 | -12 | -10) => void;
   setReplayGainMode: (v: 'track' | 'album' | 'auto') => void;
   setReplayGainPreGainDb: (v: number) => void;
   setReplayGainFallbackDb: (v: number) => void;
@@ -321,7 +321,7 @@ export const useAuthStore = create<AuthState>()(
       customGenreBlacklist: [],
       replayGainEnabled: false,
       normalizationEngine: 'off',
-      loudnessTargetLufs: -14,
+      loudnessTargetLufs: -12,
       replayGainMode: 'auto',
       replayGainPreGainDb: 0,
       replayGainFallbackDb: 0,

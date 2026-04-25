@@ -483,16 +483,16 @@ export default function QueuePanel() {
             const rgParts = formatQueueReplayGainParts(currentTrack, t);
             const baseLine = baseParts.join(' · ');
             const rgLine = rgParts.join(' · ');
+            const isLoudnessActive = normalizationEngine === 'loudness' || normalizationEngineLive === 'loudness';
             const liveGainLabel = normalizationNowDb != null
               ? `${normalizationNowDb >= 0 ? '+' : ''}${normalizationNowDb.toFixed(2)} dB`
               : '—';
-            const targetLabel = normalizationEngineLive === 'loudness'
-              ? (normalizationTargetLufs != null ? `${normalizationTargetLufs} LUFS` : '-16 LUFS')
-              : normalizationEngineLive === 'replaygain'
-                ? `ReplayGain (${replayGainMode})`
-                : t('queue.normOff', { defaultValue: 'Off' });
+            const targetLabel = normalizationTargetLufs != null
+              ? `${normalizationTargetLufs} LUFS`
+              : '-16 LUFS';
             if (!baseLine && !rgLine && !playbackSource) return null;
-            const showRgLine = expandReplayGain && !!rgLine;
+            const showRgLine = !isLoudnessActive && expandReplayGain && !!rgLine;
+            const showLufsLine = isLoudnessActive && expandReplayGain;
             return (
               <div className={`queue-current-tech${showRgLine ? ' queue-current-tech--two-line' : ''}`}>
                 <div className="queue-current-tech-stack">
@@ -515,7 +515,7 @@ export default function QueuePanel() {
                       </span>
                     )}
                     {baseLine && <span className="queue-current-tech-main">{baseLine}</span>}
-                    {rgLine && (
+                    {!isLoudnessActive && rgLine && (
                       <button
                         type="button"
                         className={`queue-current-tech-rg-badge${showRgLine ? ' queue-current-tech-rg-badge--open' : ''}`}
@@ -528,6 +528,19 @@ export default function QueuePanel() {
                         <ChevronDown size={9} strokeWidth={2.5} />
                       </button>
                     )}
+                    {isLoudnessActive && (
+                      <button
+                        type="button"
+                        className={`queue-current-tech-rg-badge${showLufsLine ? ' queue-current-tech-rg-badge--open' : ''}`}
+                        data-tooltip={`LUFS · ${liveGainLabel} · TGT · ${targetLabel}`}
+                        aria-expanded={showLufsLine}
+                        aria-label="LUFS"
+                        onClick={() => setExpandReplayGain(!expandReplayGain)}
+                      >
+                        LUFS
+                        <ChevronDown size={9} strokeWidth={2.5} />
+                      </button>
+                    )}
                   </div>
                   {showRgLine && (
                     <span className="queue-current-tech-rg">
@@ -535,12 +548,12 @@ export default function QueuePanel() {
                       {' · '}{rgLine}
                     </span>
                   )}
-                  {(normalizationEngine === 'loudness' || normalizationEngineLive === 'loudness') && (
+                  {showLufsLine && (
                     <span className="queue-current-tech-rg">
-                      <span className="queue-current-tech-rg-label">{t('queue.normNow', { defaultValue: 'Now' })}</span>
+                      <span className="queue-current-tech-rg-label">Loudness</span>
                       {' · '}{liveGainLabel}
                       {' · '}
-                      <span className="queue-current-tech-rg-label">{t('queue.normTarget', { defaultValue: 'Target' })}</span>
+                      <span className="queue-current-tech-rg-label">TGT</span>
                       {' · '}{targetLabel}
                     </span>
                   )}

@@ -2217,59 +2217,67 @@ export default function Settings() {
             icon={<Music2 size={16} />}
           >
             <div className="settings-card">
-              {/* Replay Gain */}
+              {/* Normalization */}
               <div className="settings-toggle-row">
                 <div>
-                  <div style={{ fontWeight: 500 }}>{t('settings.replayGain')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.replayGainDesc')}</div>
-                </div>
-                <label className="toggle-switch" aria-label={t('settings.replayGain')}>
-                  <input
-                    type="checkbox"
-                    checked={auth.replayGainEnabled}
-                    onChange={e => {
-                      const on = e.target.checked;
-                      auth.setReplayGainEnabled(on);
-                      if (!on) auth.setNormalizationEngine('off');
-                      else if (auth.normalizationEngine === 'off') auth.setNormalizationEngine('replaygain');
-                    }}
-                    id="replay-gain-toggle"
-                  />
-                  <span className="toggle-track" />
-                </label>
-              </div>
-              {auth.replayGainEnabled && (
-                <div style={{ paddingLeft: '1rem', marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Engine:</span>
-                    <button
-                      className={`btn ${auth.normalizationEngine === 'replaygain' ? 'btn-primary' : 'btn-ghost'}`}
-                      style={{ fontSize: 12, padding: '3px 12px' }}
-                      onClick={() => auth.setNormalizationEngine('replaygain')}
-                    >
-                      ReplayGain
-                    </button>
-                    <button
-                      className={`btn ${auth.normalizationEngine === 'loudness' ? 'btn-primary' : 'btn-ghost'}`}
-                      style={{ fontSize: 12, padding: '3px 12px' }}
-                      onClick={() => auth.setNormalizationEngine('loudness')}
-                    >
-                      Loudness
-                    </button>
+                  <div style={{ fontWeight: 500 }}>{t('settings.normalization', { defaultValue: 'Normalization' })}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    {t('settings.normalizationDesc', { defaultValue: 'Choose one normalization mode: ReplayGain or Loudness (LUFS).' })}
                   </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <button
+                    className={`btn ${auth.normalizationEngine === 'off' ? 'btn-primary' : 'btn-ghost'}`}
+                    style={{ fontSize: 12, padding: '3px 10px' }}
+                    onClick={() => {
+                      auth.setReplayGainEnabled(false);
+                      auth.setNormalizationEngine('off');
+                    }}
+                  >
+                    Off
+                  </button>
+                  <button
+                    className={`btn ${auth.normalizationEngine === 'replaygain' ? 'btn-primary' : 'btn-ghost'}`}
+                    style={{ fontSize: 12, padding: '3px 10px' }}
+                    onClick={() => {
+                      auth.setReplayGainEnabled(true);
+                      auth.setNormalizationEngine('replaygain');
+                    }}
+                  >
+                    RG
+                  </button>
+                  <button
+                    className={`btn ${auth.normalizationEngine === 'loudness' ? 'btn-primary' : 'btn-ghost'}`}
+                    style={{ fontSize: 12, padding: '3px 10px' }}
+                    onClick={() => {
+                      auth.setReplayGainEnabled(false);
+                      if (auth.normalizationEngine !== 'loudness') auth.setLoudnessTargetLufs(-12);
+                      auth.setNormalizationEngine('loudness');
+                    }}
+                  >
+                    LUFS
+                  </button>
+                </div>
+              </div>
+              {auth.normalizationEngine !== 'off' && (
+                <div style={{ paddingLeft: '1rem', marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                   {auth.normalizationEngine === 'loudness' && (
                     <>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                        Apple-like automatic normalization. ReplayGain tags are ignored in this mode.
-                      </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Target LUFS:</span>
                         <button
-                          className={`btn ${auth.loudnessTargetLufs === -16 ? 'btn-primary' : 'btn-ghost'}`}
+                          className={`btn ${auth.loudnessTargetLufs === -10 ? 'btn-primary' : 'btn-ghost'}`}
                           style={{ fontSize: 12, padding: '3px 12px' }}
-                          onClick={() => auth.setLoudnessTargetLufs(-16)}
+                          onClick={() => auth.setLoudnessTargetLufs(-10)}
                         >
-                          -16
+                          -10
+                        </button>
+                        <button
+                          className={`btn ${auth.loudnessTargetLufs === -12 ? 'btn-primary' : 'btn-ghost'}`}
+                          style={{ fontSize: 12, padding: '3px 12px' }}
+                          onClick={() => auth.setLoudnessTargetLufs(-12)}
+                        >
+                          -12
                         </button>
                         <button
                           className={`btn ${auth.loudnessTargetLufs === -14 ? 'btn-primary' : 'btn-ghost'}`}
@@ -2279,11 +2287,11 @@ export default function Settings() {
                           -14
                         </button>
                         <button
-                          className={`btn ${auth.loudnessTargetLufs === -12 ? 'btn-primary' : 'btn-ghost'}`}
+                          className={`btn ${auth.loudnessTargetLufs === -16 ? 'btn-primary' : 'btn-ghost'}`}
                           style={{ fontSize: 12, padding: '3px 12px' }}
-                          onClick={() => auth.setLoudnessTargetLufs(-12)}
+                          onClick={() => auth.setLoudnessTargetLufs(-16)}
                         >
-                          -12
+                          -16
                         </button>
                       </div>
                     </>
@@ -2321,7 +2329,7 @@ export default function Settings() {
                   )}
                 </div>
               )}
-              {auth.replayGainEnabled && auth.normalizationEngine === 'replaygain' && (
+              {auth.normalizationEngine === 'replaygain' && (
                 <div style={{ paddingLeft: '1rem', marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 100 }}>
