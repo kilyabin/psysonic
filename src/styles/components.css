@@ -1394,6 +1394,11 @@
   padding: 4px 16px 4px 8px;
   word-break: break-all;
 }
+/* Double-click copies; avoid browser selecting word on dblclick */
+.song-info-value--no-select {
+  user-select: none;
+  -webkit-user-select: none;
+}
 .song-info-divider {
   padding: 6px 0;
   border-bottom: 1px solid var(--border-subtle);
