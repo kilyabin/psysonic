@@ -829,6 +829,12 @@ export const zhTranslation = {
     replayGainAlbum: '专辑',
     replayGainPreGain: '预增益（有标签文件）',
     replayGainFallback: '回退增益（无标签 / 收音机）',
+    normalization: '响度归一化',
+    loudnessTargetLufs: '目标 LUFS',
+    loudnessPreAnalysisAttenuation: '测量前衰减 (dB)',
+    loudnessPreAnalysisAttenuationDesc:
+      '在曲目响度数据保存前的额外压低。流式阶段之后只是粗略估计，不是完整测量。0 dB 为不压低；更负则更安静。',
+    loudnessPreAnalysisAttenuationReset: '恢复默认',
     crossfade: '交叉淡入淡出',
     crossfadeDesc: '曲目间淡入淡出',
     crossfadeSecs: '{{n}} 秒',

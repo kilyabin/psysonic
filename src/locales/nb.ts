@@ -834,6 +834,12 @@ export const nbTranslation = {
     replayGainAlbum: 'Album',
     replayGainPreGain: 'Pre-Gain (taggede filer)',
     replayGainFallback: 'Reserveverdi (uten tagger / radio)',
+    normalization: 'Normalisering',
+    loudnessTargetLufs: 'Mål-LUFS',
+    loudnessPreAnalysisAttenuation: 'Demping før måling (dB)',
+    loudnessPreAnalysisAttenuationDesc:
+      'Ekstra demping til loudness for sporet er lagret. Streaming bruker deretter grove anslag, ikke full måling. 0 dB = av; lavere = roligere.',
+    loudnessPreAnalysisAttenuationReset: 'Standard',
     crossfade: 'Crossfade',
     crossfadeDesc: 'Tone mellom spor',
     crossfadeSecs: '{{n}}s',

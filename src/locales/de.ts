@@ -847,6 +847,12 @@ export const deTranslation = {
     replayGainAlbum: 'Album',
     replayGainPreGain: 'Pre-Gain (getaggte Dateien)',
     replayGainFallback: 'Fallback (ohne Tags / Radio)',
+    normalization: 'Normalisierung',
+    loudnessTargetLufs: 'Ziel-LUFS',
+    loudnessPreAnalysisAttenuation: 'Dämpfung vor Messung (dB)',
+    loudnessPreAnalysisAttenuationDesc:
+      'Zusätzliche Dämpfung, bis die Loudness des Titels gespeichert ist. Beim Streamen folgen nur grobe Schätzungen, keine volle Messung. 0 dB = aus; negativer = leiser.',
+    loudnessPreAnalysisAttenuationReset: 'Standard',
     crossfade: 'Crossfade',
     crossfadeDesc: 'Überblendung zwischen Tracks',
     crossfadeSecs: '{{n}} s',

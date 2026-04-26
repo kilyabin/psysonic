@@ -840,6 +840,12 @@ export const esTranslation = {
     replayGainAlbum: 'Álbum',
     replayGainPreGain: 'Pre-Ganancia (archivos etiquetados)',
     replayGainFallback: 'Respaldo (sin etiquetar / radio)',
+    normalization: 'Normalización',
+    loudnessTargetLufs: 'LUFS objetivo',
+    loudnessPreAnalysisAttenuation: 'Atenuación antes de medir (dB)',
+    loudnessPreAnalysisAttenuationDesc:
+      'Atenúa hasta que la loudness del tema esté guardada. En streaming luego solo hay estimaciones aproximadas. 0 dB = ninguna; más negativo = más bajo.',
+    loudnessPreAnalysisAttenuationReset: 'Predeterminado',
     crossfade: 'Crossfade',
     crossfadeDesc: 'Transición entre pistas',
     crossfadeSecs: '{{n}} s',

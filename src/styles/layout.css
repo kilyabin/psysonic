@@ -1989,6 +1989,24 @@ html[data-platform="windows"] .player-bar.floating {
   text-overflow: ellipsis;
 }
 
+.queue-current-tech-metric {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  border-radius: 2px;
+}
+
+.queue-current-tech-metric:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
 .queue-divider {
   padding: var(--space-3) var(--space-4) 0;
   flex-shrink: 0;

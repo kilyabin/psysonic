@@ -21,7 +21,31 @@ use symphonia::core::{
     units::{self, Time},
 };
 use futures_util::StreamExt;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PartialLoudnessPayload {
+    track_id: Option<String>,
+    gain_db: f32,
+    target_lufs: f32,
+    is_partial: bool,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WaveformUpdatedPayload {
+    track_id: String,
+    is_partial: bool,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NormalizationStatePayload {
+    engine: String,
+    current_gain_db: Option<f32>,
+    target_lufs: f32,
+}
+
 
 // ─── 10-Band Graphic Equalizer ────────────────────────────────────────────────
 
@@ -1021,17 +1045,22 @@ async fn track_download_task(
     gen: u64,
     gen_arc: Arc<AtomicU64>,
     http_client: reqwest::Client,
+    app: AppHandle,
     url: String,
     initial_response: reqwest::Response,
     mut prod: HeapProducer<u8>,
     done: Arc<AtomicBool>,
     promote_cache_slot: Arc<Mutex<Option<PreloadedTrack>>>,
+    normalization_target_lufs: Arc<AtomicU32>,
+    loudness_pre_analysis_attenuation_db: Arc<AtomicU32>,
+    cache_track_id: Option<String>,
 ) {
     let mut downloaded: u64 = 0;
     let mut reconnects: u32 = 0;
     let mut next_response: Option<reqwest::Response> = Some(initial_response);
     let mut capture: Vec<u8> = Vec::new();
     let mut capture_over_limit = false;
+    let mut last_partial_loudness_emit = Instant::now() - Duration::from_secs(5);
     'outer: loop {
         let response = if let Some(r) = next_response.take() {
             r
@@ -1120,12 +1149,38 @@ async fn track_download_task(
                             capture_over_limit = true;
                         }
                     }
+                    if !capture_over_limit
+                        && last_partial_loudness_emit.elapsed() >= Duration::from_millis(PARTIAL_LOUDNESS_EMIT_INTERVAL_MS)
+                    {
+                        let target_lufs = f32::from_bits(normalization_target_lufs.load(Ordering::Relaxed));
+                        let pre_db = f32::from_bits(
+                            loudness_pre_analysis_attenuation_db.load(Ordering::Relaxed),
+                        )
+                        .clamp(-24.0, 0.0);
+                        emit_partial_loudness_from_bytes(&app, &url, &capture, target_lufs, pre_db);
+                        last_partial_loudness_emit = Instant::now();
+                    }
                     offset += pushed;
                     downloaded += pushed as u64;
                 }
             }
         }
         if !capture_over_limit && !capture.is_empty() {
+            if let Some(track_id) = cache_track_id {
+                match crate::analysis_cache::seed_from_bytes(&app, &track_id, &capture) {
+                    Err(e) => crate::app_eprintln!("[analysis] track seed failed for {}: {}", track_id, e),
+                    Ok(crate::analysis_cache::SeedFromBytesOutcome::Upserted) => {
+                        let _ = app.emit(
+                            "analysis:waveform-updated",
+                            WaveformUpdatedPayload {
+                                track_id: track_id.clone(),
+                                is_partial: false,
+                            },
+                        );
+                    }
+                    Ok(_) => {}
+                }
+            }
             *promote_cache_slot.lock().unwrap() = Some(PreloadedTrack {
                 url: url.clone(),
                 data: capture,
@@ -1144,12 +1199,17 @@ async fn ranged_download_task(
     gen: u64,
     gen_arc: Arc<AtomicU64>,
     http_client: reqwest::Client,
+    app: AppHandle,
+    _duration_hint: f64,
     url: String,
     initial_response: reqwest::Response,
     buf: Arc<Mutex<Vec<u8>>>,
     downloaded_to: Arc<AtomicUsize>,
     done: Arc<AtomicBool>,
     promote_cache_slot: Arc<Mutex<Option<PreloadedTrack>>>,
+    normalization_target_lufs: Arc<AtomicU32>,
+    loudness_pre_analysis_attenuation_db: Arc<AtomicU32>,
+    cache_track_id: Option<String>,
 ) {
     let total_size = buf.lock().unwrap().len();
     let mut downloaded: usize = 0;
@@ -1157,6 +1217,7 @@ async fn ranged_download_task(
     let mut next_response: Option<reqwest::Response> = Some(initial_response);
     let dl_started = Instant::now();
     let mut next_progress_mb: usize = 1;
+    let mut last_partial_loudness_emit = Instant::now() - Duration::from_secs(5);
 
     'outer: loop {
         let response = if let Some(r) = next_response.take() {
@@ -1231,6 +1292,28 @@ async fn ranged_download_task(
             }
             downloaded += n;
             downloaded_to.store(downloaded, Ordering::SeqCst);
+            if downloaded >= PARTIAL_LOUDNESS_MIN_BYTES
+                && total_size > 0
+                && last_partial_loudness_emit.elapsed() >= Duration::from_millis(PARTIAL_LOUDNESS_EMIT_INTERVAL_MS)
+            {
+                let target_lufs = f32::from_bits(normalization_target_lufs.load(Ordering::Relaxed));
+                let start_db = f32::from_bits(loudness_pre_analysis_attenuation_db.load(Ordering::Relaxed))
+                    .clamp(-24.0, 0.0);
+                if let Some(provisional_db) =
+                    provisional_loudness_gain_from_progress(downloaded, total_size, target_lufs, start_db)
+                {
+                    let _ = app.emit(
+                        "analysis:loudness-partial",
+                        PartialLoudnessPayload {
+                            track_id: playback_identity(&url),
+                            gain_db: provisional_db,
+                            target_lufs,
+                            is_partial: true,
+                        },
+                    );
+                }
+                last_partial_loudness_emit = Instant::now();
+            }
             let mb = downloaded / (1024 * 1024);
             if mb >= next_progress_mb {
                 let pct = (downloaded as f64 / total_size as f64 * 100.0) as u32;
@@ -1262,9 +1345,89 @@ async fn ranged_download_task(
 
     if downloaded == total_size && total_size > 0 && total_size <= TRACK_STREAM_PROMOTE_MAX_BYTES {
         let data = buf.lock().unwrap().clone();
+        if let Some(track_id) = cache_track_id {
+            match crate::analysis_cache::seed_from_bytes(&app, &track_id, &data) {
+                Err(e) => crate::app_eprintln!("[analysis] ranged seed failed for {}: {}", track_id, e),
+                Ok(crate::analysis_cache::SeedFromBytesOutcome::Upserted) => {
+                    let _ = app.emit(
+                        "analysis:waveform-updated",
+                        WaveformUpdatedPayload {
+                            track_id: track_id.clone(),
+                            is_partial: false,
+                        },
+                    );
+                }
+                Ok(_) => {}
+            }
+        }
         *promote_cache_slot.lock().unwrap() = Some(PreloadedTrack { url, data });
         crate::app_deprintln!("[stream] promoted to stream_completed_cache for replay");
     }
+}
+
+fn emit_partial_loudness_from_bytes(
+    app: &AppHandle,
+    url: &str,
+    bytes: &[u8],
+    target_lufs: f32,
+    pre_analysis_attenuation_db: f32,
+) {
+    if bytes.len() < PARTIAL_LOUDNESS_MIN_BYTES {
+        crate::app_deprintln!(
+            "[normalization] partial-loudness skip reason=insufficient-bytes bytes={} min_bytes={}",
+            bytes.len(),
+            PARTIAL_LOUDNESS_MIN_BYTES
+        );
+        return;
+    }
+    // Lightweight fallback based on buffered bytes count to keep CPU low.
+    let mb = bytes.len() as f32 / (1024.0 * 1024.0);
+    let pre_floor = pre_analysis_attenuation_db.clamp(-24.0, 0.0);
+    // Target-derived hint (e.g. -12 LUFS → -1 dB). Old `(hint).clamp(pre, 0)` left
+    // the hint when it lay inside [pre, 0] — e.g. -1 with pre=-6, so AAC/M4A
+    // streaming often sat at -1 dB until full analysis. Combine with user trim:
+    // stricter (more negative) pre wins; milder pre still caps vs the hint.
+    let heuristic_floor = (target_lufs + 11.0).clamp(-6.0, 0.0);
+    let floor_db = if pre_floor < heuristic_floor {
+        pre_floor
+    } else {
+        pre_floor.max(heuristic_floor)
+    };
+    let gain_db = (-(mb * 0.7)).max(floor_db).min(0.0);
+    crate::app_deprintln!(
+        "[normalization] partial-loudness emit bytes={} gain_db={:.2} target_lufs={:.2} track_id={:?}",
+        bytes.len(),
+        gain_db,
+        target_lufs,
+        playback_identity(url)
+    );
+    let _ = app.emit(
+        "analysis:loudness-partial",
+        PartialLoudnessPayload {
+            track_id: playback_identity(url),
+            gain_db: gain_db as f32,
+            target_lufs,
+            is_partial: true,
+        },
+    );
+}
+
+fn provisional_loudness_gain_from_progress(
+    downloaded: usize,
+    total_size: usize,
+    target_lufs: f32,
+    start_db_in: f32,
+) -> Option<f32> {
+    if total_size == 0 || downloaded == 0 {
+        return None;
+    }
+    let progress = (downloaded as f32 / total_size as f32).clamp(0.0, 1.0);
+    // Move from startup attenuation toward a more realistic late-stream level.
+    // This avoids staying near -2 dB and then jumping hard when final LUFS lands.
+    let start_db = start_db_in.clamp(-24.0, 0.0).min(0.0);
+    let end_db = (target_lufs + 6.0).clamp(-10.0, -3.0).min(0.0);
+    let shaped = progress.powf(0.75);
+    Some(start_db + (end_db - start_db) * shaped)
 }
 
 fn content_type_to_hint(ct: &str) -> Option<String> {
@@ -1999,6 +2162,12 @@ pub struct AudioEngine {
     /// When true, audio_play chains sources to the existing Sink instead of
     /// creating a new one, achieving sample-accurate gapless transitions.
     pub gapless_enabled: Arc<AtomicBool>,
+    /// 0=off, 1=replaygain, 2=loudness (future runtime loudness engine).
+    pub normalization_engine: Arc<AtomicU32>,
+    /// Target loudness in LUFS for loudness engine (future use).
+    pub normalization_target_lufs: Arc<AtomicU32>,
+    /// Extra attenuation (dB) when no loudness DB row exists at decode bind; also seeds streaming heuristics (Settings).
+    pub loudness_pre_analysis_attenuation_db: Arc<AtomicU32>,
     /// Info about the next-up chained track (gapless mode).
     /// The progress task reads this when `current_source_done` fires.
     pub(crate) chained_info: Arc<Mutex<Option<ChainedInfo>>>,
@@ -2015,6 +2184,13 @@ pub struct AudioEngine {
     /// Active radio session state.  None for regular (non-radio) tracks.
     /// Dropping the value aborts the HTTP download task via RadioLiveState::Drop.
     pub(crate) radio_state: Mutex<Option<RadioLiveState>>,
+    /// URL last committed to `AudioCurrent` — used so `audio_update_replay_gain` can
+    /// resolve LUFS / startup trim when the frontend passes `loudnessGainDb: null`
+    /// (otherwise `compute_gain` would treat that as unity gain and playback "jumps").
+    pub(crate) current_playback_url: Arc<Mutex<Option<String>>>,
+    /// Subsonic song id last passed from JS with `audio_play` (trimmed). Used
+    /// for loudness/waveform cache when the URL is `psysonic-local://…`.
+    pub(crate) current_analysis_track_id: Arc<Mutex<Option<String>>>,
 }
 
 pub struct AudioCurrent {
@@ -2190,11 +2366,13 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
             // Set PipeWire / PulseAudio latency hints before the first open.
             #[cfg(target_os = "linux")]
             {
+                // Match cpal ALSA ~200 ms headroom: larger quantum reduces underruns when
+                // the decoder thread catches up after seek or competes with other work.
                 if std::env::var("PIPEWIRE_LATENCY").is_err() {
-                    std::env::set_var("PIPEWIRE_LATENCY", "4096/48000");
+                    std::env::set_var("PIPEWIRE_LATENCY", "8192/48000");
                 }
                 if std::env::var("PULSE_LATENCY_MSEC").is_err() {
-                    std::env::set_var("PULSE_LATENCY_MSEC", "85");
+                    std::env::set_var("PULSE_LATENCY_MSEC", "170");
                 }
             }
 
@@ -2276,12 +2454,17 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
         crossfade_secs: Arc::new(AtomicU32::new(3.0f32.to_bits())),
         fading_out_sink: Arc::new(Mutex::new(None)),
         gapless_enabled: Arc::new(AtomicBool::new(false)),
+        normalization_engine: Arc::new(AtomicU32::new(0)),
+        normalization_target_lufs: Arc::new(AtomicU32::new((-16.0f32).to_bits())),
+        loudness_pre_analysis_attenuation_db: Arc::new(AtomicU32::new((-4.5f32).to_bits())),
         chained_info: Arc::new(Mutex::new(None)),
         samples_played: Arc::new(AtomicU64::new(0)),
         current_sample_rate: Arc::new(AtomicU32::new(0)),
         current_channels: Arc::new(AtomicU32::new(2)),
         gapless_switch_at: Arc::new(AtomicU64::new(0)),
         radio_state: Mutex::new(None),
+        current_playback_url: Arc::new(Mutex::new(None)),
+        current_analysis_track_id: Arc::new(Mutex::new(None)),
     };
 
     (engine, thread)
@@ -2336,11 +2519,129 @@ fn playback_identity(url: &str) -> Option<String> {
     None
 }
 
+/// Stable id for analysis cache rows and `analysis:waveform-updated`.
+/// Prefer the Subsonic track id from the frontend: `psysonic-local://` URLs
+/// only map to `local:path` in `playback_identity`, which does not match
+/// `analysis_get_waveform_for_track(trackId)` or the UI's `currentTrack.id`.
+fn analysis_cache_track_id(logical_track_id: Option<&str>, url: &str) -> Option<String> {
+    let logical = logical_track_id
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+    logical.or_else(|| playback_identity(url))
+}
+
 fn same_playback_target(a_url: &str, b_url: &str) -> bool {
     match (playback_identity(a_url), playback_identity(b_url)) {
         (Some(a), Some(b)) => a == b,
         _ => a_url == b_url,
     }
+}
+
+fn resolve_loudness_gain_from_cache(
+    app: &AppHandle,
+    url: &str,
+    target_lufs: f32,
+    logical_track_id: Option<&str>,
+) -> Option<f32> {
+    // Only a SQLite loudness row counts here. Ephemeral JS hints (`analysis:loudness-partial`)
+    // are applied in `audio_update_replay_gain` via `loudness_gain_db_or_startup(..., true, _)`.
+    let Some(track_id) = analysis_cache_track_id(logical_track_id, url) else {
+        crate::app_deprintln!(
+            "[normalization] resolve_loudness_gain source=no-identity url_len={}",
+            url.len()
+        );
+        return None;
+    };
+    let Some(cache) = app.try_state::<crate::analysis_cache::AnalysisCache>() else {
+        crate::app_deprintln!(
+            "[normalization] resolve_loudness_gain source=no-analysis-cache track_id={}",
+            track_id
+        );
+        return None;
+    };
+    // Also touch waveform row here so playback path verifies current context is present.
+    let _ = cache.get_latest_waveform_for_track(&track_id);
+    match cache.get_latest_loudness_for_track(&track_id) {
+        Ok(Some(row)) if row.integrated_lufs.is_finite() => {
+            let recommended = crate::analysis_cache::recommended_gain_for_target(
+                row.integrated_lufs,
+                row.true_peak,
+                target_lufs as f64,
+            ) as f32;
+            crate::app_deprintln!(
+                "[normalization] resolve_loudness_gain source=cache track_id={} gain_db={:.2} target_lufs={:.2} integrated_lufs={:.2} updated_at={}",
+                track_id,
+                recommended,
+                target_lufs,
+                row.integrated_lufs,
+                row.updated_at
+            );
+            Some(recommended)
+        }
+        Ok(Some(row)) => {
+            crate::app_deprintln!(
+                "[normalization] resolve_loudness_gain source=cache-invalid track_id={} integrated_lufs={}",
+                track_id,
+                row.integrated_lufs
+            );
+            None
+        }
+        Ok(None) => {
+            crate::app_deprintln!(
+                "[normalization] resolve_loudness_gain source=cache-miss track_id={}",
+                track_id
+            );
+            None
+        }
+        Err(e) => {
+            crate::app_deprintln!(
+                "[normalization] resolve_loudness_gain source=cache-error track_id={} err={}",
+                track_id,
+                e
+            );
+            None
+        }
+    }
+}
+
+/// LUFS: DB-backed integrated LUFS only at bind time (`allow_js_when_uncached = false`);
+/// after `analysis:loudness-partial`, `audio_update_replay_gain` passes `true` so finite
+/// JS gain applies until SQLite catches up. Must never return `None` or `compute_gain` uses unity.
+fn loudness_gain_db_or_startup(
+    app: &AppHandle,
+    url: &str,
+    target_lufs: f32,
+    logical_track_id: Option<&str>,
+    pre_analysis_attenuation_db: f32,
+    allow_js_when_uncached: bool,
+    js_gain_db: Option<f32>,
+) -> Option<f32> {
+    let pre = pre_analysis_attenuation_db.clamp(-24.0, 0.0).min(0.0);
+    match resolve_loudness_gain_from_cache(app, url, target_lufs, logical_track_id) {
+        Some(g) => Some(g),
+        None => {
+            if allow_js_when_uncached {
+                match js_gain_db {
+                    Some(r) if r.is_finite() => Some(r),
+                    _ => Some(pre),
+                }
+            } else {
+                Some(pre)
+            }
+        }
+    }
+}
+
+#[inline]
+fn loudness_pre_analysis_db_for_engine(state: &AudioEngine) -> f32 {
+    f32::from_bits(
+        state
+            .loudness_pre_analysis_attenuation_db
+            .load(Ordering::Relaxed),
+    )
+    .clamp(-24.0, 0.0)
+    .min(0.0)
 }
 
 /// Take (consume) completed manual-stream bytes if they correspond to `url`.
@@ -2439,25 +2740,106 @@ async fn fetch_data(
 /// can produce inter-sample peaks slightly above ±1.0 → audible distortion.
 /// 10^(-1/20) ≈ 0.891 — inaudible volume difference, eliminates clipping.
 const MASTER_HEADROOM: f32 = 0.891_254;
+const PARTIAL_LOUDNESS_MIN_BYTES: usize = 256 * 1024;
+const PARTIAL_LOUDNESS_EMIT_INTERVAL_MS: u64 = 900;
 
 fn compute_gain(
+    normalization_engine: u32,
     replay_gain_db: Option<f32>,
     replay_gain_peak: Option<f32>,
+    loudness_gain_db: Option<f32>,
     pre_gain_db: f32,
     fallback_db: f32,
     volume: f32,
 ) -> (f32, f32) {
-    let gain_linear = replay_gain_db
-        .map(|db| 10f32.powf((db + pre_gain_db) / 20.0))
-        .unwrap_or_else(|| 10f32.powf(fallback_db / 20.0));
-    let peak = replay_gain_peak.unwrap_or(1.0).max(0.001);
+    let gain_linear = match normalization_engine {
+        2 => loudness_gain_db
+            .map(|db| 10f32.powf(db / 20.0))
+            .unwrap_or(1.0),
+        1 => replay_gain_db
+            .map(|db| 10f32.powf((db + pre_gain_db) / 20.0))
+            .unwrap_or_else(|| 10f32.powf(fallback_db / 20.0)),
+        _ => 1.0,
+    };
+    let peak = if normalization_engine == 1 {
+        replay_gain_peak.unwrap_or(1.0).max(0.001)
+    } else {
+        1.0
+    };
     let gain_linear = gain_linear.min(1.0 / peak);
     let effective = (volume.clamp(0.0, 1.0) * gain_linear * MASTER_HEADROOM).clamp(0.0, 1.0);
     (gain_linear, effective)
 }
 
+fn normalization_engine_name(mode: u32) -> &'static str {
+    match mode {
+        1 => "replaygain",
+        2 => "loudness",
+        _ => "off",
+    }
+}
+
+fn gain_linear_to_db(gain_linear: f32) -> Option<f32> {
+    if gain_linear.is_finite() && gain_linear > 0.0 {
+        Some(20.0 * gain_linear.log10())
+    } else {
+        None
+    }
+}
+
+/// `audio:normalization-state` “Now dB” for the UI: omit a number while loudness
+/// mode is still on the **startup safety trim** only (no cache row / no explicit
+/// requested gain from analysis), so users do not read `-6 dB` as measured LUFS.
+fn loudness_ui_current_gain_db(
+    norm_mode: u32,
+    resolved_loudness_gain_db: Option<f32>,
+    gain_linear: f32,
+) -> Option<f32> {
+    if norm_mode == 2 && resolved_loudness_gain_db.is_none() {
+        None
+    } else {
+        gain_linear_to_db(gain_linear)
+    }
+}
+
+fn ramp_sink_volume(sink: Arc<Sink>, from: f32, to: f32) {
+    let from = from.clamp(0.0, 1.0);
+    let to = to.clamp(0.0, 1.0);
+    if (to - from).abs() < 0.002 {
+        sink.set_volume(to);
+        return;
+    }
+    static RAMP_GEN: AtomicU64 = AtomicU64::new(0);
+    let my_gen = RAMP_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+    std::thread::spawn(move || {
+        let delta = (to - from).abs();
+        // Stretch large corrections to avoid audible "step down" moments.
+        let (steps, step_ms): (usize, u64) = if delta > 0.30 {
+            (24, 35)
+        } else if delta > 0.18 {
+            (18, 30)
+        } else if delta > 0.10 {
+            (14, 24)
+        } else {
+            (8, 16)
+        };
+        for i in 1..=steps {
+            if RAMP_GEN.load(Ordering::SeqCst) != my_gen {
+                return;
+            }
+            let t = i as f32 / steps as f32;
+            let v = from + (to - from) * t;
+            sink.set_volume(v.clamp(0.0, 1.0));
+            std::thread::sleep(Duration::from_millis(step_ms));
+        }
+    });
+}
+
 // ─── Commands ─────────────────────────────────────────────────────────────────
 
+/// `analysis_track_id`: Subsonic `song.id` from the UI — ties waveform/loudness
+/// cache to the track when playing `psysonic-local://` (hot/offline). Optional
+/// for HTTP streams (`playback_identity` is used as fallback).
 #[tauri::command]
 pub async fn audio_play(
     url: String,
@@ -2465,10 +2847,12 @@ pub async fn audio_play(
     duration_hint: f64,
     replay_gain_db: Option<f32>,
     replay_gain_peak: Option<f32>,
+    loudness_gain_db: Option<f32>,
     pre_gain_db: f32,
     fallback_db: f32,
     manual: bool, // true = user-initiated skip → bypass crossfade, start immediately
     hi_res_enabled: bool, // false = safe 44.1 kHz mode; true = native rate (alpha)
+    analysis_track_id: Option<String>,
     app: AppHandle,
     state: State<'_, AudioEngine>,
 ) -> Result<(), String> {
@@ -2540,6 +2924,17 @@ pub async fn audio_play(
     if let Some(old) = state.fading_out_sink.lock().unwrap().take() {
         old.stop();
     }
+
+    // Pin the logical playback URL immediately so `audio_update_replay_gain` (e.g. from
+    // a fast `refreshLoudness` after `playTrack`) resolves LUFS for **this** track, not
+    // the previous URL still stored until the sink swap completes.
+    *state.current_playback_url.lock().unwrap() = Some(url.clone());
+    let logical_trim = analysis_track_id
+        .as_ref()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    *state.current_analysis_track_id.lock().unwrap() = logical_trim.clone();
+    let cache_id_for_tasks = analysis_cache_track_id(logical_trim.as_deref(), &url);
 
     // Extract format hint from URL for better symphonia probing. Strip the
     // query string first so Subsonic-style URLs (`stream.view?...&v=1.16.1&...`)
@@ -2614,6 +3009,45 @@ pub async fn audio_play(
                 len / 1024,
                 local_hint
             );
+            if let Some(ref seed_id) = cache_id_for_tasks {
+                let path_owned = std::path::PathBuf::from(path);
+                let app_seed = app.clone();
+                let gen_seed = gen;
+                let gen_arc_seed = state.generation.clone();
+                let seed_id = seed_id.clone();
+                tokio::spawn(async move {
+                    if gen_arc_seed.load(Ordering::SeqCst) != gen_seed {
+                        return;
+                    }
+                    let data = match tokio::fs::read(&path_owned).await {
+                        Ok(d) => d,
+                        Err(_) => return,
+                    };
+                    if gen_arc_seed.load(Ordering::SeqCst) != gen_seed {
+                        return;
+                    }
+                    if data.is_empty() || data.len() > TRACK_STREAM_PROMOTE_MAX_BYTES {
+                        return;
+                    }
+                    match crate::analysis_cache::seed_from_bytes(&app_seed, &seed_id, &data) {
+                        Err(e) => crate::app_eprintln!(
+                            "[analysis] local-file seed failed for {}: {}",
+                            seed_id,
+                            e
+                        ),
+                        Ok(crate::analysis_cache::SeedFromBytesOutcome::Upserted) => {
+                            let _ = app_seed.emit(
+                                "analysis:waveform-updated",
+                                WaveformUpdatedPayload {
+                                    track_id: seed_id.clone(),
+                                    is_partial: false,
+                                },
+                            );
+                        }
+                        Ok(_) => {}
+                    }
+                });
+            }
             let reader = LocalFileSource { file, len };
             PlayInput::SeekableMedia {
                 reader: Box::new(reader),
@@ -2646,7 +3080,11 @@ pub async fn audio_play(
                 .is_some_and(|v| v.to_ascii_lowercase().contains("bytes"));
             let total_size = response.content_length();
 
-            if let (true, Some(total)) = (supports_range, total_size) {
+            // Guardrail: when format/container hint is unknown, some demuxers may
+            // seek near EOF during probe. With a progressively downloaded ranged
+            // source that can delay first audible samples until most/all bytes are
+            // fetched. Prefer sequential streaming in that case for faster start.
+            if let (true, Some(total), true) = (supports_range, total_size, stream_hint.is_some()) {
                 let total_usize = total as usize;
                 crate::app_deprintln!(
                     "[stream] RangedHttpSource selected — total={} KB, hint={:?}",
@@ -2660,12 +3098,17 @@ pub async fn audio_play(
                     gen,
                     state.generation.clone(),
                     audio_http_client(&state),
+                    app.clone(),
+                    duration_hint,
                     url.clone(),
                     response,
                     buf.clone(),
                     downloaded_to.clone(),
                     done.clone(),
                     state.stream_completed_cache.clone(),
+                    state.normalization_target_lufs.clone(),
+                    state.loudness_pre_analysis_attenuation_db.clone(),
+                    cache_id_for_tasks.clone(),
                 ));
                 let reader = RangedHttpSource {
                     buf,
@@ -2683,8 +3126,8 @@ pub async fn audio_play(
                 }
             } else {
                 crate::app_deprintln!(
-                    "[stream] legacy AudioStreamReader (non-seekable) — accept-ranges={}, content-length={:?}",
-                    supports_range, total_size
+                    "[stream] legacy AudioStreamReader (non-seekable) — accept-ranges={}, content-length={:?}, hint={:?}",
+                    supports_range, total_size, stream_hint
                 );
                 let buffer_cap = total_size
                     .map(|n| n as usize)
@@ -2697,11 +3140,15 @@ pub async fn audio_play(
                     gen,
                     state.generation.clone(),
                     audio_http_client(&state),
+                    app.clone(),
                     url.clone(),
                     response,
                     prod,
                     done.clone(),
                     state.stream_completed_cache.clone(),
+                    state.normalization_target_lufs.clone(),
+                    state.loudness_pre_analysis_attenuation_db.clone(),
+                    cache_id_for_tasks.clone(),
                 ));
 
                 let (_new_cons_tx, new_cons_rx) = std::sync::mpsc::channel::<HeapConsumer<u8>>();
@@ -2735,7 +3182,59 @@ pub async fn audio_play(
         return Ok(());
     }
 
-    let (gain_linear, effective_volume) = compute_gain(replay_gain_db, replay_gain_peak, pre_gain_db, fallback_db, volume);
+    let target_lufs = f32::from_bits(state.normalization_target_lufs.load(Ordering::Relaxed));
+    let resolved_loudness_gain_db = resolve_loudness_gain_from_cache(
+        &app,
+        &url,
+        target_lufs,
+        logical_trim.as_deref(),
+    );
+    let norm_mode = state.normalization_engine.load(Ordering::Relaxed);
+    let pre_analysis_db = loudness_pre_analysis_db_for_engine(&state);
+    let startup_loudness_gain_db = if norm_mode == 2 {
+        loudness_gain_db_or_startup(
+            &app,
+            &url,
+            target_lufs,
+            logical_trim.as_deref(),
+            pre_analysis_db,
+            false,
+            loudness_gain_db,
+        )
+    } else {
+        resolved_loudness_gain_db
+    };
+    let (gain_linear, effective_volume) = compute_gain(
+        norm_mode,
+        replay_gain_db,
+        replay_gain_peak,
+        startup_loudness_gain_db,
+        pre_gain_db,
+        fallback_db,
+        volume,
+    );
+    let current_gain_db = loudness_ui_current_gain_db(norm_mode, resolved_loudness_gain_db, gain_linear);
+    crate::app_deprintln!(
+        "[normalization] audio_play track_id={:?} engine={} replay_gain_db={:?} replay_gain_peak={:?} loudness_gain_db={:?} gain_linear={:.4} current_gain_db={:?} target_lufs={:.2} volume={:.3} effective_volume={:.3}",
+        playback_identity(&url),
+        normalization_engine_name(norm_mode),
+        replay_gain_db,
+        replay_gain_peak,
+        resolved_loudness_gain_db,
+        gain_linear,
+        current_gain_db,
+        target_lufs,
+        volume,
+        effective_volume
+    );
+    let _ = app.emit(
+        "audio:normalization-state",
+        NormalizationStatePayload {
+            engine: normalization_engine_name(norm_mode).to_string(),
+            current_gain_db,
+            target_lufs,
+        },
+    );
 
     // Manual skips (user-initiated) bypass crossfade — the track should start immediately.
     let crossfade_enabled = state.crossfade_enabled.load(Ordering::Relaxed) && !manual;
@@ -2999,6 +3498,7 @@ pub async fn audio_play(
         state.current_sample_rate.clone(),
         state.current_channels.clone(),
         state.gapless_switch_at.clone(),
+        state.current_playback_url.clone(),
     );
 
     Ok(())
@@ -3020,9 +3520,12 @@ pub async fn audio_chain_preload(
     duration_hint: f64,
     replay_gain_db: Option<f32>,
     replay_gain_peak: Option<f32>,
+    loudness_gain_db: Option<f32>,
     pre_gain_db: f32,
     fallback_db: f32,
     hi_res_enabled: bool,
+    analysis_track_id: Option<String>,
+    app: AppHandle,
     state: State<'_, AudioEngine>,
 ) -> Result<(), String> {
     // Idempotent: already chained this track → nothing to do.
@@ -3082,12 +3585,41 @@ pub async fn audio_chain_preload(
 
     let raw_bytes = Arc::new(data);
 
+    let logical_trim = analysis_track_id
+        .as_ref()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+
     // Only `gain_linear` is needed — `effective_volume` is intentionally NOT
     // applied to the Sink here. `audio_chain_preload` runs ~30 s before the
     // current track ends, and `Sink::set_volume` affects the WHOLE Sink (incl.
     // the still-playing current source). Volume for the chained track is
     // applied at the gapless transition in `spawn_progress_task`, not here.
-    let (gain_linear, _effective_volume) = compute_gain(replay_gain_db, replay_gain_peak, pre_gain_db, fallback_db, volume);
+    let target_lufs = f32::from_bits(state.normalization_target_lufs.load(Ordering::Relaxed));
+    let norm_mode = state.normalization_engine.load(Ordering::Relaxed);
+    let pre_analysis_db = loudness_pre_analysis_db_for_engine(&state);
+    let chain_loudness_db = if norm_mode == 2 {
+        loudness_gain_db_or_startup(
+            &app,
+            &url,
+            target_lufs,
+            logical_trim.as_deref(),
+            pre_analysis_db,
+            false,
+            loudness_gain_db,
+        )
+    } else {
+        resolve_loudness_gain_from_cache(&app, &url, target_lufs, logical_trim.as_deref())
+    };
+    let (gain_linear, _effective_volume) = compute_gain(
+        norm_mode,
+        replay_gain_db,
+        replay_gain_peak,
+        chain_loudness_db,
+        pre_gain_db,
+        fallback_db,
+        volume,
+    );
 
     let done_next = Arc::new(AtomicBool::new(false));
     // Use a dedicated counter for the chained source — it will be swapped into
@@ -3189,7 +3721,24 @@ fn spawn_progress_task(
     sample_rate_arc: Arc<AtomicU32>,
     channels_arc: Arc<AtomicU32>,
     gapless_switch_at: Arc<AtomicU64>,
+    current_playback_url: Arc<Mutex<Option<String>>>,
 ) {
+    fn estimated_output_latency_secs(sample_rate_hz: f64) -> f64 {
+        #[cfg(target_os = "linux")]
+        {
+            // Keep progress aligned with audible output (ALSA/PipeWire/Pulse
+            // queue). We mirror the quantum policy used for stream open/reopen.
+            let rate = sample_rate_hz.max(1.0);
+            let frames = if rate > 48_000.0 { 8192.0 } else { 4096.0 };
+            // Add a small scheduler/mixer cushion so UI doesn't run ahead.
+            return (frames / rate) + 0.012;
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            0.0
+        }
+    }
+
     tokio::spawn(async move {
         let mut near_end_ticks: u32 = 0;
         // Local done-flag reference; swapped on gapless transition.
@@ -3239,6 +3788,7 @@ fn spawn_progress_task(
                     // must only be called at the boundary, not at preload.
                     {
                         let mut cur = current_arc.lock().unwrap();
+                        let prev_effective = (cur.base_volume * cur.replay_gain_linear * MASTER_HEADROOM).clamp(0.0, 1.0);
                         cur.replay_gain_linear = info.replay_gain_linear;
                         cur.base_volume = info.base_volume;
                         cur.duration_secs = info.duration_secs;
@@ -3246,9 +3796,11 @@ fn spawn_progress_task(
                         cur.play_started = Some(Instant::now());
                         if let Some(sink) = &cur.sink {
                             let effective = (cur.base_volume * cur.replay_gain_linear * MASTER_HEADROOM).clamp(0.0, 1.0);
-                            sink.set_volume(effective);
+                            ramp_sink_volume(Arc::clone(sink), prev_effective, effective);
                         }
                     }
+
+                    *current_playback_url.lock().unwrap() = Some(info.url.clone());
 
                     // Record the gapless switch timestamp for ghost-command guard.
                     let switch_ts = std::time::SystemTime::now()
@@ -3274,21 +3826,25 @@ fn spawn_progress_task(
             let samples = samples_played.load(Ordering::Relaxed) as f64;
             let divisor = (rate * ch).max(1.0);
 
-            let dur = {
+            // Read playback snapshot under a single lock to minimize contention
+            // with seek/play/pause commands that also touch `current`.
+            let (dur, paused_at) = {
                 let cur = current_arc.lock().unwrap();
-                cur.duration_secs
+                (cur.duration_secs, cur.paused_at)
             };
-            let is_paused = {
-                let cur = current_arc.lock().unwrap();
-                cur.paused_at.is_some()
-            };
+            let is_paused = paused_at.is_some();
 
-            let pos = if is_paused {
-                let cur = current_arc.lock().unwrap();
-                cur.paused_at.unwrap_or(0.0)
+            let pos_raw = if let Some(p) = paused_at {
+                p
             } else {
                 (samples / divisor).min(dur.max(0.001))
             };
+            let progress_latency = if is_paused {
+                0.0
+            } else {
+                estimated_output_latency_secs(rate)
+            };
+            let pos = (pos_raw - progress_latency).max(0.0);
 
             app.emit("audio:progress", ProgressPayload { current_time: pos, duration: dur }).ok();
 
@@ -3300,7 +3856,7 @@ fn spawn_progress_task(
             let cf_secs = f32::from_bits(crossfade_secs_arc.load(Ordering::Relaxed)).clamp(0.5, 12.0) as f64;
             let end_threshold = if cf_enabled { cf_secs.max(1.0) } else { 1.0 };
 
-            if dur > end_threshold && pos >= dur - end_threshold {
+            if dur > end_threshold && pos_raw >= dur - end_threshold {
                 near_end_ticks += 1;
                 // At 100 ms ticks, 10 ticks ≈ 1 s — equivalent to the old 2×500ms.
                 if near_end_ticks >= 10 {
@@ -3411,6 +3967,8 @@ pub async fn audio_resume(state: State<'_, AudioEngine>, app: AppHandle) -> Resu
 #[tauri::command]
 pub fn audio_stop(state: State<'_, AudioEngine>) {
     state.generation.fetch_add(1, Ordering::SeqCst);
+    *state.current_playback_url.lock().unwrap() = None;
+    *state.current_analysis_track_id.lock().unwrap() = None;
     *state.chained_info.lock().unwrap() = None;
     *state.stream_completed_cache.lock().unwrap() = None;
     // Drop RadioLiveState → triggers Drop → task.abort() → TCP released.
@@ -3525,9 +4083,11 @@ pub fn audio_seek(seconds: f64, state: State<'_, AudioEngine>) -> Result<(), Str
 #[tauri::command]
 pub fn audio_set_volume(volume: f32, state: State<'_, AudioEngine>) {
     let mut cur = state.current.lock().unwrap();
+    let prev_effective = (cur.base_volume * cur.replay_gain_linear * MASTER_HEADROOM).clamp(0.0, 1.0);
     cur.base_volume = volume.clamp(0.0, 1.0);
     if let Some(sink) = &cur.sink {
-        sink.set_volume((cur.base_volume * cur.replay_gain_linear * MASTER_HEADROOM).clamp(0.0, 1.0));
+        let next_effective = (cur.base_volume * cur.replay_gain_linear * MASTER_HEADROOM).clamp(0.0, 1.0);
+        ramp_sink_volume(Arc::clone(sink), prev_effective, next_effective);
     }
 }
 
@@ -3536,17 +4096,94 @@ pub fn audio_update_replay_gain(
     volume: f32,
     replay_gain_db: Option<f32>,
     replay_gain_peak: Option<f32>,
+    loudness_gain_db: Option<f32>,
     pre_gain_db: f32,
     fallback_db: f32,
+    app: AppHandle,
     state: State<'_, AudioEngine>,
 ) {
-    let (gain_linear, effective) = compute_gain(replay_gain_db, replay_gain_peak, pre_gain_db, fallback_db, volume);
+    let norm_mode = state.normalization_engine.load(Ordering::Relaxed);
+    let target_lufs = f32::from_bits(state.normalization_target_lufs.load(Ordering::Relaxed));
+    let pre_analysis_db = loudness_pre_analysis_db_for_engine(&state);
+    let url_for_loudness = if norm_mode == 2 {
+        state.current_playback_url.lock().unwrap().clone()
+    } else {
+        None
+    };
+    let logical_for_loudness = state
+        .current_analysis_track_id
+        .lock()
+        .ok()
+        .and_then(|g| (*g).clone())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    // If `current_playback_url` is not pinned yet, still honour JS `loudness_gain_db`
+    // so `loudness_ui_current_gain_db` can show a number (otherwise `and_then`
+    // drops the requested gain entirely).
+    let resolved_loudness_gain_db = url_for_loudness
+        .as_deref()
+        .and_then(|u| {
+            resolve_loudness_gain_from_cache(
+                &app,
+                u,
+                target_lufs,
+                logical_for_loudness.as_deref(),
+            )
+        })
+        .or(loudness_gain_db);
+    let effective_loudness_db = if norm_mode == 2 {
+        match url_for_loudness.as_deref() {
+            Some(u) => loudness_gain_db_or_startup(
+                &app,
+                u,
+                target_lufs,
+                logical_for_loudness.as_deref(),
+                pre_analysis_db,
+                true,
+                loudness_gain_db,
+            ),
+            None => loudness_gain_db.or(Some(pre_analysis_db)),
+        }
+    } else {
+        loudness_gain_db
+    };
+    let (gain_linear, effective) = compute_gain(
+        norm_mode,
+        replay_gain_db,
+        replay_gain_peak,
+        effective_loudness_db,
+        pre_gain_db,
+        fallback_db,
+        volume,
+    );
+    let current_gain_db = loudness_ui_current_gain_db(norm_mode, resolved_loudness_gain_db, gain_linear);
+    crate::app_deprintln!(
+        "[normalization] audio_update_replay_gain engine={} replay_gain_db={:?} replay_gain_peak={:?} loudness_gain_db={:?} gain_linear={:.4} current_gain_db={:?} target_lufs={:.2} volume={:.3} effective={:.3}",
+        normalization_engine_name(norm_mode),
+        replay_gain_db,
+        replay_gain_peak,
+        loudness_gain_db,
+        gain_linear,
+        current_gain_db,
+        target_lufs,
+        volume,
+        effective
+    );
     let mut cur = state.current.lock().unwrap();
+    let prev_effective = (cur.base_volume * cur.replay_gain_linear * MASTER_HEADROOM).clamp(0.0, 1.0);
     cur.replay_gain_linear = gain_linear;
     cur.base_volume = volume.clamp(0.0, 1.0);
     if let Some(sink) = &cur.sink {
-        sink.set_volume(effective);
+        ramp_sink_volume(Arc::clone(sink), prev_effective, effective);
     }
+    let _ = app.emit(
+        "audio:normalization-state",
+        NormalizationStatePayload {
+            engine: normalization_engine_name(norm_mode).to_string(),
+            current_gain_db,
+            target_lufs,
+        },
+    );
 }
 
 /// Proxy: fetches https://autoeq.app/entries via Rust to bypass WebView CORS restrictions.
@@ -3608,6 +4245,7 @@ pub fn audio_set_eq(gains: [f32; 10], enabled: bool, pre_gain: f32, state: State
 pub async fn audio_preload(
     url: String,
     duration_hint: f64,
+    analysis_track_id: Option<String>,
     app: AppHandle,
     state: State<'_, AudioEngine>,
 ) -> Result<(), String> {
@@ -3636,6 +4274,25 @@ pub async fn audio_preload(
         response.bytes().await.map_err(|e| e.to_string())?.into()
     };
     let _ = duration_hint; // kept in API for compatibility
+    let logical_trim = analysis_track_id
+        .as_ref()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    if let Some(track_id) = analysis_cache_track_id(logical_trim.as_deref(), &url) {
+        match crate::analysis_cache::seed_from_bytes(&app, &track_id, &data) {
+            Err(e) => crate::app_eprintln!("[analysis] preload seed failed for {}: {}", track_id, e),
+            Ok(crate::analysis_cache::SeedFromBytesOutcome::Upserted) => {
+                let _ = app.emit(
+                    "analysis:waveform-updated",
+                    WaveformUpdatedPayload {
+                        track_id: track_id.clone(),
+                        is_partial: false,
+                    },
+                );
+            }
+            Ok(_) => {}
+        }
+    }
     let url_for_emit = url.clone();
     *state.preloaded.lock().unwrap() = Some(PreloadedTrack { url, data });
     let _ = app.emit("audio:preload-ready", url_for_emit);
@@ -3780,6 +4437,8 @@ pub async fn audio_play_radio(
         cur.fadeout_samples   = Some(fadeout_samples);
     }
 
+    *state.current_playback_url.lock().unwrap() = Some(url.clone());
+
     state.current_sample_rate.store(sample_rate, Ordering::Relaxed);
     state.current_channels.store(channels as u32, Ordering::Relaxed);
 
@@ -3798,6 +4457,7 @@ pub async fn audio_play_radio(
         state.current_sample_rate.clone(),
         state.current_channels.clone(),
         state.gapless_switch_at.clone(),
+        state.current_playback_url.clone(),
     );
 
     Ok(())
@@ -3978,6 +4638,47 @@ pub fn audio_set_crossfade(enabled: bool, secs: f32, state: State<'_, AudioEngin
 #[tauri::command]
 pub fn audio_set_gapless(enabled: bool, state: State<'_, AudioEngine>) {
     state.gapless_enabled.store(enabled, Ordering::Relaxed);
+}
+
+#[tauri::command]
+pub fn audio_set_normalization(
+    engine: String,
+    target_lufs: f32,
+    pre_analysis_attenuation_db: f32,
+    app: AppHandle,
+    state: State<'_, AudioEngine>,
+) {
+    let mode = match engine.as_str() {
+        "replaygain" => 1,
+        "loudness" => 2,
+        _ => 0,
+    };
+    state.normalization_engine.store(mode, Ordering::Relaxed);
+    let target = target_lufs.clamp(-30.0, -8.0);
+    state
+        .normalization_target_lufs
+        .store(target.to_bits(), Ordering::Relaxed);
+    let pre = pre_analysis_attenuation_db.clamp(-24.0, 0.0).min(0.0);
+    state
+        .loudness_pre_analysis_attenuation_db
+        .store(pre.to_bits(), Ordering::Relaxed);
+    crate::app_deprintln!(
+        "[normalization] audio_set_normalization requested_engine={} resolved_engine={} target_lufs={:.2} pre_analysis_db={:.2}",
+        engine,
+        normalization_engine_name(mode),
+        target,
+        pre
+    );
+    let _ = app.emit(
+        "audio:normalization-state",
+        NormalizationStatePayload {
+            engine: normalization_engine_name(mode).to_string(),
+            // At mode-switch time the effective track gain may not be recalculated yet.
+            // Emit `None` and let audio_play/audio_update_replay_gain publish actual value.
+            current_gain_db: None,
+            target_lufs: target,
+        },
+    );
 }
 
 // ─── Device-change watcher ────────────────────────────────────────────────────

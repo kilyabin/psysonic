@@ -834,6 +834,12 @@ export const nlTranslation = {
     replayGainAlbum: 'Album',
     replayGainPreGain: 'Pre-Gain (getagde bestanden)',
     replayGainFallback: 'Terugval (zonder tags / radio)',
+    normalization: 'Normalisatie',
+    loudnessTargetLufs: 'Doel-LUFS',
+    loudnessPreAnalysisAttenuation: 'Demping vóór meting (dB)',
+    loudnessPreAnalysisAttenuationDesc:
+      'Extra zachter tot de loudness van het nummer is opgeslagen. Streamen gebruikt daarna grove schattingen, geen volledige meting. 0 dB = uit; negatiever = zachter.',
+    loudnessPreAnalysisAttenuationReset: 'Standaard',
     crossfade: 'Overgang',
     crossfadeDesc: 'Fade tussen nummers',
     crossfadeSecs: '{{n}} s',

@@ -30,6 +30,22 @@ try {
   // Ignore in non-Tauri runtimes.
 }
 
+// Zustand rehydrate runs after first paint; AppShell's useEffect can miss the
+// user's persisted `loggingMode` until then — but waveform/audio may already
+// run. Push persisted mode to Rust before React mounts (matches `psysonic-auth`).
+try {
+  const raw = localStorage.getItem('psysonic-auth');
+  if (raw) {
+    const parsed = JSON.parse(raw) as { state?: { loggingMode?: string } };
+    const mode = parsed.state?.loggingMode;
+    if (mode === 'off' || mode === 'normal' || mode === 'debug') {
+      void invoke('set_logging_mode', { mode });
+    }
+  }
+} catch {
+  // Ignore parse / non-Tauri.
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
