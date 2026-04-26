@@ -5,6 +5,8 @@ import { usePlayerStore } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { getSong, SubsonicSong } from '../api/subsonic';
 import { useTranslation } from 'react-i18next';
+import { copyTextToClipboard } from '../utils/serverMagicString';
+import { showToast } from '../utils/toast';
 
 function formatDuration(s: number): string {
   const m = Math.floor(s / 60);
@@ -24,6 +26,27 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
     <tr>
       <td className="song-info-label">{label}</td>
       <td className="song-info-value">{value}</td>
+    </tr>
+  );
+}
+
+/** Title / Artist / Album: double-click the value cell to copy plain text. */
+function CopyableFieldRow({ label, text }: { label: string; text: string | null | undefined }) {
+  const { t } = useTranslation();
+  if (!text || text === '—') return null;
+  const onDoubleClick = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const ok = await copyTextToClipboard(text);
+    if (ok) showToast(t('orbit.tooltipCopied'), 2000, 'info');
+    else showToast(t('contextMenu.shareCopyFailed'), 3500, 'error');
+  };
+  return (
+    <tr>
+      <td className="song-info-label">{label}</td>
+      <td className="song-info-value song-info-value--no-select" onDoubleClick={onDoubleClick}>
+        {text}
+      </td>
     </tr>
   );
 }
@@ -96,9 +119,9 @@ export default function SongInfoModal() {
           {!loading && song && (
             <table className="song-info-table">
               <tbody>
-                <Row label={t('songInfo.songTitle')} value={song.title} />
-                <Row label={t('songInfo.artist')} value={song.artist} />
-                <Row label={t('songInfo.album')} value={song.album} />
+                <CopyableFieldRow label={t('songInfo.songTitle')} text={song.title} />
+                <CopyableFieldRow label={t('songInfo.artist')} text={song.artist} />
+                <CopyableFieldRow label={t('songInfo.album')} text={song.album} />
                 {song.albumArtist && song.albumArtist !== song.artist && (
                   <Row label={t('songInfo.albumArtist')} value={song.albumArtist} />
                 )}
