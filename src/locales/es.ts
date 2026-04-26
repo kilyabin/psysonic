@@ -851,7 +851,8 @@ export const esTranslation = {
     loudnessTargetLufsDesc: 'Volumen de referencia al que se ajustan todas las pistas. Valor más bajo = salida más fuerte. Los servicios de streaming suelen rondar los -14 LUFS.',
     loudnessPreAnalysisAttenuation: 'Atenuación antes de medir',
     loudnessPreAnalysisAttenuationDesc:
-      'Atenúa hasta que la loudness del tema esté guardada. En streaming luego solo hay estimaciones aproximadas. 0 dB = ninguna; más negativo = más bajo.',
+      'Atenúa hasta que la loudness del tema esté guardada. En streaming luego solo hay estimaciones aproximadas. 0 dB = ninguna; más negativo = más bajo. A la derecha se muestra el dB efectivo para el destino actual.',
+    loudnessPreAnalysisAttenuationRef: 'Efectivo {{eff}} dB con destino {{tgt}} LUFS.',
     loudnessPreAnalysisAttenuationReset: 'Predeterminado',
     loudnessFirstPlayNote:
       'En la primera reproducción de un tema nuevo el volumen puede oscilar brevemente mientras se mide. La siguiente vez se usa la medición guardada y todo permanece estable. Las pistas próximas en la cola suelen analizarse durante la canción anterior, por lo que en la práctica esto rara vez ocurre.',

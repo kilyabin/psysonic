@@ -845,7 +845,8 @@ export const nbTranslation = {
     loudnessTargetLufsDesc: 'Referanse-loudness alle spor matches mot. Lavere tall = høyere utgang. Strømmetjenester ligger vanligvis rundt -14 LUFS.',
     loudnessPreAnalysisAttenuation: 'Demping før måling',
     loudnessPreAnalysisAttenuationDesc:
-      'Ekstra demping til loudness for sporet er lagret. Streaming bruker deretter grove anslag, ikke full måling. 0 dB = av; lavere = roligere.',
+      'Ekstra demping til loudness for sporet er lagret. Streaming bruker deretter grove anslag, ikke full måling. 0 dB = av; lavere = roligere. Til høyre vises effektiv dB for valgt mål.',
+    loudnessPreAnalysisAttenuationRef: 'Effektivt {{eff}} dB med mål {{tgt}} LUFS.',
     loudnessPreAnalysisAttenuationReset: 'Standard',
     loudnessFirstPlayNote:
       'Første avspilling av et helt nytt spor kan drive litt i volum mens målingen skjer. Neste gang brukes den lagrede målingen, og alt blir stabilt. Kommende spor i køen blir vanligvis pre-analysert mens det forrige spilles, så dette skjer sjelden i praksis.',
