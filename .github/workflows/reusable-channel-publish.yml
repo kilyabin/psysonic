@@ -311,17 +311,8 @@ jobs:
             -o packages/flatpak/npm-sources.json
 
       - name: patch manifest for this release
-        env:
-          RELEASE_TAG: ${{ needs.create-release.outputs.release_tag }}
         run: |
-          git config --global --add safe.directory /__w/psysonic/psysonic
-          COMMIT=$(git ls-remote origin "refs/tags/${RELEASE_TAG}^{}" | awk '{print $1}')
-          if [ -z "$COMMIT" ]; then
-            COMMIT=$(git ls-remote origin "refs/tags/${RELEASE_TAG}" | awk '{print $1}')
-          fi
           sed -i \
-            -e "s|tag: app-v.*|tag: ${RELEASE_TAG}|" \
-            -e "s|commit: PLACEHOLDER_COMMIT|commit: ${COMMIT}|" \
             -e "s|VITE_LASTFM_API_KEY=__LASTFM_KEY__|VITE_LASTFM_API_KEY=${{ secrets.VITE_LASTFM_API_KEY }}|" \
             -e "s|VITE_LASTFM_API_SECRET=__LASTFM_SECRET__|VITE_LASTFM_API_SECRET=${{ secrets.VITE_LASTFM_API_SECRET }}|" \
             packages/flatpak/dev.psysonic.Psysonic.yml
