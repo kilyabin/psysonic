@@ -302,12 +302,14 @@ jobs:
 
       - name: generate cargo offline sources
         run: |
+          git show app-v1.43.0:src-tauri/Cargo.lock > /tmp/Cargo.lock
           python3 /tmp/flatpak-builder-tools/cargo/flatpak-cargo-generator.py \
-            src-tauri/Cargo.lock -o packages/flatpak/cargo-sources.json
+            /tmp/Cargo.lock -o packages/flatpak/cargo-sources.json
 
       - name: generate npm offline sources
         run: |
-          flatpak-node-generator npm package-lock.json \
+          git show app-v1.43.0:package-lock.json > /tmp/package-lock.json
+          flatpak-node-generator npm /tmp/package-lock.json \
             -o packages/flatpak/npm-sources.json
 
       - name: patch manifest for this release
