@@ -270,6 +270,90 @@ jobs:
             \( -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" \) \
             | xargs gh release upload "$RELEASE_TAG" --clobber
 
+  build-flatpak:
+    needs: create-release
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_ref }}
+
+      - name: install source-generation tools
+        run: |
+          python3 -m ensurepip --upgrade
+          python3 -m pip install --quiet tomlkit aiohttp
+
+      - name: install flatpak-builder-tools
+        run: |
+          git clone --depth=1 \
+            https://github.com/flatpak/flatpak-builder-tools.git \
+            /tmp/flatpak-builder-tools
+          python3 -m pip install --quiet \
+            /tmp/flatpak-builder-tools/node
+
+      - name: clone shared-modules
+        run: |
+          git clone --depth=1 \
+            https://github.com/flathub/shared-modules.git \
+            packages/flatpak/shared-modules
+
+      - name: generate cargo offline sources
+        run: |
+          python3 /tmp/flatpak-builder-tools/cargo/flatpak-cargo-generator.py \
+            src-tauri/Cargo.lock -o packages/flatpak/cargo-sources.json
+
+      - name: generate npm offline sources
+        run: |
+          flatpak-node-generator npm package-lock.json \
+            -o packages/flatpak/npm-sources.json
+
+      - name: patch manifest for this release
+        env:
+          RELEASE_TAG: ${{ needs.create-release.outputs.release_tag }}
+        run: |
+          git config --global --add safe.directory /__w/psysonic/psysonic
+          COMMIT=$(git ls-remote origin "refs/tags/${RELEASE_TAG}^{}" | awk '{print $1}')
+          if [ -z "$COMMIT" ]; then
+            COMMIT=$(git ls-remote origin "refs/tags/${RELEASE_TAG}" | awk '{print $1}')
+          fi
+          sed -i \
+            -e "s|tag: app-v.*|tag: ${RELEASE_TAG}|" \
+            -e "s|commit: PLACEHOLDER_COMMIT|commit: ${COMMIT}|" \
+            -e "s|VITE_LASTFM_API_KEY=__LASTFM_KEY__|VITE_LASTFM_API_KEY=${{ secrets.VITE_LASTFM_API_KEY }}|" \
+            -e "s|VITE_LASTFM_API_SECRET=__LASTFM_SECRET__|VITE_LASTFM_API_SECRET=${{ secrets.VITE_LASTFM_API_SECRET }}|" \
+            packages/flatpak/dev.psysonic.Psysonic.yml
+
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: Psysonic_${{ needs.create-release.outputs.package_version }}.flatpak
+          manifest-path: packages/flatpak/dev.psysonic.Psysonic.yml
+          cache-key: flatpak-${{ github.sha }}
+
+  upload-flatpak:
+    needs: [create-release, build-flatpak]
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    steps:
+      - name: download flatpak artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Psysonic_${{ needs.create-release.outputs.package_version }}-x86_64.flatpak
+
+      - name: upload to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=${{ needs.create-release.outputs.package_version }}
+          RELEASE_TAG=${{ needs.create-release.outputs.release_tag }}
+          gh release upload "$RELEASE_TAG" \
+            "Psysonic_${VERSION}.flatpak" \
+            --clobber \
+            --repo ${{ github.repository }}
+
   verify-nix:
     if: ${{ inputs.verify_nix }}
     needs: create-release
